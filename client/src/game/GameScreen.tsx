@@ -3,6 +3,8 @@ import type { AppSocket } from '../socket';
 import './GameScreen.css';
 import type { GameState, InningsStartPayload, BallPlayedPayload } from '@cric/types';
 import { HandCricketML } from './autoplayML';
+import { apiGet, apiPut } from '../api';
+import type { MLModelData } from './autoplayML';
 
 const NUMBERS = [1, 2, 3, 4, 5, 6];
 
@@ -13,6 +15,7 @@ interface GameScreenProps {
   inningsInfo: InningsStartPayload;
   lastBall: BallPlayedPayload | null;
   isAutoPlay: boolean;
+  userToken: string | null;
 }
 
 export default function GameScreen({
@@ -21,6 +24,7 @@ export default function GameScreen({
   gameState,
   lastBall,
   isAutoPlay,
+  userToken,
 }: GameScreenProps) {
   const [myMove, setMyMove] = useState<number | null>(null);
   const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
@@ -44,6 +48,22 @@ export default function GameScreen({
   const wickets = gameState?.wickets ?? 1;
   const wicketsLost = gameState?.wicketsLost ?? 0;
   const wicketsLeft = wickets - wicketsLost;
+
+  // Load persisted model for this opponent on mount; save it back on unmount.
+  useEffect(() => {
+    if (!isAutoPlay || !userToken || myPlayerIdx === null) return;
+    const opponentName = players[myPlayerIdx === 0 ? 1 : 0];
+    if (!opponentName) return;
+    const key = encodeURIComponent(opponentName);
+    apiGet<MLModelData | null>(`/api/ml/${key}`, userToken)
+      .then((data) => {
+        if (data) mlRef.current.fromData(data);
+      })
+      .catch(() => {});
+    return () => {
+      apiPut(`/api/ml/${key}`, mlRef.current.toData(), userToken).catch(() => {});
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show the ball-result banner briefly when a ball resolves.
   useEffect(() => {
