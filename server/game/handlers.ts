@@ -411,13 +411,34 @@ export function registerGameHandlers(io: GameServer): void {
       const tournament = tournaments.get(code.toUpperCase());
       if (!tournament) return socket.emit('error', { message: 'Tournament not found.' });
       if (tournament.phase !== 'waiting') return socket.emit('error', { message: 'Tournament already started.' });
-      if (tournament.players.length >= 4) return socket.emit('error', { message: 'Tournament is full.' });
+
+      // Already in tournament with same socket (no-op)
       if (tournament.players.some(p => p.id === socket.id)) return;
+
+      // Reconnection: logged-in user whose socket.id changed after a refresh
+      const reconnIdx = socket.data.userId !== null
+        ? tournament.players.findIndex(p => p.userId === socket.data.userId)
+        : -1;
+
+      if (reconnIdx !== -1) {
+        tournament.players[reconnIdx].id = socket.id;
+        socket.join('t:' + tournament.id);
+        socket.data.tournamentId = tournament.id;
+        // Use tournament_created so the client transitions to tournament_lobby phase
+        socket.emit('tournament_created', publicTournamentState(tournament));
+        io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+        return;
+      }
+
+      if (tournament.players.length >= 4) return socket.emit('error', { message: 'Tournament is full.' });
 
       tournament.players.push({ id: socket.id, name: playerName, userId: socket.data.userId });
       socket.join('t:' + tournament.id);
       socket.data.tournamentId = tournament.id;
 
+      // Use tournament_created so the joining socket transitions to tournament_lobby phase;
+      // tournament_state alone doesn't trigger the phase change on the client.
+      socket.emit('tournament_created', publicTournamentState(tournament));
       io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
       if (tournament.players.length === 4) {
