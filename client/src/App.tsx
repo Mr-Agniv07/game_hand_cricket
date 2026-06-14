@@ -131,6 +131,7 @@ export default function App() {
     socket.on('tournament_state', (state) => {
       setTournamentState(state);
       if (state.phase === 'complete') setPhase('tournament_result');
+      else setPhase(p => p === 'lobby' ? 'tournament_lobby' : p);
     });
 
     socket.on('tournament_match_starting', ({ roomId: rid, myPlayerIdx: pidx }) => {
