@@ -1,4 +1,4 @@
-export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+export const SERVER_URL = import.meta.env.VITE_SERVER_URL || '';
 
 export async function apiGet<T = any>(path: string, token?: string): Promise<T> {
   const res = await fetch(`${SERVER_URL}${path}`, {
