@@ -4,7 +4,8 @@ import './GameScreen.css';
 import type { GameState, InningsStartPayload, BallPlayedPayload } from '@cric/types';
 import { HandCricketML } from './autoplayML';
 import { apiGet, apiPut } from '../api';
-import type { MLModelData } from './autoplayML';
+import type { MLModelData, MLStats } from './autoplayML';
+import MLInsightsPanel from './MLInsightsPanel';
 
 const NUMBERS = [1, 2, 3, 4, 5, 6];
 
@@ -28,6 +29,8 @@ export default function GameScreen({
 }: GameScreenProps) {
   const [myMove, setMyMove] = useState<number | null>(null);
   const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
+  const [showML, setShowML] = useState(false);
+  const [mlStats, setMlStats] = useState<MLStats>(() => new HandCricketML().getStats());
   const mlRef = useRef(new HandCricketML());
 
   const players = gameState?.players || [];
@@ -80,6 +83,7 @@ export default function GameScreen({
     if (!lastBall || !isAutoPlay) return;
     const opponentMove = isBatsman ? lastBall.bowlerMove : lastBall.batsmanMove;
     mlRef.current.recordMove(opponentMove);
+    setMlStats(mlRef.current.getStats());
   }, [lastBall, isBatsman, isAutoPlay]);
 
   // New innings: clear Markov context but keep frequency data across the break.
@@ -166,6 +170,17 @@ export default function GameScreen({
           <span className="player-name bowl">🎳 {players[bowlerIdx]}</span>
         </div>
       </div>
+
+      {isAutoPlay && (
+        <>
+          <div style={{ textAlign: 'right', marginBottom: showML ? 0 : '0.25rem' }}>
+            <button className="ml-toggle-btn" onClick={() => setShowML((v) => !v)}>
+              🧠 {showML ? 'Hide insights' : 'ML insights'}
+            </button>
+          </div>
+          {showML && <MLInsightsPanel stats={mlStats} isBatsman={isBatsman} />}
+        </>
+      )}
 
       {ballAnim && (
         <div className={`ball-banner ${ballAnim.isOut ? 'out' : 'run'}`}>

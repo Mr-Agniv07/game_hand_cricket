@@ -91,6 +91,24 @@ export class HandCricketML {
     this.opponentMoves = [];
   }
 
+  getStats(): MLStats {
+    const freqTotal = this.freq.reduce((a, b) => a + b, 0);
+    const freqPct = this.freq.map((c) => Math.round((c / freqTotal) * 100));
+    const lastMove = this.opponentMoves.at(-1) ?? null;
+    let transitionPct: number[] | null = null;
+    if (lastMove !== null) {
+      const row = this.transitions[lastMove];
+      const rowTotal = row.reduce((a, b) => a + b, 0);
+      transitionPct = row.map((c) => Math.round((c / rowTotal) * 100));
+    }
+    return {
+      freqPct,
+      transitionPct,
+      lastMove,
+      totalObservations: this.opponentMoves.length,
+    };
+  }
+
   toData(): MLModelData {
     return {
       freq: [...this.freq],
@@ -108,4 +126,11 @@ export class HandCricketML {
 export interface MLModelData {
   freq: number[];
   transitions: number[][];
+}
+
+export interface MLStats {
+  freqPct: number[];        // [0, pct1..pct6] — opponent pick % per number
+  transitionPct: number[] | null; // [0, pct1..pct6] given last move, null if no history
+  lastMove: number | null;
+  totalObservations: number;
 }
