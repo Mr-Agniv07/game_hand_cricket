@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { AppSocket } from '../socket';
+import './GameScreen.css';
 import type { GameState, InningsStartPayload, BallPlayedPayload } from '@cric/types';
 
 const NUMBERS = [1, 2, 3, 4, 5, 6];

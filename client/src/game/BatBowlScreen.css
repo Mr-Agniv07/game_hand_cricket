@@ -1,0 +1,26 @@
+.bat-bowl-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+}
+.bat-bowl-choices {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+}
+.choice-btn {
+  flex: 1;
+  padding: 1.2rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .12s, opacity .12s;
+}
+.choice-btn:hover { transform: scale(1.04); }
+.choice-btn.bat { background: var(--bat); color: #000; }
+.choice-btn.bowl { background: var(--bowl); color: #000; }
+.waiting-text { color: var(--muted); }
