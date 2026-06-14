@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { AppSocket } from '../socket';
 import './GameScreen.css';
 import type { GameState, InningsStartPayload, BallPlayedPayload } from '@cric/types';
+import { HandCricketML } from './autoplayML';
 
 const NUMBERS = [1, 2, 3, 4, 5, 6];
 
@@ -23,6 +24,7 @@ export default function GameScreen({
 }: GameScreenProps) {
   const [myMove, setMyMove] = useState<number | null>(null);
   const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
+  const mlRef = useRef(new HandCricketML());
 
   const players = gameState?.players || [];
   const batsmanIdx = gameState?.batsmanIdx ?? 0;
@@ -52,22 +54,35 @@ export default function GameScreen({
     }
   }, [lastBall]);
 
+  // Feed the opponent's move into the ML model. Must run before the autoplay
+  // effect so the model is up-to-date when the next move is chosen.
+  useEffect(() => {
+    if (!lastBall || !isAutoPlay) return;
+    const opponentMove = isBatsman ? lastBall.bowlerMove : lastBall.batsmanMove;
+    mlRef.current.recordMove(opponentMove);
+  }, [lastBall, isBatsman, isAutoPlay]);
+
+  // Reset the model when innings change (roles swap, fresh patterns).
+  useEffect(() => {
+    mlRef.current.reset();
+  }, [currentInnings]);
+
   // Unlock the numpad whenever the server advances the ball count or the innings
   // changes. Keying off authoritative server state (not a transient lastBall
   // set-then-null) makes this robust to React's batching at the innings break —
   // otherwise myMove could stay set and freeze the numpad for the whole 2nd
   // innings (a hang for BOTH players).
-  // When autoplay is on, also auto-submit a random move after a short delay.
+  // When autoplay is on, the ML model picks the next move.
   useEffect(() => {
     setMyMove(null);
     if (!isAutoPlay) return;
     const t = setTimeout(() => {
-      const n = Math.floor(Math.random() * 6) + 1;
+      const n = isBatsman ? mlRef.current.pickAsBatsman() : mlRef.current.pickAsBowler();
       setMyMove(n);
       socket.emit('play_move', { number: n });
     }, 600);
     return () => clearTimeout(t);
-  }, [balls, currentInnings, isAutoPlay]);
+  }, [balls, currentInnings, isAutoPlay, isBatsman]);
 
   function playMove(n: number) {
     if (myMove !== null) return;
