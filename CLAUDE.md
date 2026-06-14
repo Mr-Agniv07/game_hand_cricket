@@ -13,43 +13,61 @@ client is a thin renderer driven by socket events.
 
 Use **pnpm**, not npm. This is a **pnpm workspace**: the root `package.json` owns the
 `packageManager` pin (`pnpm@10.33.0`), and there is a single `pnpm-lock.yaml` at the
-root. `pnpm-workspace.yaml` lists the two member packages (`server`, `client`).
+root. `pnpm-workspace.yaml` lists three member packages: `server`, `client`, and
+`shared/*` (currently just `shared/types`).
+
+The whole codebase is **TypeScript** under `strict` mode. There is **no build/emit
+step for types** — the only check is `tsc --noEmit`. `vite build` and a successful boot
+do **not** validate types (esbuild/Node strip them blind), so **green `tsc` is the
+definition of "it compiles".** Always run `pnpm typecheck` before considering TS work
+done.
 
 ## Layout & commands
 
-A pnpm workspace with two member packages, `server/` and `client/`. Dependencies are
-installed once from the root and hoisted into the root `node_modules`.
+A pnpm workspace with three member packages. Dependencies are installed once from the
+root and hoisted into the root `node_modules`.
 
 From the **repo root**:
-- `pnpm install` — installs both packages.
+- `pnpm install` — installs everything.
 - `pnpm dev` — runs **both** dev servers in parallel (`pnpm -r --parallel run dev`).
 - `pnpm dev:server` / `pnpm dev:client` — run just one (`--filter`).
-- `pnpm start` — `node index.js` for the server.
-- `pnpm build` / `pnpm preview` — client production build / preview.
+- `pnpm start` — runs the server.
+- `pnpm typecheck` — `tsc --noEmit` across all packages (`pnpm -r run typecheck`).
+- `pnpm build` / `pnpm preview` — client production build (`tsc --noEmit && vite build`) / preview.
 
 The member packages keep their own scripts and can still be run from their own
 directory (e.g. `cd server && pnpm dev`):
 
-- **server/** — Node + Express + Socket.io, ES modules (`"type": "module"`).
-  - `pnpm dev` — nodemon, auto-restart (use this while developing)
-  - `pnpm start` — plain `node index.js`
+- **shared/types/** — `@cric/types`, a **type-only** package: the socket/API contract
+  (`GameState`, event payloads, `ServerToClientEvents` / `ClientToServerEvents`) defined
+  once and consumed by both ends via `import type`. Nothing here is loaded at runtime, so
+  there's no build — both sides just type-check against it.
+- **server/** — Node + Express + Socket.io, ES modules (`"type": "module"`),
+  TypeScript run via **Node ≥ 23.6 native type stripping** (no ts-node/tsx, no nodemon).
+  - `pnpm dev` — `node --watch index.ts`, auto-restart (use this while developing)
+  - `pnpm start` — `node index.ts`
+  - `pnpm typecheck` — `tsc --noEmit`
   - Listens on `PORT` env or `3001`.
-- **client/** — React 19 + Vite.
+  - Imports use explicit `.ts` extensions (`./db.ts`) — required by Node's resolver.
+- **client/** — React 19 + Vite (`.tsx` handled natively).
   - `pnpm dev` — Vite dev server
-  - `pnpm build`, `pnpm preview`
-  - Server URL comes from `VITE_SERVER_URL` (defaults to `http://localhost:3001`), see `client/src/socket.js`.
+  - `pnpm build` (typecheck + build), `pnpm typecheck`, `pnpm preview`
+  - Server URL comes from `VITE_SERVER_URL` (defaults to `http://localhost:3001`), see `client/src/socket.ts`.
 
-There are no tests, linters, or typecheck scripts configured.
+`verbatimModuleSyntax` is on everywhere, so type-only imports **must** use
+`import type { … }` (a plain `import` of a type errors).
+
+There are no tests or linters configured (but `tsc --noEmit` is now a real check — see above).
 
 ## Architecture
 
-**The server (`server/index.js`) is the single source of truth.** It holds every
+**The server (`server/index.ts`) is the single source of truth.** It holds every
 room's full `gameState` in an in-memory `Map` (`rooms`) — nothing is persisted, so a
 server restart drops all in-progress games. The client mirrors state purely by
 listening to socket events; it never computes scores, winners, or whose turn it is.
 
 Phase machine (`room.phase`): `waiting → toss_call → bat_bowl → innings → result`.
-The client's `App.jsx` has a parallel `phase` state driven entirely by server events,
+The client's `App.tsx` has a parallel `phase` state driven entirely by server events,
 and renders one screen component per phase (`Lobby`, `TossScreen`, `BatBowlScreen`,
 `GameScreen`, `ResultScreen`, plus the `InningsEndOverlay`).
 
@@ -73,12 +91,12 @@ These patterns exist because of bugs that were fixed; reverting them reintroduce
 freezes:
 
 - **Bind socket listeners exactly once and never disconnect on effect cleanup.**
-  `App.jsx` guards binding with a `bound` ref and intentionally omits cleanup. React
+  `App.tsx` guards binding with a `bound` ref and intentionally omits cleanup. React
   StrictMode (dev) double-invokes effects and Vite HMR remounts; disconnecting on
   cleanup drops the player from their room and triggers the server's disconnect
   teardown mid-match.
 - **Drive UI unlock/reset off authoritative server state, never off a transient
-  prop set-then-null.** `GameScreen.jsx` resets the numpad lock (`myMove`) on
+  prop set-then-null.** `GameScreen.tsx` resets the numpad lock (`myMove`) on
   `useEffect(..., [balls, currentInnings])`, *not* inside the `lastBall` effect. At the
   innings break the server emits `ball_played → innings_start → state` back-to-back, so
   `lastBall` is set then nulled in one React batch — a `lastBall`-keyed reset would be
@@ -89,7 +107,10 @@ freezes:
 - **Server keeps rooms alive through brief disconnects.** `disconnect` starts an 8s
   grace timer before tearing down the room, so HMR/StrictMode blips don't end games.
 
-## Cruft to ignore
+## Client entry & types
 
-`client/src/counter.ts`, `client/src/main.ts`, and `client/src/style.css` are leftover
-Vite-template starter files and are not part of the app (entry is `main.jsx`).
+The client entry is `client/src/main.tsx` (referenced from `client/index.html`).
+Client-only types (`ClientUser`, `AppPhase`, `RematchState`) live in
+`client/src/types.ts`; everything describing the wire contract lives in `@cric/types`.
+The old Vite-template starter cruft (`counter.ts`, `main.ts`, `style.css`) has been
+removed.

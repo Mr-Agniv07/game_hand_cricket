@@ -1,15 +1,24 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { apiPost } from '../api';
+import type { AuthResponse } from '@cric/types';
 
-export default function AuthScreen({ onAuth, onGuest }) {
-  const [tab, setTab] = useState('login');
+type AuthTab = 'login' | 'signup';
+
+interface AuthScreenProps {
+  onAuth: (data: AuthResponse) => void;
+  onGuest: () => void;
+}
+
+export default function AuthScreen({ onAuth, onGuest }: AuthScreenProps) {
+  const [tab, setTab] = useState<AuthTab>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     if (tab === 'signup' && password !== confirm) {
@@ -18,16 +27,16 @@ export default function AuthScreen({ onAuth, onGuest }) {
     }
     setLoading(true);
     try {
-      const data = await apiPost(tab === 'login' ? '/api/login' : '/api/signup', { username: username.trim(), password });
+      const data = await apiPost<AuthResponse>(tab === 'login' ? '/api/login' : '/api/signup', { username: username.trim(), password });
       onAuth(data);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
       setLoading(false);
     }
   }
 
-  function switchTab(t) {
+  function switchTab(t: AuthTab) {
     setTab(t);
     setError('');
     setPassword('');

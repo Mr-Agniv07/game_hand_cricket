@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react';
+import type { AppSocket } from '../socket';
+import type { GameState, InningsStartPayload, BallPlayedPayload } from '@cric/types';
 
 const NUMBERS = [1, 2, 3, 4, 5, 6];
 
-export default function GameScreen({ socket, myPlayerIdx, gameState, inningsInfo, lastBall }) {
-  const [myMove, setMyMove] = useState(null);
-  const [ballAnim, setBallAnim] = useState(null);
+interface GameScreenProps {
+  socket: AppSocket;
+  myPlayerIdx: number | null;
+  gameState: GameState;
+  inningsInfo: InningsStartPayload;
+  lastBall: BallPlayedPayload | null;
+}
+
+export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }: GameScreenProps) {
+  const [myMove, setMyMove] = useState<number | null>(null);
+  const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
 
   const players = gameState?.players || [];
   const batsmanIdx = gameState?.batsmanIdx ?? 0;
@@ -43,7 +53,7 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, inningsInfo
     setMyMove(null);
   }, [balls, currentInnings]);
 
-  function playMove(n) {
+  function playMove(n: number) {
     if (myMove !== null) return;
     setMyMove(n);
     socket.emit('play_move', { number: n });

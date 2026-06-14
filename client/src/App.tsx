@@ -9,27 +9,33 @@ import BatBowlScreen from './components/BatBowlScreen';
 import GameScreen from './components/GameScreen';
 import ResultScreen from './components/ResultScreen';
 import InningsEndOverlay from './components/InningsEndOverlay';
+import type {
+  GameState, TossStartPayload, TossResultPayload, InningsStartPayload,
+  BallPlayedPayload, GameOverPayload, InningsEndPayload, ChallengeReceivedPayload,
+  AuthResponse,
+} from '@cric/types';
+import type { ClientUser, AppPhase, RematchState } from './types';
 import './App.css';
 
 const STORED_KEY = 'cric_user';
 
 export default function App() {
-  const [phase, setPhase] = useState('loading');
-  const [user, setUser] = useState(null);        // { id, username, token, stats }
-  const [myId, setMyId] = useState(null);
-  const [myPlayerIdx, setMyPlayerIdx] = useState(null);
-  const [roomId, setRoomId] = useState(null);
-  const [gameState, setGameState] = useState(null);
-  const [tossInfo, setTossInfo] = useState(null);
-  const [tossResult, setTossResult] = useState(null);
-  const [inningsInfo, setInningsInfo] = useState(null);
-  const [lastBall, setLastBall] = useState(null);
-  const [gameOver, setGameOver] = useState(null);
-  const [inningsEnd, setInningsEnd] = useState(null);
-  const [error, setError] = useState(null);
+  const [phase, setPhase] = useState<AppPhase>('loading');
+  const [user, setUser] = useState<ClientUser | null>(null);
+  const [myId, setMyId] = useState<string | null>(null);
+  const [myPlayerIdx, setMyPlayerIdx] = useState<number | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [tossInfo, setTossInfo] = useState<TossStartPayload | null>(null);
+  const [tossResult, setTossResult] = useState<TossResultPayload | null>(null);
+  const [inningsInfo, setInningsInfo] = useState<InningsStartPayload | null>(null);
+  const [lastBall, setLastBall] = useState<BallPlayedPayload | null>(null);
+  const [gameOver, setGameOver] = useState<GameOverPayload | null>(null);
+  const [inningsEnd, setInningsEnd] = useState<InningsEndPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
-  const [incomingChallenge, setIncomingChallenge] = useState(null);
-  const [rematchState, setRematchState] = useState(null); // null | 'waiting' | 'opponent_wants'
+  const [incomingChallenge, setIncomingChallenge] = useState<ChallengeReceivedPayload | null>(null);
+  const [rematchState, setRematchState] = useState<RematchState>(null);
 
   const bound = useRef(false);
 
@@ -38,7 +44,7 @@ export default function App() {
     bound.current = true;
 
     // ── Bind all socket listeners once ──────────────────────────────────────
-    socket.on('connect', () => setMyId(socket.id));
+    socket.on('connect', () => setMyId(socket.id ?? null));
 
     socket.on('connect_error', () => {
       // Token may have expired (server restart). Force re-login.
@@ -115,7 +121,7 @@ export default function App() {
     if (stored?.token) {
       apiGet('/api/me', stored.token)
         .then(data => {
-          const restored = { ...stored, stats: data.stats };
+          const restored: ClientUser = { ...stored, stats: data.stats };
           setUser(restored);
           socket.auth = { token: stored.token };
           socket.connect();
@@ -136,8 +142,8 @@ export default function App() {
     setPhase('lobby');
   }
 
-  function handleAuthSuccess(data) {
-    const userData = { id: data.id, username: data.username, token: data.token, stats: data.stats };
+  function handleAuthSuccess(data: AuthResponse) {
+    const userData: ClientUser = { id: data.id, username: data.username, token: data.token, stats: data.stats };
     setUser(userData);
     localStorage.setItem(STORED_KEY, JSON.stringify({ id: data.id, username: data.username, token: data.token }));
     socket.auth = { token: data.token };
@@ -165,7 +171,7 @@ export default function App() {
     resetState();
   }
 
-  function handleJoinRoom(code, playerName) {
+  function handleJoinRoom(code: string, playerName: string) {
     setMyPlayerIdx(1);
     socket.emit('join_room', { roomId: code, playerName });
   }
@@ -196,7 +202,7 @@ export default function App() {
     const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
     if (stored?.token) {
       apiGet('/api/me', stored.token)
-        .then(data => setUser(u => ({ ...u, stats: data.stats })))
+        .then(data => setUser(u => (u ? { ...u, stats: data.stats } : u)))
         .catch(() => {});
     }
   }
@@ -314,7 +320,6 @@ export default function App() {
           socket={socket}
           myId={myId}
           gameState={gameState}
-          tossResult={tossResult}
         />
       )}
 

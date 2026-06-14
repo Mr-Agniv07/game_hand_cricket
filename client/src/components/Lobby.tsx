@@ -1,39 +1,52 @@
 import { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { apiGet } from '../api';
+import type { Mode, MatchHistoryEntry } from '@cric/types';
+import type { AppSocket } from '../socket';
+import type { ClientUser } from '../types';
 
 const OVER_OPTIONS = [1, 2, 3, 5, 10];
 const WICKET_OPTIONS = [1, 2, 3, 5, 10];
 
-export default function Lobby({ socket, onJoinRoom, defaultName = '', user = null }) {
-  const [tab, setTab] = useState('create');
+type LobbyTab = 'create' | 'join' | 'history';
+
+interface LobbyProps {
+  socket: AppSocket;
+  onJoinRoom: (code: string, playerName: string) => void;
+  defaultName?: string;
+  user?: ClientUser | null;
+}
+
+export default function Lobby({ socket, onJoinRoom, defaultName = '', user = null }: LobbyProps) {
+  const [tab, setTab] = useState<LobbyTab>('create');
   const [name, setName] = useState(defaultName);
-  const [mode, setMode] = useState('overs');
+  const [mode, setMode] = useState<Mode>('overs');
   const [overs, setOvers] = useState(2);
   const [wickets, setWickets] = useState(2);
   const [joinCode, setJoinCode] = useState('');
   const [joinName, setJoinName] = useState(defaultName);
-  const [history, setHistory] = useState(null); // null = not loaded yet
+  const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null); // null = not loaded yet
 
   const loggedIn = !!user;
 
   useEffect(() => {
     if (tab === 'history' && history === null && user?.token) {
-      apiGet('/api/history', user.token)
+      apiGet<MatchHistoryEntry[]>('/api/history', user.token)
         .then(data => setHistory(data))
         .catch(() => setHistory([]));
     }
   }, [tab]);
 
-  function handleCreate(e) {
+  function handleCreate(e: FormEvent) {
     e.preventDefault();
-    const playerName = loggedIn ? user.username : name.trim();
+    const playerName = user ? user.username : name.trim();
     if (!playerName) return;
     socket.emit('create_room', { playerName, overs, mode, wickets });
   }
 
-  function handleJoin(e) {
+  function handleJoin(e: FormEvent) {
     e.preventDefault();
-    const playerName = loggedIn ? user.username : joinName.trim();
+    const playerName = user ? user.username : joinName.trim();
     if (!playerName || !joinCode.trim()) return;
     onJoinRoom(joinCode.trim().toUpperCase(), playerName);
   }
@@ -42,7 +55,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
 
   return (
     <div className="lobby">
-      {s && (
+      {user && s && (
         <div className="stats-card">
           <div className="stats-header">{user.username}'s Stats</div>
           <div className="stats-grid">

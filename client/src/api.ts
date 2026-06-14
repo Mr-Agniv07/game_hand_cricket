@@ -1,6 +1,6 @@
 export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 
-export async function apiGet(path, token) {
+export async function apiGet<T = any>(path: string, token?: string): Promise<T> {
   const res = await fetch(`${SERVER_URL}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -9,7 +9,7 @@ export async function apiGet(path, token) {
   return data;
 }
 
-export async function apiPost(path, body, token) {
+export async function apiPost<T = any>(path: string, body: unknown, token?: string): Promise<T> {
   const res = await fetch(`${SERVER_URL}${path}`, {
     method: 'POST',
     headers: {
@@ -23,7 +23,7 @@ export async function apiPost(path, body, token) {
   return data;
 }
 
-export async function apiDelete(path, token) {
+export async function apiDelete<T = any>(path: string, token?: string): Promise<T> {
   const res = await fetch(`${SERVER_URL}${path}`, {
     method: 'DELETE',
     headers: token ? { Authorization: `Bearer ${token}` } : {},

@@ -1,10 +1,19 @@
 import { useState } from 'react';
+import type { AppSocket } from '../socket';
+import type { TossStartPayload, TossResultPayload, TossCall } from '@cric/types';
 
-export default function TossScreen({ socket, myId, tossInfo, tossResult }) {
+interface TossScreenProps {
+  socket: AppSocket;
+  myId: string | null;
+  tossInfo: TossStartPayload;
+  tossResult: TossResultPayload | null;
+}
+
+export default function TossScreen({ socket, myId, tossInfo, tossResult }: TossScreenProps) {
   const [flipping, setFlipping] = useState(false);
   const isCaller = myId === tossInfo?.callerId;
 
-  function handleCall(call) {
+  function handleCall(call: TossCall) {
     setFlipping(true);
     socket.emit('toss_call', { call });
   }

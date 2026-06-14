@@ -1,5 +1,16 @@
-export default function ResultScreen({ gameOver, myId, onPlayAgain, onRematch, rematchState }) {
-  const { winnerId, winnerName, resultText, scores, players } = gameOver;
+import type { GameOverPayload } from '@cric/types';
+import type { RematchState } from '../types';
+
+interface ResultScreenProps {
+  gameOver: GameOverPayload;
+  myId: string | null;
+  onPlayAgain: () => void;
+  onRematch: () => void;
+  rematchState: RematchState;
+}
+
+export default function ResultScreen({ gameOver, myId, onPlayAgain, onRematch, rematchState }: ResultScreenProps) {
+  const { winnerId, resultText, scores, players } = gameOver;
   const iWon = winnerId === myId;
   const tied = winnerId === null;
 

@@ -62,6 +62,7 @@ export interface PublicUser {
 }
 
 export interface Friend extends PublicUser {
+  stats: UserStats;
   online: boolean;
 }
 

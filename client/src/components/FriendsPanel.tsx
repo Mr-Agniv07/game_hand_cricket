@@ -1,28 +1,39 @@
 import { useState, useEffect } from 'react';
+import type { ChangeEvent } from 'react';
 import { apiGet, apiPost, apiDelete } from '../api';
+import type { Friend, SearchResult, Mode, ChallengeDeclinedPayload } from '@cric/types';
+import type { AppSocket } from '../socket';
+import type { ClientUser, AppPhase } from '../types';
 
 const OVER_OPTIONS   = [1, 2, 3, 5, 10];
 const WICKET_OPTIONS = [1, 2, 3, 5, 10];
 
-export default function FriendsPanel({ user, socket, phase, onClose }) {
-  const [tab, setTab] = useState('friends');
+interface FriendsPanelProps {
+  user: ClientUser;
+  socket: AppSocket;
+  phase: AppPhase;
+  onClose: () => void;
+}
+
+export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPanelProps) {
+  const [tab, setTab] = useState<'friends' | 'search'>('friends');
 
   // Friends tab
-  const [friends, setFriends]           = useState([]);
-  const [removingId, setRemovingId]     = useState(null);
+  const [friends, setFriends]           = useState<Friend[]>([]);
+  const [removingId, setRemovingId]     = useState<string | null>(null);
 
   // Search tab
   const [query, setQuery]               = useState('');
-  const [results, setResults]           = useState([]);
+  const [results, setResults]           = useState<SearchResult[]>([]);
   const [searchBusy, setSearchBusy]     = useState(false);
-  const [addingId, setAddingId]         = useState(null);
+  const [addingId, setAddingId]         = useState<string | null>(null);
 
   // Challenge sub-form
-  const [challengingId, setChallengingId] = useState(null);
-  const [cMode, setCMode]               = useState('overs');
+  const [challengingId, setChallengingId] = useState<string | null>(null);
+  const [cMode, setCMode]               = useState<Mode>('overs');
   const [cOvers, setCOvers]             = useState(2);
   const [cWickets, setCWickets]         = useState(2);
-  const [sentTo, setSentTo]             = useState(null);   // { id, username }
+  const [sentTo, setSentTo]             = useState<{ id: string; username: string } | null>(null);
   const [panelMsg, setPanelMsg]         = useState('');
 
   const canChallenge = phase === 'lobby';
@@ -34,7 +45,7 @@ export default function FriendsPanel({ user, socket, phase, onClose }) {
 
   // ── Socket: challenge outcome ────────────────────────────────────────────────
   useEffect(() => {
-    function onDeclined({ username }) {
+    function onDeclined({ username }: ChallengeDeclinedPayload) {
       setSentTo(null);
       setChallengingId(null);
       showMsg(`${username} declined your challenge.`);
@@ -57,45 +68,45 @@ export default function FriendsPanel({ user, socket, phase, onClose }) {
     };
   }, [socket]);
 
-  function showMsg(msg) {
+  function showMsg(msg: string) {
     setPanelMsg(msg);
     setTimeout(() => setPanelMsg(''), 4000);
   }
 
   async function loadFriends() {
     try {
-      const data = await apiGet('/api/friends', user.token);
+      const data = await apiGet<Friend[]>('/api/friends', user.token);
       setFriends(data);
     } catch {}
   }
 
   // ── Search ──────────────────────────────────────────────────────────────────
-  async function handleSearch(e) {
+  async function handleSearch(e: ChangeEvent<HTMLInputElement>) {
     const q = e.target.value;
     setQuery(q);
     if (q.trim().length < 2) { setResults([]); return; }
     setSearchBusy(true);
     try {
-      const data = await apiGet(`/api/users/search?q=${encodeURIComponent(q.trim())}`, user.token);
+      const data = await apiGet<SearchResult[]>(`/api/users/search?q=${encodeURIComponent(q.trim())}`, user.token);
       setResults(data);
     } catch {} finally {
       setSearchBusy(false);
     }
   }
 
-  async function handleAdd(friendId) {
+  async function handleAdd(friendId: string) {
     setAddingId(friendId);
     try {
       await apiPost('/api/friends/add', { friendId }, user.token);
       setResults(r => r.map(u => u.id === friendId ? { ...u, isFriend: true } : u));
     } catch (err) {
-      showMsg(err.message);
+      showMsg(err instanceof Error ? err.message : 'Could not add friend.');
     } finally {
       setAddingId(null);
     }
   }
 
-  async function handleRemove(friendId) {
+  async function handleRemove(friendId: string) {
     setRemovingId(friendId);
     try {
       await apiDelete(`/api/friends/${friendId}`, user.token);
@@ -106,12 +117,12 @@ export default function FriendsPanel({ user, socket, phase, onClose }) {
   }
 
   // ── Challenge ───────────────────────────────────────────────────────────────
-  function toggleChallenge(friend) {
+  function toggleChallenge(friend: Friend) {
     if (sentTo) return;
     setChallengingId(id => id === friend.id ? null : friend.id);
   }
 
-  function sendChallenge(friend) {
+  function sendChallenge(friend: Friend) {
     socket.emit('send_challenge', {
       toUserId: friend.id,
       mode: cMode,

@@ -8,6 +8,7 @@
     "dev:server": "pnpm --filter server run dev",
     "dev:client": "pnpm --filter client run dev",
     "start": "pnpm --filter server run start",
+    "typecheck": "pnpm -r run typecheck",
     "build": "pnpm --filter client run build",
     "preview": "pnpm --filter client run preview"
   },

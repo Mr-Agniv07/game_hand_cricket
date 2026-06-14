@@ -1,7 +1,16 @@
-export default function BatBowlScreen({ socket, myId, gameState }) {
+import type { AppSocket } from '../socket';
+import type { GameState, BatBowlChoice } from '@cric/types';
+
+interface BatBowlScreenProps {
+  socket: AppSocket;
+  myId: string | null;
+  gameState: GameState | null;
+}
+
+export default function BatBowlScreen({ socket, myId, gameState }: BatBowlScreenProps) {
   const isChooser = myId === gameState?.tossWinnerId;
 
-  function choose(choice) {
+  function choose(choice: BatBowlChoice) {
     socket.emit('bat_bowl_choice', { choice });
   }
 
