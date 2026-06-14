@@ -174,11 +174,7 @@ export const onlineUsers = new Map<string, string>(); // userId → socketId
 const pendingChallenges = new Map<string, PendingChallenge>();
 const rooms = new Map<string, Room>();
 
-function pushLiveScore(
-  io: GameServer,
-  room: Room,
-  lastBall: LiveMatchScore['lastBall']
-): void {
+function pushLiveScore(io: GameServer, room: Room, lastBall: LiveMatchScore['lastBall']): void {
   if (!room.tournamentId) return;
   const tournament = tournaments.get(room.tournamentId);
   if (!tournament) return;
@@ -341,7 +337,12 @@ export function registerGameHandlers(io: GameServer): void {
           endInnings(io, roomId, room, allOut ? 'all_out' : 'overs_complete');
         } else {
           io.to(roomId).emit('state', publicState(room, roomId));
-          pushLiveScore(io, room, { scored: 0, isOut: true, batsmanMove: batMove, bowlerMove: bowlMove });
+          pushLiveScore(io, room, {
+            scored: 0,
+            isOut: true,
+            batsmanMove: batMove,
+            bowlerMove: bowlMove,
+          });
         }
       } else {
         inn.score += batMove;
@@ -368,7 +369,12 @@ export function registerGameHandlers(io: GameServer): void {
           return;
         }
 
-        pushLiveScore(io, room, { scored: batMove, isOut: false, batsmanMove: batMove, bowlerMove: bowlMove });
+        pushLiveScore(io, room, {
+          scored: batMove,
+          isOut: false,
+          batsmanMove: batMove,
+          bowlerMove: bowlMove,
+        });
       }
     });
 
@@ -495,9 +501,10 @@ export function registerGameHandlers(io: GameServer): void {
       if (tournament.players.some((p) => p.id === socket.id)) return;
 
       // Reconnection: logged-in user whose socket.id changed after a refresh
-      const reconnIdx = socket.data.userId !== null
-        ? tournament.players.findIndex(p => p.userId === socket.data.userId)
-        : -1;
+      const reconnIdx =
+        socket.data.userId !== null
+          ? tournament.players.findIndex((p) => p.userId === socket.data.userId)
+          : -1;
 
       if (reconnIdx !== -1) {
         tournament.players[reconnIdx].id = socket.id;
@@ -509,7 +516,8 @@ export function registerGameHandlers(io: GameServer): void {
         return;
       }
 
-      if (tournament.players.length >= 4) return socket.emit('error', { message: 'Tournament is full.' });
+      if (tournament.players.length >= 4)
+        return socket.emit('error', { message: 'Tournament is full.' });
 
       tournament.players.push({ id: socket.id, name: playerName, userId: socket.data.userId });
       socket.join('t:' + tournament.id);

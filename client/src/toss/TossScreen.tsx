@@ -11,7 +11,13 @@ interface TossScreenProps {
   isAutoPlay: boolean;
 }
 
-export default function TossScreen({ socket, myId, tossInfo, tossResult, isAutoPlay }: TossScreenProps) {
+export default function TossScreen({
+  socket,
+  myId,
+  tossInfo,
+  tossResult,
+  isAutoPlay,
+}: TossScreenProps) {
   const [flipping, setFlipping] = useState(false);
   const isCaller = myId === tossInfo?.callerId;
 

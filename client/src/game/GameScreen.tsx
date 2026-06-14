@@ -14,7 +14,13 @@ interface GameScreenProps {
   isAutoPlay: boolean;
 }
 
-export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall, isAutoPlay }: GameScreenProps) {
+export default function GameScreen({
+  socket,
+  myPlayerIdx,
+  gameState,
+  lastBall,
+  isAutoPlay,
+}: GameScreenProps) {
   const [myMove, setMyMove] = useState<number | null>(null);
   const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
 
@@ -157,9 +163,13 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall, i
       {myMove !== null && !ballAnim && (
         <p className="waiting-label">
           {isAutoPlay ? (
-            <>🤖 Computer played <strong>{myMove}</strong> · waiting for opponent…</>
+            <>
+              🤖 Computer played <strong>{myMove}</strong> · waiting for opponent…
+            </>
           ) : (
-            <>You played <strong>{myMove}</strong> · waiting for opponent…</>
+            <>
+              You played <strong>{myMove}</strong> · waiting for opponent…
+            </>
           )}
         </p>
       )}
