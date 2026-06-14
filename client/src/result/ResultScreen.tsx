@@ -13,8 +13,13 @@ interface ResultScreenProps {
 }
 
 export default function ResultScreen({
-  gameOver, myId, onPlayAgain, onRematch, rematchState,
-  isTournamentMatch = false, onBackToTournament,
+  gameOver,
+  myId,
+  onPlayAgain,
+  onRematch,
+  rematchState,
+  isTournamentMatch = false,
+  onBackToTournament,
 }: ResultScreenProps) {
   const { winnerId, resultText, scores, players } = gameOver;
   const iWon = winnerId === myId;
@@ -23,9 +28,7 @@ export default function ResultScreen({
   return (
     <div className="center-screen">
       <div className="card result-card">
-        <div className="result-emoji">
-          {tied ? '🤝' : iWon ? '🏆' : '😔'}
-        </div>
+        <div className="result-emoji">{tied ? '🤝' : iWon ? '🏆' : '😔'}</div>
         <h2 className={`result-title ${tied ? 'tie' : iWon ? 'win' : 'lose'}`}>
           {tied ? "It's a Tie!" : iWon ? 'You Won!' : 'You Lost!'}
         </h2>
@@ -46,9 +49,7 @@ export default function ResultScreen({
 
         {isTournamentMatch ? (
           <div className="result-actions">
-            <div className="tournament-next-notice">
-              Next match starting in ~5 seconds…
-            </div>
+            <div className="tournament-next-notice">Next match starting in ~5 seconds…</div>
             {onBackToTournament && (
               <button className="btn-lobby" onClick={onBackToTournament}>
                 Back to Tournament

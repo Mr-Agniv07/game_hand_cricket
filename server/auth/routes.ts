@@ -20,9 +20,12 @@ export const authRouter = Router();
 
 authRouter.post('/api/signup', (req: Request, res: Response) => {
   const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
-  if (username.length < 2 || username.length > 20) return res.status(400).json({ error: 'Username must be 2–20 characters.' });
-  if (password.length < 4) return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+  if (!username || !password)
+    return res.status(400).json({ error: 'Username and password required.' });
+  if (username.length < 2 || username.length > 20)
+    return res.status(400).json({ error: 'Username must be 2–20 characters.' });
+  if (password.length < 4)
+    return res.status(400).json({ error: 'Password must be at least 4 characters.' });
   const user = createUser(username.trim(), hashPassword(password));
   if (!user) return res.status(409).json({ error: 'Username already taken.' });
   const token = createToken(user.id);
@@ -31,10 +34,12 @@ authRouter.post('/api/signup', (req: Request, res: Response) => {
 
 authRouter.post('/api/login', (req: Request, res: Response) => {
   const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
+  if (!username || !password)
+    return res.status(400).json({ error: 'Username and password required.' });
   const user = findByUsername(username.trim());
   if (!user) return res.status(401).json({ error: 'Invalid username or password.' });
-  if (!verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: 'Invalid username or password.' });
+  if (!verifyPassword(password, user.passwordHash))
+    return res.status(401).json({ error: 'Invalid username or password.' });
   const token = createToken(user.id);
   res.json({ id: user.id, username: user.username, token, stats: user.stats });
 });

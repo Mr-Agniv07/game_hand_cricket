@@ -31,11 +31,9 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
   const liveMatch = phase === 'in_progress' ? fixtures[currentMatchIndex] : null;
   const liveP1 = liveMatch ? players[liveMatch.player1Idx] : null;
   const liveP2 = liveMatch ? players[liveMatch.player2Idx] : null;
-  const imPlaying = liveMatch
-    ? myId === liveP1?.id || myId === liveP2?.id
-    : false;
+  const imPlaying = liveMatch ? myId === liveP1?.id || myId === liveP2?.id : false;
 
-  const doneCount = fixtures.filter(f => f.status === 'done').length;
+  const doneCount = fixtures.filter((f) => f.status === 'done').length;
 
   return (
     <div className="t-lobby">
@@ -50,13 +48,16 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
             </div>
             <div className="t-waiting-count">{players.length} / 4 players joined</div>
             <div className="t-player-list">
-              {players.map(p => (
+              {players.map((p) => (
                 <span key={p.id} className={`t-player-chip${p.id === myId ? ' me' : ''}`}>
-                  {p.name}{p.id === myId ? ' (You)' : ''}
+                  {p.name}
+                  {p.id === myId ? ' (You)' : ''}
                 </span>
               ))}
               {Array.from({ length: 4 - players.length }).map((_, i) => (
-                <span key={i} className="t-player-chip empty">Waiting…</span>
+                <span key={i} className="t-player-chip empty">
+                  Waiting…
+                </span>
               ))}
             </div>
           </>
@@ -91,8 +92,12 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
             <thead>
               <tr>
                 <th className="t-th-player">Player</th>
-                <th>P</th><th>W</th><th>L</th><th>T</th>
-                <th>Pts</th><th>NRR</th>
+                <th>P</th>
+                <th>W</th>
+                <th>L</th>
+                <th>T</th>
+                <th>Pts</th>
+                <th>NRR</th>
               </tr>
             </thead>
             <tbody>
@@ -103,7 +108,8 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
                   <tr key={p.id} className={isMe ? 't-tr-me' : ''}>
                     <td className="t-td-player">
                       <span className="t-rank">{rank + 1}</span>
-                      {p.name}{isMe ? <span className="t-you"> (You)</span> : null}
+                      {p.name}
+                      {isMe ? <span className="t-you"> (You)</span> : null}
                     </td>
                     <td>{e?.played ?? 0}</td>
                     <td className="t-won">{e?.won ?? 0}</td>
@@ -123,12 +129,15 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
       <div className="t-section">
         <div className="t-section-title">Fixture</div>
         <div className="t-fixture">
-          {fixtures.map(f => {
+          {fixtures.map((f) => {
             const fp1 = players[f.player1Idx];
             const fp2 = players[f.player2Idx];
             const isMyMatch = myId === fp1?.id || myId === fp2?.id;
             return (
-              <div key={f.matchNum} className={`t-fixture-row ${f.status}${isMyMatch ? ' my-match' : ''}`}>
+              <div
+                key={f.matchNum}
+                className={`t-fixture-row ${f.status}${isMyMatch ? ' my-match' : ''}`}
+              >
                 <span className={`t-match-badge ${f.status}`}>M{f.matchNum}</span>
                 <div className="t-fixture-teams">
                   <span className={f.result === 'p1' ? 't-winner' : ''}>{fp1?.name ?? '?'}</span>
@@ -137,9 +146,14 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
                 </div>
                 <div className="t-fixture-result">
                   {f.status === 'done' ? (
-                    <span className="t-score">{f.p1Score}–{f.p2Score}</span>
+                    <span className="t-score">
+                      {f.p1Score}–{f.p2Score}
+                    </span>
                   ) : f.status === 'live' ? (
-                    <span className="t-live-tag"><span className="t-live-dot sm" />Live</span>
+                    <span className="t-live-tag">
+                      <span className="t-live-dot sm" />
+                      Live
+                    </span>
                   ) : (
                     <span className="t-upcoming-tag">—</span>
                   )}
@@ -151,7 +165,11 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
       </div>
 
       {phase === 'waiting' && (
-        <button className="btn-lobby" style={{ maxWidth: 420, alignSelf: 'center' }} onClick={onLeave}>
+        <button
+          className="btn-lobby"
+          style={{ maxWidth: 420, alignSelf: 'center' }}
+          onClick={onLeave}
+        >
           Leave Tournament
         </button>
       )}

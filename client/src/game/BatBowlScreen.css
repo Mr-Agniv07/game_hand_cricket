@@ -18,9 +18,21 @@
   font-size: 1.2rem;
   font-weight: 800;
   cursor: pointer;
-  transition: transform .12s, opacity .12s;
+  transition:
+    transform 0.12s,
+    opacity 0.12s;
 }
-.choice-btn:hover { transform: scale(1.04); }
-.choice-btn.bat { background: var(--bat); color: #000; }
-.choice-btn.bowl { background: var(--bowl); color: #000; }
-.waiting-text { color: var(--muted); }
+.choice-btn:hover {
+  transform: scale(1.04);
+}
+.choice-btn.bat {
+  background: var(--bat);
+  color: #000;
+}
+.choice-btn.bowl {
+  background: var(--bowl);
+  color: #000;
+}
+.waiting-text {
+  color: var(--muted);
+}

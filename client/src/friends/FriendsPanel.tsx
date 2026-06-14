@@ -6,7 +6,7 @@ import type { Friend, SearchResult, Mode, ChallengeDeclinedPayload } from '@cric
 import type { AppSocket } from '../socket';
 import type { ClientUser, AppPhase } from '../types';
 
-const OVER_OPTIONS   = [1, 2, 3, 5, 10];
+const OVER_OPTIONS = [1, 2, 3, 5, 10];
 const WICKET_OPTIONS = [1, 2, 3, 5, 10];
 
 interface FriendsPanelProps {
@@ -20,22 +20,22 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
   const [tab, setTab] = useState<'friends' | 'search'>('friends');
 
   // Friends tab
-  const [friends, setFriends]           = useState<Friend[]>([]);
-  const [removingId, setRemovingId]     = useState<string | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   // Search tab
-  const [query, setQuery]               = useState('');
-  const [results, setResults]           = useState<SearchResult[]>([]);
-  const [searchBusy, setSearchBusy]     = useState(false);
-  const [addingId, setAddingId]         = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   // Challenge sub-form
   const [challengingId, setChallengingId] = useState<string | null>(null);
-  const [cMode, setCMode]               = useState<Mode>('overs');
-  const [cOvers, setCOvers]             = useState(2);
-  const [cWickets, setCWickets]         = useState(2);
-  const [sentTo, setSentTo]             = useState<{ id: string; username: string } | null>(null);
-  const [panelMsg, setPanelMsg]         = useState('');
+  const [cMode, setCMode] = useState<Mode>('overs');
+  const [cOvers, setCOvers] = useState(2);
+  const [cWickets, setCWickets] = useState(2);
+  const [sentTo, setSentTo] = useState<{ id: string; username: string } | null>(null);
+  const [panelMsg, setPanelMsg] = useState('');
 
   const canChallenge = phase === 'lobby';
 
@@ -60,11 +60,11 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
       setSentTo(null); // game starting, App.jsx handles the rest
     }
     socket.on('challenge_declined', onDeclined);
-    socket.on('challenge_expired',  onExpired);
+    socket.on('challenge_expired', onExpired);
     socket.on('challenge_room_start', onRoomStart);
     return () => {
       socket.off('challenge_declined', onDeclined);
-      socket.off('challenge_expired',  onExpired);
+      socket.off('challenge_expired', onExpired);
       socket.off('challenge_room_start', onRoomStart);
     };
   }, [socket]);
@@ -85,12 +85,19 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
   async function handleSearch(e: ChangeEvent<HTMLInputElement>) {
     const q = e.target.value;
     setQuery(q);
-    if (q.trim().length < 2) { setResults([]); return; }
+    if (q.trim().length < 2) {
+      setResults([]);
+      return;
+    }
     setSearchBusy(true);
     try {
-      const data = await apiGet<SearchResult[]>(`/api/users/search?q=${encodeURIComponent(q.trim())}`, user.token);
+      const data = await apiGet<SearchResult[]>(
+        `/api/users/search?q=${encodeURIComponent(q.trim())}`,
+        user.token
+      );
       setResults(data);
-    } catch {} finally {
+    } catch {
+    } finally {
       setSearchBusy(false);
     }
   }
@@ -99,7 +106,7 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
     setAddingId(friendId);
     try {
       await apiPost('/api/friends/add', { friendId }, user.token);
-      setResults(r => r.map(u => u.id === friendId ? { ...u, isFriend: true } : u));
+      setResults((r) => r.map((u) => (u.id === friendId ? { ...u, isFriend: true } : u)));
     } catch (err) {
       showMsg(err instanceof Error ? err.message : 'Could not add friend.');
     } finally {
@@ -111,8 +118,9 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
     setRemovingId(friendId);
     try {
       await apiDelete(`/api/friends/${friendId}`, user.token);
-      setFriends(f => f.filter(fr => fr.id !== friendId));
-    } catch {} finally {
+      setFriends((f) => f.filter((fr) => fr.id !== friendId));
+    } catch {
+    } finally {
       setRemovingId(null);
     }
   }
@@ -120,7 +128,7 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
   // ── Challenge ───────────────────────────────────────────────────────────────
   function toggleChallenge(friend: Friend) {
     if (sentTo) return;
-    setChallengingId(id => id === friend.id ? null : friend.id);
+    setChallengingId((id) => (id === friend.id ? null : friend.id));
   }
 
   function sendChallenge(friend: Friend) {
@@ -136,16 +144,27 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
 
   return (
     <div className="friends-overlay" onClick={onClose}>
-      <div className="friends-panel" onClick={e => e.stopPropagation()}>
-
+      <div className="friends-panel" onClick={(e) => e.stopPropagation()}>
         <div className="friends-header">
           <h2>Friends</h2>
-          <button className="friends-close" onClick={onClose}>✕</button>
+          <button className="friends-close" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         <div className="fp-tabs">
-          <button className={tab === 'friends' ? 'fp-tab active' : 'fp-tab'} onClick={() => setTab('friends')}>My Friends</button>
-          <button className={tab === 'search'  ? 'fp-tab active' : 'fp-tab'} onClick={() => setTab('search')}>Find Players</button>
+          <button
+            className={tab === 'friends' ? 'fp-tab active' : 'fp-tab'}
+            onClick={() => setTab('friends')}
+          >
+            My Friends
+          </button>
+          <button
+            className={tab === 'search' ? 'fp-tab active' : 'fp-tab'}
+            onClick={() => setTab('search')}
+          >
+            Find Players
+          </button>
         </div>
 
         {panelMsg && <div className="fp-msg">{panelMsg}</div>}
@@ -156,17 +175,19 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
         )}
 
         <div className="friends-body">
-
           {/* ── My Friends ── */}
-          {tab === 'friends' && (
-            friends.length === 0
-              ? <p className="fp-empty">No friends yet — use Find Players to search!</p>
-              : friends.map(f => (
+          {tab === 'friends' &&
+            (friends.length === 0 ? (
+              <p className="fp-empty">No friends yet — use Find Players to search!</p>
+            ) : (
+              friends.map((f) => (
                 <div key={f.id} className="fp-row">
                   <span className={`fp-dot ${f.online ? 'online' : 'offline'}`} />
                   <div className="fp-info">
                     <span className="fp-name">{f.username}</span>
-                    <span className="fp-stat">W {f.stats.wins} · L {f.stats.losses}</span>
+                    <span className="fp-stat">
+                      W {f.stats.wins} · L {f.stats.losses}
+                    </span>
                   </div>
                   <div className="fp-actions">
                     {f.online && canChallenge && !sentTo && (
@@ -181,31 +202,57 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
                       className="fp-remove-btn"
                       onClick={() => handleRemove(f.id)}
                       disabled={removingId === f.id}
-                    >✕</button>
+                    >
+                      ✕
+                    </button>
                   </div>
 
                   {challengingId === f.id && (
                     <div className="challenge-form">
                       <div className="over-options">
-                        <button type="button" className={cMode === 'overs'   ? 'over-btn selected' : 'over-btn'} onClick={() => setCMode('overs')}>Overs</button>
-                        <button type="button" className={cMode === 'wickets' ? 'over-btn selected' : 'over-btn'} onClick={() => setCMode('wickets')}>Wickets</button>
+                        <button
+                          type="button"
+                          className={cMode === 'overs' ? 'over-btn selected' : 'over-btn'}
+                          onClick={() => setCMode('overs')}
+                        >
+                          Overs
+                        </button>
+                        <button
+                          type="button"
+                          className={cMode === 'wickets' ? 'over-btn selected' : 'over-btn'}
+                          onClick={() => setCMode('wickets')}
+                        >
+                          Wickets
+                        </button>
                       </div>
                       <div className="over-options">
-                        {(cMode === 'overs' ? OVER_OPTIONS : WICKET_OPTIONS).map(n => (
-                          <button key={n} type="button"
-                            className={(cMode === 'overs' ? cOvers : cWickets) === n ? 'over-btn selected' : 'over-btn'}
-                            onClick={() => cMode === 'overs' ? setCOvers(n) : setCWickets(n)}
-                          >{n}</button>
+                        {(cMode === 'overs' ? OVER_OPTIONS : WICKET_OPTIONS).map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            className={
+                              (cMode === 'overs' ? cOvers : cWickets) === n
+                                ? 'over-btn selected'
+                                : 'over-btn'
+                            }
+                            onClick={() => (cMode === 'overs' ? setCOvers(n) : setCWickets(n))}
+                          >
+                            {n}
+                          </button>
                         ))}
                       </div>
-                      <button className="btn-primary" style={{ marginTop: '.5rem' }} onClick={() => sendChallenge(f)}>
+                      <button
+                        className="btn-primary"
+                        style={{ marginTop: '.5rem' }}
+                        onClick={() => sendChallenge(f)}
+                      >
                         Send Challenge
                       </button>
                     </div>
                   )}
                 </div>
               ))
-          )}
+            ))}
 
           {/* ── Find Players ── */}
           {tab === 'search' && (
@@ -218,7 +265,7 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
                 autoFocus
               />
               {searchBusy && <p className="fp-empty">Searching…</p>}
-              {results.map(u => (
+              {results.map((u) => (
                 <div key={u.id} className="fp-row">
                   <span className={`fp-dot ${u.online ? 'online' : 'offline'}`} />
                   <div className="fp-info">
@@ -238,7 +285,6 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
               )}
             </>
           )}
-
         </div>
       </div>
     </div>

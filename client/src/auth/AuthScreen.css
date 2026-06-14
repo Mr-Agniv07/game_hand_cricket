@@ -7,20 +7,40 @@
   padding: 2rem 1rem;
   gap: 1.25rem;
 }
-.auth-brand { text-align: center; display: flex; flex-direction: column; align-items: center; gap: .4rem; }
-.auth-logo { font-size: 3rem; }
-.auth-title { font-size: 1.8rem; font-weight: 900; }
-.auth-sub { color: var(--muted); font-size: .9rem; }
-.auth-error { color: var(--danger); font-size: .85rem; margin-top: .2rem; }
+.auth-brand {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.auth-logo {
+  font-size: 3rem;
+}
+.auth-title {
+  font-size: 1.8rem;
+  font-weight: 900;
+}
+.auth-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.auth-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin-top: 0.2rem;
+}
 .guest-btn {
   background: none;
   border: none;
   color: var(--muted);
-  font-size: .85rem;
+  font-size: 0.85rem;
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 3px;
-  padding: .25rem;
-  transition: color .15s;
+  padding: 0.25rem;
+  transition: color 0.15s;
 }
-.guest-btn:hover { color: var(--text); }
+.guest-btn:hover {
+  color: var(--text);
+}

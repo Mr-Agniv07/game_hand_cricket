@@ -28,6 +28,7 @@ A pnpm workspace with three member packages. Dependencies are installed once fro
 root and hoisted into the root `node_modules`.
 
 From the **repo root**:
+
 - `pnpm install` — installs everything.
 - `pnpm dev` — runs **both** dev servers in parallel (`pnpm -r --parallel run dev`).
 - `pnpm dev:server` / `pnpm dev:client` — run just one (`--filter`).
@@ -97,7 +98,7 @@ freezes:
   teardown mid-match.
 - **Drive UI unlock/reset off authoritative server state, never off a transient
   prop set-then-null.** `GameScreen.tsx` resets the numpad lock (`myMove`) on
-  `useEffect(..., [balls, currentInnings])`, *not* inside the `lastBall` effect. At the
+  `useEffect(..., [balls, currentInnings])`, _not_ inside the `lastBall` effect. At the
   innings break the server emits `ball_played → innings_start → state` back-to-back, so
   `lastBall` is set then nulled in one React batch — a `lastBall`-keyed reset would be
   skipped and freeze the numpad for the entire 2nd innings, for both players.
