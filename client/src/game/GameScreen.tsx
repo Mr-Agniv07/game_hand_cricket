@@ -53,8 +53,9 @@ export default function GameScreen({
   const wicketsLeft = wickets - wicketsLost;
 
   // Load persisted model for this opponent on mount; save it back on unmount.
+  // Runs whenever the user is logged in — training is always on, autoplay or not.
   useEffect(() => {
-    if (!isAutoPlay || !userToken || myPlayerIdx === null) return;
+    if (!userToken || myPlayerIdx === null) return;
     const opponentName = players[myPlayerIdx === 0 ? 1 : 0];
     if (!opponentName) return;
     const key = encodeURIComponent(opponentName);
@@ -77,14 +78,14 @@ export default function GameScreen({
     }
   }, [lastBall]);
 
-  // Feed the opponent's move into the ML model. Must run before the autoplay
-  // effect so the model is up-to-date when the next move is chosen.
+  // Feed the opponent's move into the ML model on every ball — train always,
+  // regardless of whether autoplay is on. Must run before the autoplay effect.
   useEffect(() => {
-    if (!lastBall || !isAutoPlay) return;
+    if (!lastBall) return;
     const opponentMove = isBatsman ? lastBall.bowlerMove : lastBall.batsmanMove;
     mlRef.current.recordMove(opponentMove);
     setMlStats(mlRef.current.getStats());
-  }, [lastBall, isBatsman, isAutoPlay]);
+  }, [lastBall, isBatsman]);
 
   // New innings: clear Markov context but keep frequency data across the break.
   useEffect(() => {
