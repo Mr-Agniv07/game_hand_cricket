@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { findByUsername, findById, createUser } from '../db.ts';
+import { findByUsername, findById, createUser, getMLModel, saveMLModel } from '../db.ts';
 import { hashPassword, verifyPassword, createToken, verifyToken } from './auth.ts';
 
 export interface AuthRequest extends Request {
@@ -52,4 +52,15 @@ authRouter.get('/api/me', (req: Request, res: Response) => {
   const user = findById(userId);
   if (!user) return res.status(404).json({ error: 'User not found.' });
   res.json({ id: user.id, username: user.username, stats: user.stats });
+});
+
+authRouter.get('/api/ml/:opponent', requireAuth, (req: Request, res: Response) => {
+  const userId = (req as AuthRequest).userId!;
+  res.json(getMLModel(userId, String(req.params.opponent)));
+});
+
+authRouter.put('/api/ml/:opponent', requireAuth, (req: Request, res: Response) => {
+  const userId = (req as AuthRequest).userId!;
+  saveMLModel(userId, String(req.params.opponent), req.body);
+  res.json({ ok: true });
 });

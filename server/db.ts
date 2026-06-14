@@ -7,6 +7,11 @@ import type { UserStats, MatchHistoryEntry, Mode, PublicUser, Friend } from '@cr
 const __dir = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = join(__dir, 'db.json');
 
+export interface MLModelData {
+  freq: number[];
+  transitions: number[][];
+}
+
 /** Full user record as persisted in db.json (never sent to clients verbatim). */
 export interface DbUser {
   id: string;
@@ -16,6 +21,7 @@ export interface DbUser {
   stats: UserStats;
   matchHistory: MatchHistoryEntry[];
   friends?: string[];
+  mlModels?: Record<string, MLModelData>;
   createdAt: string;
 }
 
@@ -170,4 +176,19 @@ export function getMatchHistory(userId: string): MatchHistoryEntry[] {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   return user?.matchHistory ?? [];
+}
+
+export function getMLModel(userId: string, opponent: string): MLModelData | null {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  return user?.mlModels?.[opponent.toLowerCase()] ?? null;
+}
+
+export function saveMLModel(userId: string, opponent: string, data: MLModelData): void {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return;
+  if (!user.mlModels) user.mlModels = {};
+  user.mlModels[opponent.toLowerCase()] = data;
+  save(db);
 }
