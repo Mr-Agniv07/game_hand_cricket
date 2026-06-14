@@ -9,8 +9,8 @@ import BatBowlScreen from './game/BatBowlScreen';
 import GameScreen from './game/GameScreen';
 import ResultScreen from './result/ResultScreen';
 import InningsEndOverlay from './game/InningsEndOverlay';
-import TournamentLobby from './components/TournamentLobby';
-import TournamentResult from './components/TournamentResult';
+import TournamentLobby from './tournament/TournamentLobby';
+import TournamentResult from './tournament/TournamentResult';
 import type {
   GameState,
   TossStartPayload,

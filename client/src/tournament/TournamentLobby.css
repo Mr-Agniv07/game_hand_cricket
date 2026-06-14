@@ -1,0 +1,526 @@
+/* ─── Tournament Lobby ─── */
+
+.t-lobby {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1rem 2rem;
+  gap: 1rem;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* ─── Code / progress header ─── */
+
+.t-info-row {
+  width: 100%;
+}
+
+.t-code-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.t-code-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+}
+
+.t-code-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.t-code {
+  font-size: 2.2rem;
+  font-weight: 900;
+  letter-spacing: 0.5rem;
+  color: var(--accent);
+  background: #16a34a18;
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  padding: 0.45rem 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-code-copy {
+  padding: 0.45rem 0.9rem;
+  background: #16a34a22;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.t-code-copy:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+.t-code-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* ─── Player count ─── */
+
+.t-waiting-count {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.t-count-num {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--accent);
+  line-height: 1;
+}
+.t-count-sep {
+  font-size: 1rem;
+  color: var(--muted);
+}
+.t-count-total {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.t-count-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-left: 0.2rem;
+}
+
+/* ─── Player chips 2×2 grid ─── */
+
+.t-player-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+.t-player-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--surface);
+  border-radius: 10px;
+  border: 1px solid #ffffff12;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.t-player-chip.me {
+  border-color: var(--warn);
+  background: #f59e0b0c;
+}
+.t-player-chip.empty {
+  opacity: 0.5;
+}
+
+.t-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: t-pulse 2s ease-in-out infinite;
+}
+.t-chip-dot.empty {
+  background: var(--muted);
+  animation: none;
+  opacity: 0.4;
+}
+.t-player-chip.me .t-chip-dot {
+  background: var(--warn);
+}
+
+.t-chip-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.t-player-chip.empty .t-chip-name {
+  color: var(--muted);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.t-chip-you {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--warn);
+  color: #000;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* ─── Progress bar (in_progress phase) ─── */
+
+.t-progress {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 0.85rem 1.1rem;
+  box-shadow: var(--shadow);
+}
+
+.t-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.t-progress-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.t-progress-pct {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.t-progress-bar {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.t-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* ─── Live match banner ─── */
+
+.t-live-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1rem;
+  background: #16a34a14;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.t-live-banner.playing {
+  background: #16a34a22;
+  border-color: var(--accent);
+  box-shadow: 0 0 16px #16a34a28;
+}
+
+.t-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  flex-shrink: 0;
+  animation: t-pulse 1.2s ease-in-out infinite;
+}
+.t-live-dot.sm {
+  width: 6px;
+  height: 6px;
+}
+
+@keyframes t-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* ─── Shared section card ─── */
+
+.t-section {
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.t-section-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+}
+
+/* ─── Points table ─── */
+
+.t-table-wrap {
+  overflow-x: auto;
+  margin: 0 -0.25rem;
+}
+
+.t-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.t-table th {
+  font-size: 0.63rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 0.35rem 0.5rem;
+  text-align: right;
+}
+.t-th-rank {
+  width: 28px;
+  text-align: center !important;
+}
+.t-th-player {
+  text-align: left !important;
+}
+
+.t-table td {
+  padding: 0.55rem 0.5rem;
+  text-align: right;
+  border-top: 1px solid #ffffff08;
+}
+.t-table td:first-child {
+  text-align: center;
+}
+
+.t-tr-me td {
+  background: #16a34a0b;
+}
+.t-tr-me td:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.t-tr-me td:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.t-td-rank {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.t-td-player {
+  text-align: left !important;
+  font-weight: 700;
+}
+
+.t-you {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 0.2rem;
+}
+
+.t-won {
+  color: var(--accent);
+  font-weight: 700;
+}
+.t-lost {
+  color: var(--danger);
+  font-weight: 700;
+}
+.t-pts {
+  color: var(--accent);
+  font-weight: 900;
+}
+
+/* ─── Fixture list ─── */
+
+.t-fixture {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.t-fixture::-webkit-scrollbar {
+  width: 3px;
+}
+.t-fixture::-webkit-scrollbar-track {
+  background: transparent;
+}
+.t-fixture::-webkit-scrollbar-thumb {
+  background: #ffffff20;
+  border-radius: 2px;
+}
+
+.t-fixture-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  background: var(--surface2);
+  border-radius: 8px;
+  font-size: 0.83rem;
+  border-left: 3px solid transparent;
+  transition: background 0.1s;
+}
+.t-fixture-row.live {
+  border-left-color: var(--accent);
+  background: #16a34a0c;
+}
+.t-fixture-row.done {
+  border-left-color: #ffffff15;
+  opacity: 0.7;
+}
+.t-fixture-row.upcoming {
+  border-left-color: transparent;
+}
+.t-fixture-row.my-match {
+  border-left-color: var(--warn);
+}
+.t-fixture-row.my-match.done {
+  opacity: 1;
+}
+
+.t-match-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.18rem 0.4rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+  min-width: 26px;
+  text-align: center;
+}
+.t-match-badge.live {
+  background: #16a34a22;
+  color: var(--accent);
+}
+.t-match-badge.done {
+  background: var(--surface);
+  color: var(--muted);
+}
+.t-match-badge.upcoming {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.t-fixture-teams {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+}
+.t-fixture-teams span:not(.t-vs) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.t-fixture-teams span:last-child:not(.t-vs) {
+  text-align: right;
+}
+
+.t-winner {
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.t-vs {
+  color: var(--muted);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.t-fixture-result {
+  flex-shrink: 0;
+  min-width: 52px;
+  text-align: right;
+}
+
+.t-score {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-live-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.t-upcoming-tag {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ─── Leave button ─── */
+
+.btn-lobby {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 1px solid #ffffff18;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.btn-lobby:hover {
+  border-color: var(--muted);
+  color: var(--text);
+}

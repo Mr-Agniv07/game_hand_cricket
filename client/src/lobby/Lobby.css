@@ -223,3 +223,12 @@
   font-size: 0.68rem;
   color: var(--muted);
 }
+
+/* ─── Tournament sub-tabs (inside lobby card) ─── */
+.t-sub-tabs {
+  display: flex;
+  gap: 0.4rem;
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 0.25rem;
+}

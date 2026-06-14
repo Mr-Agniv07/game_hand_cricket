@@ -1,0 +1,183 @@
+/* ─── Tournament Result ─── */
+
+.t-result-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+}
+
+.t-result-card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.75rem 1.5rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ─── Winner hero block ─── */
+
+.t-result-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.5rem 0 0.25rem;
+}
+
+.t-result-trophy {
+  font-size: 3.5rem;
+  line-height: 1;
+}
+
+.t-result-winner-name {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--accent);
+  text-align: center;
+}
+
+.t-result-winner-sub {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+}
+
+/* ─── My rank badge ─── */
+
+.t-my-rank {
+  text-align: center;
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  background: var(--surface2);
+  border: 1px solid #ffffff12;
+}
+.t-my-rank.rank-0 {
+  background: #f59e0b14;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.t-my-rank.rank-1 {
+  background: #94a3b814;
+  border-color: #94a3b8;
+  color: #94a3b8;
+}
+.t-my-rank.rank-2 {
+  background: #b4530918;
+  border-color: #b45309;
+  color: #b45309;
+}
+
+/* ─── Standings table ─── */
+
+.t-result-section-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+
+.t-result-table-wrap {
+  overflow-x: auto;
+}
+
+.t-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.t-table th {
+  font-size: 0.63rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 0.35rem 0.5rem;
+  text-align: right;
+}
+.t-th-rank {
+  width: 28px;
+  text-align: center !important;
+}
+.t-th-player {
+  text-align: left !important;
+}
+
+.t-table td {
+  padding: 0.55rem 0.5rem;
+  text-align: right;
+  border-top: 1px solid #ffffff08;
+}
+.t-table td:first-child {
+  text-align: center;
+}
+
+.t-td-rank {
+  font-size: 1rem;
+  line-height: 1;
+}
+.t-td-player {
+  text-align: left !important;
+  font-weight: 700;
+}
+.t-you {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 0.2rem;
+}
+
+.t-tr-me td {
+  background: #16a34a0b;
+}
+.t-tr-winner td {
+  background: #f59e0b08;
+}
+
+.t-won {
+  color: var(--accent);
+  font-weight: 700;
+}
+.t-lost {
+  color: var(--danger);
+  font-weight: 700;
+}
+.t-pts {
+  color: var(--accent);
+  font-weight: 900;
+}
+
+/* ─── Back button ─── */
+
+.btn-lobby {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 1px solid #ffffff18;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.btn-lobby:hover {
+  border-color: var(--muted);
+  color: var(--text);
+}
