@@ -181,6 +181,19 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                   </button>
                 ))}
               </div>
+              <label>Wickets per Innings</label>
+              <div className="over-options">
+                {WICKET_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className={wickets === w ? 'over-btn selected' : 'over-btn'}
+                    onClick={() => setWickets(w)}
+                  >
+                    {w}
+                  </button>
+                ))}
+              </div>
             </>
           )}
 

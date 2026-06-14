@@ -321,10 +321,9 @@ export function registerGameHandlers(io: GameServer): void {
 
       if (batMove === bowlMove) {
         inn.wicketsLost += 1;
-        // In overs mode a dismissal is a zero-run ball — overs complete the innings.
-        // In wickets mode the innings ends when all lives are consumed.
+        // Innings ends when all wickets fall (both modes) or overs run out (overs mode only).
         const ovComplete = room.mode === 'overs' && inn.balls >= totalBalls(room);
-        const allOut = room.mode === 'wickets' && inn.wicketsLost >= room.wickets;
+        const allOut = inn.wicketsLost >= room.wickets;
         const inningsOver = ovComplete || allOut;
 
         io.to(roomId).emit('ball_played', {
