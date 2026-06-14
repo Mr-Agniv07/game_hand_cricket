@@ -1,5 +1,5 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
-import { findByToken, saveToken } from './db.ts';
+import { findByToken, saveToken } from '../db.ts';
 
 const SALT_LEN = 16;
 const KEY_LEN = 32;

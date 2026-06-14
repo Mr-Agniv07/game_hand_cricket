@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { socket } from './socket';
 import { apiGet } from './api';
-import AuthScreen from './components/AuthScreen';
-import FriendsPanel from './components/FriendsPanel';
-import Lobby from './components/Lobby';
-import TossScreen from './components/TossScreen';
-import BatBowlScreen from './components/BatBowlScreen';
-import GameScreen from './components/GameScreen';
-import ResultScreen from './components/ResultScreen';
-import InningsEndOverlay from './components/InningsEndOverlay';
+import AuthScreen from './auth/AuthScreen';
+import FriendsPanel from './friends/FriendsPanel';
+import Lobby from './lobby/Lobby';
+import TossScreen from './toss/TossScreen';
+import BatBowlScreen from './game/BatBowlScreen';
+import GameScreen from './game/GameScreen';
+import ResultScreen from './result/ResultScreen';
+import InningsEndOverlay from './game/InningsEndOverlay';
 import type {
   GameState, TossStartPayload, TossResultPayload, InningsStartPayload,
   BallPlayedPayload, GameOverPayload, InningsEndPayload, ChallengeReceivedPayload,
