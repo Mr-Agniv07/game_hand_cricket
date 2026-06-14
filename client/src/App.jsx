@@ -57,6 +57,7 @@ export default function App() {
 
     socket.on('toss_start', (info) => {
       setTossInfo(info);
+      setTossResult(null); // clear any stale result from a previous game / rematch
       setPhase('toss_call');
     });
 
