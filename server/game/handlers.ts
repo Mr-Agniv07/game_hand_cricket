@@ -1,12 +1,28 @@
 import { randomUUID } from 'crypto';
 import type { Server, Socket, DefaultEventsMap } from 'socket.io';
 import type {
-  ServerToClientEvents, ClientToServerEvents, Mode, InningsEndReason, RoomCreatedPayload,
-  TournamentState, TournamentPlayer, FixtureMatch, PointsTableEntry,
+  ServerToClientEvents,
+  ClientToServerEvents,
+  Mode,
+  InningsEndReason,
+  RoomCreatedPayload,
+  TournamentState,
+  TournamentPlayer,
+  FixtureMatch,
+  PointsTableEntry,
 } from '@cric/types';
 import { findById, updateGameStats } from '../db.ts';
 import { verifyToken } from '../auth/auth.ts';
-import { type Room, makeRoomId, freshInnings, createRoom, totalBalls, batsmanId, bowlerId, publicState } from './room.ts';
+import {
+  type Room,
+  makeRoomId,
+  freshInnings,
+  createRoom,
+  totalBalls,
+  batsmanId,
+  bowlerId,
+  publicState,
+} from './room.ts';
 
 export interface SocketData {
   userId: string | null;
@@ -63,17 +79,23 @@ const tournaments = new Map<string, Tournament>(); // keyed by tournament code
 
 // Round-robin home+away: 12 matches total, each pair plays twice
 const FIXTURE_TEMPLATE: [number, number][] = [
-  [0, 1], [2, 3],
-  [0, 2], [1, 3],
-  [0, 3], [1, 2],
-  [1, 0], [3, 2],
-  [2, 0], [3, 1],
-  [3, 0], [2, 1],
+  [0, 1],
+  [2, 3],
+  [0, 2],
+  [1, 3],
+  [0, 3],
+  [1, 2],
+  [1, 0],
+  [3, 2],
+  [2, 0],
+  [3, 1],
+  [3, 0],
+  [2, 1],
 ];
 
 function computeNRR(e: InternalPointsEntry): number {
   if (e.ballsFaced === 0 || e.ballsBowled === 0) return 0;
-  return (e.runsScored * 6 / e.ballsFaced) - (e.runsConceded * 6 / e.ballsBowled);
+  return (e.runsScored * 6) / e.ballsFaced - (e.runsConceded * 6) / e.ballsBowled;
 }
 
 function publicTournamentState(t: Tournament): TournamentState {
@@ -85,15 +107,17 @@ function publicTournamentState(t: Tournament): TournamentState {
     wickets: t.wickets,
     players: t.players.map((p): TournamentPlayer => ({ id: p.id, name: p.name })),
     phase: t.phase,
-    fixtures: t.fixtures.map((f): FixtureMatch => ({
-      matchNum: f.matchNum,
-      player1Idx: f.player1Idx,
-      player2Idx: f.player2Idx,
-      status: f.status,
-      result: f.result,
-      p1Score: f.p1Score,
-      p2Score: f.p2Score,
-    })),
+    fixtures: t.fixtures.map(
+      (f): FixtureMatch => ({
+        matchNum: f.matchNum,
+        player1Idx: f.player1Idx,
+        player2Idx: f.player2Idx,
+        status: f.status,
+        result: f.result,
+        p1Score: f.p1Score,
+        p2Score: f.p2Score,
+      })
+    ),
     currentMatchIndex: t.currentMatchIndex,
     pointsTable: Object.fromEntries(
       Object.entries(t.pointsTable).map(([id, e]): [string, PointsTableEntry] => [
@@ -117,8 +141,15 @@ function generateFixture(tournament: Tournament): void {
   }));
   for (const p of tournament.players) {
     tournament.pointsTable[p.id] = {
-      played: 0, won: 0, lost: 0, tied: 0, points: 0,
-      runsScored: 0, ballsFaced: 0, runsConceded: 0, ballsBowled: 0,
+      played: 0,
+      won: 0,
+      lost: 0,
+      tied: 0,
+      points: 0,
+      runsScored: 0,
+      ballsFaced: 0,
+      runsConceded: 0,
+      ballsBowled: 0,
     };
   }
 }
@@ -136,7 +167,7 @@ interface PendingChallenge {
   timeout: NodeJS.Timeout;
 }
 
-export const onlineUsers = new Map<string, string>();      // userId → socketId
+export const onlineUsers = new Map<string, string>(); // userId → socketId
 const pendingChallenges = new Map<string, PendingChallenge>();
 const rooms = new Map<string, Room>();
 
@@ -167,7 +198,8 @@ export function registerGameHandlers(io: GameServer): void {
       const room = rooms.get(roomId);
       if (!room) return socket.emit('error', { message: 'Room not found.' });
       if (room.players.length >= 2) return socket.emit('error', { message: 'Room is full.' });
-      if (room.phase !== 'waiting') return socket.emit('error', { message: 'Game already started.' });
+      if (room.phase !== 'waiting')
+        return socket.emit('error', { message: 'Game already started.' });
 
       room.players.push({ id: socket.id, name: playerName, userId: socket.data.userId });
       socket.join(roomId);
@@ -194,14 +226,14 @@ export function registerGameHandlers(io: GameServer): void {
       room.tossCall = call;
       const result = (Math.random() < 0.5 ? 'heads' : 'tails') as 'heads' | 'tails';
       const won = result === call;
-      room.tossWinnerId = won ? socket.id : room.players.find(p => p.id !== socket.id)!.id;
+      room.tossWinnerId = won ? socket.id : room.players.find((p) => p.id !== socket.id)!.id;
       room.phase = 'bat_bowl';
 
       io.to(roomId).emit('toss_result', {
         call,
         result,
         winnerId: room.tossWinnerId,
-        winnerName: room.players.find(p => p.id === room.tossWinnerId)!.name,
+        winnerName: room.players.find((p) => p.id === room.tossWinnerId)!.name,
       });
       io.to(roomId).emit('state', publicState(room, roomId));
     });
@@ -212,7 +244,7 @@ export function registerGameHandlers(io: GameServer): void {
       if (!room || !roomId || room.phase !== 'bat_bowl') return;
       if (socket.id !== room.tossWinnerId) return;
 
-      const winnerIdx = room.players.findIndex(p => p.id === room.tossWinnerId);
+      const winnerIdx = room.players.findIndex((p) => p.id === room.tossWinnerId);
       const otherIdx = winnerIdx === 0 ? 1 : 0;
 
       if (choice === 'bat') {
@@ -238,7 +270,7 @@ export function registerGameHandlers(io: GameServer): void {
       const room = roomId ? rooms.get(roomId) : undefined;
       if (!room || !roomId || room.phase !== 'innings') return;
 
-      const playerIdx = room.players.findIndex(p => p.id === socket.id);
+      const playerIdx = room.players.findIndex((p) => p.id === socket.id);
       if (playerIdx === -1) return;
 
       const isBatsman = playerIdx === room.batsmanIdx;
@@ -350,7 +382,9 @@ export function registerGameHandlers(io: GameServer): void {
 
       if (!accept) {
         const decliner = socket.data.userId ? findById(socket.data.userId) : null;
-        challengerSocket?.emit('challenge_declined', { username: decliner?.username || 'Opponent' });
+        challengerSocket?.emit('challenge_declined', {
+          username: decliner?.username || 'Opponent',
+        });
         return;
       }
 
@@ -359,8 +393,16 @@ export function registerGameHandlers(io: GameServer): void {
       const challenger = findById(ch.challengerId);
       const challenged = socket.data.userId ? findById(socket.data.userId) : null;
 
-      room.players.push({ id: ch.challengerSocketId, name: challenger?.username || 'Player 1', userId: ch.challengerId });
-      room.players.push({ id: socket.id, name: challenged?.username || 'Player 2', userId: socket.data.userId });
+      room.players.push({
+        id: ch.challengerSocketId,
+        name: challenger?.username || 'Player 1',
+        userId: ch.challengerId,
+      });
+      room.players.push({
+        id: socket.id,
+        name: challenged?.username || 'Player 2',
+        userId: socket.data.userId,
+      });
       rooms.set(roomId, room);
 
       if (challengerSocket) {
@@ -410,10 +452,11 @@ export function registerGameHandlers(io: GameServer): void {
     socket.on('join_tournament', ({ code, playerName }) => {
       const tournament = tournaments.get(code.toUpperCase());
       if (!tournament) return socket.emit('error', { message: 'Tournament not found.' });
-      if (tournament.phase !== 'waiting') return socket.emit('error', { message: 'Tournament already started.' });
+      if (tournament.phase !== 'waiting')
+        return socket.emit('error', { message: 'Tournament already started.' });
 
       // Already in tournament with same socket (no-op)
-      if (tournament.players.some(p => p.id === socket.id)) return;
+      if (tournament.players.some((p) => p.id === socket.id)) return;
 
       // Reconnection: logged-in user whose socket.id changed after a refresh
       const reconnIdx = socket.data.userId !== null
@@ -453,7 +496,7 @@ export function registerGameHandlers(io: GameServer): void {
       const roomId = socket.data.roomId;
       const room = roomId ? rooms.get(roomId) : undefined;
       if (!room || !roomId || room.phase !== 'result') return;
-      const playerIdx = room.players.findIndex(p => p.id === socket.id);
+      const playerIdx = room.players.findIndex((p) => p.id === socket.id);
       if (playerIdx === -1) return;
       if (!room.rematchRequests) room.rematchRequests = new Set<number>();
       room.rematchRequests.add(playerIdx);
@@ -548,8 +591,26 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
 
     const matchCount = room.mode === 'overs' ? room.overs : room.wickets;
     updateGameStats([
-      { userId: room.players[0].userId, win: winnerId === room.players[0].id, tie: winnerId === null, runsScored: playerScores[0], opponentName: room.players[1].name, opponentScore: playerScores[1], mode: room.mode, count: matchCount },
-      { userId: room.players[1].userId, win: winnerId === room.players[1].id, tie: winnerId === null, runsScored: playerScores[1], opponentName: room.players[0].name, opponentScore: playerScores[0], mode: room.mode, count: matchCount },
+      {
+        userId: room.players[0].userId,
+        win: winnerId === room.players[0].id,
+        tie: winnerId === null,
+        runsScored: playerScores[0],
+        opponentName: room.players[1].name,
+        opponentScore: playerScores[1],
+        mode: room.mode,
+        count: matchCount,
+      },
+      {
+        userId: room.players[1].userId,
+        win: winnerId === room.players[1].id,
+        tie: winnerId === null,
+        runsScored: playerScores[1],
+        opponentName: room.players[0].name,
+        opponentScore: playerScores[0],
+        mode: room.mode,
+        count: matchCount,
+      },
     ]);
 
     // Update tournament if this is a tournament match.
@@ -565,32 +626,62 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
           const inn1PlayerId = room.players[room.bowlerIdx!].id;
 
           if (p1Id === inn1PlayerId) {
-            fixture.p1Score = inn1.score; fixture.p2Score = inn2.score;
+            fixture.p1Score = inn1.score;
+            fixture.p2Score = inn2.score;
           } else {
-            fixture.p1Score = inn2.score; fixture.p2Score = inn1.score;
+            fixture.p1Score = inn2.score;
+            fixture.p2Score = inn1.score;
           }
-          fixture.result = winnerId === null ? 'tie' : (winnerId === p1Id ? 'p1' : 'p2');
+          fixture.result = winnerId === null ? 'tie' : winnerId === p1Id ? 'p1' : 'p2';
 
           const updateEntry = (
-            pid: string, rs: number, bf: number, rc: number, bb: number,
-            won: boolean, tied: boolean,
+            pid: string,
+            rs: number,
+            bf: number,
+            rc: number,
+            bb: number,
+            won: boolean,
+            tied: boolean
           ) => {
             const e = tournament.pointsTable[pid];
             if (!e) return;
-            e.played += 1; e.runsScored += rs; e.ballsFaced += bf;
-            e.runsConceded += rc; e.ballsBowled += bb;
-            if (tied) { e.tied += 1; e.points += 1; }
-            else if (won) { e.won += 1; e.points += 2; }
-            else { e.lost += 1; }
+            e.played += 1;
+            e.runsScored += rs;
+            e.ballsFaced += bf;
+            e.runsConceded += rc;
+            e.ballsBowled += bb;
+            if (tied) {
+              e.tied += 1;
+              e.points += 1;
+            } else if (won) {
+              e.won += 1;
+              e.points += 2;
+            } else {
+              e.lost += 1;
+            }
           };
 
           const tied = winnerId === null;
           const inn1PId = room.players[room.bowlerIdx!].id;
           const inn2PId = room.players[room.batsmanIdx!].id;
-          updateEntry(inn1PId, inn1.score, inn1.balls, inn2.score, inn2.balls,
-            !tied && winnerId === inn1PId, tied);
-          updateEntry(inn2PId, inn2.score, inn2.balls, inn1.score, inn1.balls,
-            !tied && winnerId === inn2PId, tied);
+          updateEntry(
+            inn1PId,
+            inn1.score,
+            inn1.balls,
+            inn2.score,
+            inn2.balls,
+            !tied && winnerId === inn1PId,
+            tied
+          );
+          updateEntry(
+            inn2PId,
+            inn2.score,
+            inn2.balls,
+            inn1.score,
+            inn1.balls,
+            !tied && winnerId === inn2PId,
+            tied
+          );
 
           io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
@@ -609,7 +700,7 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
       winnerName,
       resultText,
       scores: playerScores,
-      players: room.players.map(p => p.name),
+      players: room.players.map((p) => p.name),
     });
     io.to(roomId).emit('state', publicState(room, roomId));
   }
@@ -625,7 +716,12 @@ function finalizeTournament(io: GameServer, tournament: Tournament): void {
   });
 }
 
-function startTournamentMatch(io: GameServer, rooms: Map<string, Room>, tournament: Tournament, matchIndex: number): void {
+function startTournamentMatch(
+  io: GameServer,
+  rooms: Map<string, Room>,
+  tournament: Tournament,
+  matchIndex: number
+): void {
   if (matchIndex >= tournament.fixtures.length) {
     finalizeTournament(io, tournament);
     return;
@@ -646,11 +742,18 @@ function startTournamentMatch(io: GameServer, rooms: Map<string, Room>, tourname
     const p1Gone = !p1Socket;
     fixture.result = p1Gone ? 'p2' : 'p1';
     const winnerId = p1Gone ? p2.id : p1.id;
-    const loserId  = p1Gone ? p1.id : p2.id;
+    const loserId = p1Gone ? p1.id : p2.id;
     const we = tournament.pointsTable[winnerId];
     const le = tournament.pointsTable[loserId];
-    if (we) { we.played += 1; we.won += 1; we.points += 2; }
-    if (le) { le.played += 1; le.lost += 1; }
+    if (we) {
+      we.played += 1;
+      we.won += 1;
+      we.points += 2;
+    }
+    if (le) {
+      le.played += 1;
+      le.lost += 1;
+    }
     io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
     setTimeout(() => {
       const next = matchIndex + 1;
@@ -674,8 +777,18 @@ function startTournamentMatch(io: GameServer, rooms: Map<string, Room>, tourname
   p2Socket.join(roomId);
   p2Socket.data.roomId = roomId;
 
-  p1Socket.emit('tournament_match_starting', { roomId, opponentName: p2.name, matchNum: fixture.matchNum, myPlayerIdx: 0 });
-  p2Socket.emit('tournament_match_starting', { roomId, opponentName: p1.name, matchNum: fixture.matchNum, myPlayerIdx: 1 });
+  p1Socket.emit('tournament_match_starting', {
+    roomId,
+    opponentName: p2.name,
+    matchNum: fixture.matchNum,
+    myPlayerIdx: 0,
+  });
+  p2Socket.emit('tournament_match_starting', {
+    roomId,
+    opponentName: p1.name,
+    matchNum: fixture.matchNum,
+    myPlayerIdx: 1,
+  });
 
   const callerIdx = Math.floor(Math.random() * 2);
   room.tossCallerId = room.players[callerIdx].id;

@@ -9,12 +9,19 @@ import BatBowlScreen from './game/BatBowlScreen';
 import GameScreen from './game/GameScreen';
 import ResultScreen from './result/ResultScreen';
 import InningsEndOverlay from './game/InningsEndOverlay';
-import TournamentLobby from './components/TournamentLobby';
-import TournamentResult from './components/TournamentResult';
+import TournamentLobby from './tournament/TournamentLobby';
+import TournamentResult from './tournament/TournamentResult';
 import type {
-  GameState, TossStartPayload, TossResultPayload, InningsStartPayload,
-  BallPlayedPayload, GameOverPayload, InningsEndPayload, ChallengeReceivedPayload,
-  AuthResponse, TournamentState,
+  GameState,
+  TossStartPayload,
+  TossResultPayload,
+  InningsStartPayload,
+  BallPlayedPayload,
+  GameOverPayload,
+  InningsEndPayload,
+  ChallengeReceivedPayload,
+  AuthResponse,
+  TournamentState,
 } from '@cric/types';
 import type { ClientUser, AppPhase, RematchState } from './types';
 import './App.css';
@@ -73,7 +80,7 @@ export default function App() {
 
     socket.on('toss_result', (result) => {
       setTossResult(result);
-      setTimeout(() => setPhase(p => (p === 'toss_call' ? 'bat_bowl' : p)), 2500);
+      setTimeout(() => setPhase((p) => (p === 'toss_call' ? 'bat_bowl' : p)), 2500);
     });
 
     socket.on('innings_start', (info) => {
@@ -131,7 +138,7 @@ export default function App() {
     socket.on('tournament_state', (state) => {
       setTournamentState(state);
       if (state.phase === 'complete') setPhase('tournament_result');
-      else setPhase(p => p === 'lobby' ? 'tournament_lobby' : p);
+      else setPhase((p) => (p === 'lobby' ? 'tournament_lobby' : p));
     });
 
     socket.on('tournament_match_starting', ({ roomId: rid, myPlayerIdx: pidx }) => {
@@ -150,7 +157,7 @@ export default function App() {
     const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
     if (stored?.token) {
       apiGet('/api/me', stored.token)
-        .then(data => {
+        .then((data) => {
           const restored: ClientUser = { ...stored, stats: data.stats };
           setUser(restored);
           socket.auth = { token: stored.token };
@@ -173,9 +180,17 @@ export default function App() {
   }
 
   function handleAuthSuccess(data: AuthResponse) {
-    const userData: ClientUser = { id: data.id, username: data.username, token: data.token, stats: data.stats };
+    const userData: ClientUser = {
+      id: data.id,
+      username: data.username,
+      token: data.token,
+      stats: data.stats,
+    };
     setUser(userData);
-    localStorage.setItem(STORED_KEY, JSON.stringify({ id: data.id, username: data.username, token: data.token }));
+    localStorage.setItem(
+      STORED_KEY,
+      JSON.stringify({ id: data.id, username: data.username, token: data.token })
+    );
     socket.auth = { token: data.token };
     if (!socket.connected) socket.connect();
     setPhase('lobby');
@@ -238,7 +253,7 @@ export default function App() {
     const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
     if (stored?.token) {
       apiGet('/api/me', stored.token)
-        .then(data => setUser(u => (u ? { ...u, stats: data.stats } : u)))
+        .then((data) => setUser((u) => (u ? { ...u, stats: data.stats } : u)))
         .catch(() => {});
     }
   }
@@ -255,17 +270,27 @@ export default function App() {
       <header className="app-header">
         <span className="logo">🏏</span>
         <h1>Cric Flick</h1>
-        {roomId && phase !== 'lobby' && phase !== 'tournament_lobby' && phase !== 'tournament_result' && (
-          <span className="room-badge">Room: {roomId}</span>
-        )}
+        {roomId &&
+          phase !== 'lobby' &&
+          phase !== 'tournament_lobby' &&
+          phase !== 'tournament_result' && <span className="room-badge">Room: {roomId}</span>}
         {user && phase !== 'auth' && phase !== 'loading' && (
           <div className="header-user">
-            <button className="friends-toggle-btn" onClick={() => setFriendsOpen(o => !o)}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            <button className="friends-toggle-btn" onClick={() => setFriendsOpen((o) => !o)}>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
               Friends
             </button>
@@ -274,10 +299,19 @@ export default function App() {
               <span className="user-chip-name">{user.username}</span>
             </div>
             <button className="logout-btn" onClick={handleLogout} title="Log out">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
             </button>
           </div>
@@ -310,19 +344,18 @@ export default function App() {
                 : `${incomingChallenge.wickets} wicket${incomingChallenge.wickets !== 1 ? 's' : ''}`}
             </p>
             <div className="cn-actions">
-              <button className="cn-accept" onClick={acceptChallenge}>Accept</button>
-              <button className="cn-decline" onClick={declineChallenge}>Decline</button>
+              <button className="cn-accept" onClick={acceptChallenge}>
+                Accept
+              </button>
+              <button className="cn-decline" onClick={declineChallenge}>
+                Decline
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {inningsEnd && (
-        <InningsEndOverlay
-          data={inningsEnd}
-          onDismiss={() => setInningsEnd(null)}
-        />
-      )}
+      {inningsEnd && <InningsEndOverlay data={inningsEnd} onDismiss={() => setInningsEnd(null)} />}
 
       {phase === 'loading' && (
         <div className="center-screen">
@@ -330,12 +363,15 @@ export default function App() {
         </div>
       )}
 
-      {phase === 'auth' && (
-        <AuthScreen onAuth={handleAuthSuccess} onGuest={handleGuestPlay} />
-      )}
+      {phase === 'auth' && <AuthScreen onAuth={handleAuthSuccess} onGuest={handleGuestPlay} />}
 
       {phase === 'lobby' && (
-        <Lobby socket={socket} onJoinRoom={handleJoinRoom} defaultName={user?.username ?? ''} user={user} />
+        <Lobby
+          socket={socket}
+          onJoinRoom={handleJoinRoom}
+          defaultName={user?.username ?? ''}
+          user={user}
+        />
       )}
 
       {phase === 'waiting' && (
@@ -350,20 +386,11 @@ export default function App() {
       )}
 
       {phase === 'toss_call' && tossInfo && (
-        <TossScreen
-          socket={socket}
-          myId={myId}
-          tossInfo={tossInfo}
-          tossResult={tossResult}
-        />
+        <TossScreen socket={socket} myId={myId} tossInfo={tossInfo} tossResult={tossResult} />
       )}
 
       {phase === 'bat_bowl' && gameState && (
-        <BatBowlScreen
-          socket={socket}
-          myId={myId}
-          gameState={gameState}
-        />
+        <BatBowlScreen socket={socket} myId={myId} gameState={gameState} />
       )}
 
       {phase === 'innings' && gameState && inningsInfo && (
@@ -389,19 +416,11 @@ export default function App() {
       )}
 
       {phase === 'tournament_lobby' && tournamentState && (
-        <TournamentLobby
-          tournamentState={tournamentState}
-          myId={myId}
-          onLeave={resetToLobby}
-        />
+        <TournamentLobby tournamentState={tournamentState} myId={myId} onLeave={resetToLobby} />
       )}
 
       {phase === 'tournament_result' && tournamentState && (
-        <TournamentResult
-          tournamentState={tournamentState}
-          myId={myId}
-          onLeave={resetToLobby}
-        />
+        <TournamentResult tournamentState={tournamentState} myId={myId} onLeave={resetToLobby} />
       )}
     </div>
   );

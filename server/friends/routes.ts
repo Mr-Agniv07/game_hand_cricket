@@ -10,7 +10,7 @@ export const friendsRouter = Router();
 friendsRouter.get('/api/friends', requireAuth, (req: Request, res: Response) => {
   const userId = (req as AuthRequest).userId!;
   const friends = getFriends(userId);
-  res.json(friends.map(f => ({ ...f, online: onlineUsers.has(f.id) })));
+  res.json(friends.map((f) => ({ ...f, online: onlineUsers.has(f.id) })));
 });
 
 friendsRouter.get('/api/users/search', requireAuth, (req: Request, res: Response) => {
@@ -18,8 +18,10 @@ friendsRouter.get('/api/users/search', requireAuth, (req: Request, res: Response
   const q = (typeof req.query.q === 'string' ? req.query.q : '').trim();
   if (q.length < 2) return res.json([]);
   const results = searchUsers(q, userId);
-  const myFriendIds = new Set(getFriends(userId).map(f => f.id));
-  res.json(results.map(u => ({ ...u, isFriend: myFriendIds.has(u.id), online: onlineUsers.has(u.id) })));
+  const myFriendIds = new Set(getFriends(userId).map((f) => f.id));
+  res.json(
+    results.map((u) => ({ ...u, isFriend: myFriendIds.has(u.id), online: onlineUsers.has(u.id) }))
+  );
 });
 
 friendsRouter.post('/api/friends/add', requireAuth, (req: Request, res: Response) => {

@@ -38,7 +38,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   useEffect(() => {
     if (tab === 'history' && history === null && user?.token) {
       apiGet<MatchHistoryEntry[]>('/api/history', user.token)
-        .then(data => setHistory(data))
+        .then((data) => setHistory(data))
         .catch(() => setHistory([]));
     }
   }, [tab]);
@@ -108,17 +108,26 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
       )}
 
       <div className="tabs">
-        <button className={tab === 'create' ? 'tab active' : 'tab'} onClick={() => setTab('create')}>
+        <button
+          className={tab === 'create' ? 'tab active' : 'tab'}
+          onClick={() => setTab('create')}
+        >
           Create
         </button>
         <button className={tab === 'join' ? 'tab active' : 'tab'} onClick={() => setTab('join')}>
           Join
         </button>
-        <button className={tab === 'tournament' ? 'tab active' : 'tab'} onClick={() => setTab('tournament')}>
+        <button
+          className={tab === 'tournament' ? 'tab active' : 'tab'}
+          onClick={() => setTab('tournament')}
+        >
           Tournament
         </button>
         {loggedIn && (
-          <button className={tab === 'history' ? 'tab active' : 'tab'} onClick={() => setTab('history')}>
+          <button
+            className={tab === 'history' ? 'tab active' : 'tab'}
+            onClick={() => setTab('history')}
+          >
             History
           </button>
         )}
@@ -131,7 +140,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               <label>Your Name</label>
               <input
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="Enter your name"
                 maxLength={20}
                 autoFocus
@@ -141,16 +150,35 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           )}
           <label>Game Mode</label>
           <div className="over-options">
-            <button type="button" className={mode === 'overs' ? 'over-btn selected' : 'over-btn'} onClick={() => setMode('overs')}>Overs</button>
-            <button type="button" className={mode === 'wickets' ? 'over-btn selected' : 'over-btn'} onClick={() => setMode('wickets')}>Wickets</button>
+            <button
+              type="button"
+              className={mode === 'overs' ? 'over-btn selected' : 'over-btn'}
+              onClick={() => setMode('overs')}
+            >
+              Overs
+            </button>
+            <button
+              type="button"
+              className={mode === 'wickets' ? 'over-btn selected' : 'over-btn'}
+              onClick={() => setMode('wickets')}
+            >
+              Wickets
+            </button>
           </div>
 
           {mode === 'overs' && (
             <>
               <label>Number of Overs</label>
               <div className="over-options">
-                {OVER_OPTIONS.map(o => (
-                  <button key={o} type="button" className={overs === o ? 'over-btn selected' : 'over-btn'} onClick={() => setOvers(o)}>{o}</button>
+                {OVER_OPTIONS.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    className={overs === o ? 'over-btn selected' : 'over-btn'}
+                    onClick={() => setOvers(o)}
+                  >
+                    {o}
+                  </button>
                 ))}
               </div>
             </>
@@ -160,14 +188,23 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
             <>
               <label>Number of Wickets</label>
               <div className="over-options">
-                {WICKET_OPTIONS.map(w => (
-                  <button key={w} type="button" className={wickets === w ? 'over-btn selected' : 'over-btn'} onClick={() => setWickets(w)}>{w}</button>
+                {WICKET_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className={wickets === w ? 'over-btn selected' : 'over-btn'}
+                    onClick={() => setWickets(w)}
+                  >
+                    {w}
+                  </button>
                 ))}
               </div>
             </>
           )}
 
-          <button type="submit" className="btn-primary">Create Room</button>
+          <button type="submit" className="btn-primary">
+            Create Room
+          </button>
         </form>
       )}
 
@@ -178,7 +215,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               <label>Your Name</label>
               <input
                 value={joinName}
-                onChange={e => setJoinName(e.target.value)}
+                onChange={(e) => setJoinName(e.target.value)}
                 placeholder="Enter your name"
                 maxLength={20}
                 autoFocus
@@ -189,41 +226,88 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           <label>Room Code</label>
           <input
             value={joinCode}
-            onChange={e => setJoinCode(e.target.value.toUpperCase())}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
             placeholder="e.g. AB3XZ"
             maxLength={5}
             required
           />
-          <button type="submit" className="btn-primary">Join Game</button>
+          <button type="submit" className="btn-primary">
+            Join Game
+          </button>
         </form>
       )}
 
       {tab === 'tournament' && (
         <div className="card form">
           <div className="t-sub-tabs">
-            <button type="button" className={tSubTab === 'create' ? 'tab active' : 'tab'} onClick={() => setTSubTab('create')}>Create</button>
-            <button type="button" className={tSubTab === 'join' ? 'tab active' : 'tab'} onClick={() => setTSubTab('join')}>Join</button>
+            <button
+              type="button"
+              className={tSubTab === 'create' ? 'tab active' : 'tab'}
+              onClick={() => setTSubTab('create')}
+            >
+              Create
+            </button>
+            <button
+              type="button"
+              className={tSubTab === 'join' ? 'tab active' : 'tab'}
+              onClick={() => setTSubTab('join')}
+            >
+              Join
+            </button>
           </div>
 
           {tSubTab === 'create' && (
-            <form onSubmit={handleCreateTournament} style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', marginTop: '.75rem' }}>
+            <form
+              onSubmit={handleCreateTournament}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '.6rem',
+                marginTop: '.75rem',
+              }}
+            >
               {!loggedIn && (
                 <>
                   <label>Your Name</label>
-                  <input value={name} onChange={e => setName(e.target.value)} placeholder="Enter your name" maxLength={20} required />
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your name"
+                    maxLength={20}
+                    required
+                  />
                 </>
               )}
               <label>Game Mode</label>
               <div className="over-options">
-                <button type="button" className={tMode === 'overs' ? 'over-btn selected' : 'over-btn'} onClick={() => setTMode('overs')}>Overs</button>
-                <button type="button" className={tMode === 'wickets' ? 'over-btn selected' : 'over-btn'} onClick={() => setTMode('wickets')}>Wickets</button>
+                <button
+                  type="button"
+                  className={tMode === 'overs' ? 'over-btn selected' : 'over-btn'}
+                  onClick={() => setTMode('overs')}
+                >
+                  Overs
+                </button>
+                <button
+                  type="button"
+                  className={tMode === 'wickets' ? 'over-btn selected' : 'over-btn'}
+                  onClick={() => setTMode('wickets')}
+                >
+                  Wickets
+                </button>
               </div>
               {tMode === 'overs' && (
                 <>
                   <label>Overs per Match</label>
                   <div className="over-options">
-                    {OVER_OPTIONS.map(o => (
-                      <button key={o} type="button" className={tOvers === o ? 'over-btn selected' : 'over-btn'} onClick={() => setTOvers(o)}>{o}</button>
+                    {OVER_OPTIONS.map((o) => (
+                      <button
+                        key={o}
+                        type="button"
+                        className={tOvers === o ? 'over-btn selected' : 'over-btn'}
+                        onClick={() => setTOvers(o)}
+                      >
+                        {o}
+                      </button>
                     ))}
                   </div>
                 </>
@@ -232,8 +316,15 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                 <>
                   <label>Wickets per Match</label>
                   <div className="over-options">
-                    {WICKET_OPTIONS.map(w => (
-                      <button key={w} type="button" className={tWickets === w ? 'over-btn selected' : 'over-btn'} onClick={() => setTWickets(w)}>{w}</button>
+                    {WICKET_OPTIONS.map((w) => (
+                      <button
+                        key={w}
+                        type="button"
+                        className={tWickets === w ? 'over-btn selected' : 'over-btn'}
+                        onClick={() => setTWickets(w)}
+                      >
+                        {w}
+                      </button>
                     ))}
                   </div>
                 </>
@@ -241,27 +332,45 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0' }}>
                 4-player round-robin · 12 matches · Win=2pts, Tie=1pt, Loss=0pts
               </p>
-              <button type="submit" className="btn-primary">Create Tournament</button>
+              <button type="submit" className="btn-primary">
+                Create Tournament
+              </button>
             </form>
           )}
 
           {tSubTab === 'join' && (
-            <form onSubmit={handleJoinTournament} style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', marginTop: '.75rem' }}>
+            <form
+              onSubmit={handleJoinTournament}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '.6rem',
+                marginTop: '.75rem',
+              }}
+            >
               {!loggedIn && (
                 <>
                   <label>Your Name</label>
-                  <input value={joinName} onChange={e => setJoinName(e.target.value)} placeholder="Enter your name" maxLength={20} required />
+                  <input
+                    value={joinName}
+                    onChange={(e) => setJoinName(e.target.value)}
+                    placeholder="Enter your name"
+                    maxLength={20}
+                    required
+                  />
                 </>
               )}
               <label>Tournament Code</label>
               <input
                 value={tJoinCode}
-                onChange={e => setTJoinCode(e.target.value.toUpperCase())}
+                onChange={(e) => setTJoinCode(e.target.value.toUpperCase())}
                 placeholder="e.g. AB3XZ"
                 maxLength={5}
                 required
               />
-              <button type="submit" className="btn-primary">Join Tournament</button>
+              <button type="submit" className="btn-primary">
+                Join Tournament
+              </button>
             </form>
           )}
         </div>
@@ -275,7 +384,9 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               <div className="spinner" />
             </div>
           ) : history.length === 0 ? (
-            <p className="fp-empty" style={{ marginTop: '.5rem' }}>No matches played yet.</p>
+            <p className="fp-empty" style={{ marginTop: '.5rem' }}>
+              No matches played yet.
+            </p>
           ) : (
             <div className="history-list">
               {history.map((m, i) => (
@@ -292,9 +403,14 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                     </span>
                   </div>
                   <div className="history-right">
-                    <span className="history-score">{m.myScore} – {m.oppScore}</span>
+                    <span className="history-score">
+                      {m.myScore} – {m.oppScore}
+                    </span>
                     <span className="history-date">
-                      {new Date(m.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      {new Date(m.date).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
                     </span>
                   </div>
                 </div>
