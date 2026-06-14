@@ -10,6 +10,7 @@ import type {
   TournamentPlayer,
   FixtureMatch,
   PointsTableEntry,
+  LiveMatchScore,
 } from '@cric/types';
 import { findById, updateGameStats } from '../db.ts';
 import { verifyToken } from '../auth/auth.ts';
@@ -73,6 +74,7 @@ interface Tournament {
   fixtures: InternalFixtureMatch[];
   currentMatchIndex: number;
   pointsTable: Record<string, InternalPointsEntry>;
+  liveScore: LiveMatchScore | null;
 }
 
 const tournaments = new Map<string, Tournament>(); // keyed by tournament code
@@ -125,6 +127,7 @@ function publicTournamentState(t: Tournament): TournamentState {
         { ...e, nrr: computeNRR(e) },
       ])
     ),
+    liveScore: t.liveScore,
   };
 }
 
@@ -170,6 +173,31 @@ interface PendingChallenge {
 export const onlineUsers = new Map<string, string>(); // userId → socketId
 const pendingChallenges = new Map<string, PendingChallenge>();
 const rooms = new Map<string, Room>();
+
+function pushLiveScore(
+  io: GameServer,
+  room: Room,
+  lastBall: LiveMatchScore['lastBall']
+): void {
+  if (!room.tournamentId) return;
+  const tournament = tournaments.get(room.tournamentId);
+  if (!tournament) return;
+  const inn = room.innings[room.currentInnings];
+  tournament.liveScore = {
+    batsmanName: room.players[room.batsmanIdx!].name,
+    bowlerName: room.players[room.bowlerIdx!].name,
+    score: inn.score,
+    balls: inn.balls,
+    overs: room.overs,
+    wicketsLost: inn.wicketsLost,
+    mode: room.mode,
+    wickets: room.wickets,
+    target: room.currentInnings === 1 ? room.innings[0].score + 1 : null,
+    currentInnings: room.currentInnings + 1,
+    lastBall,
+  };
+  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+}
 
 export function registerGameHandlers(io: GameServer): void {
   io.use((socket, next) => {
@@ -314,6 +342,7 @@ export function registerGameHandlers(io: GameServer): void {
           endInnings(io, roomId, room, allOut ? 'all_out' : 'overs_complete');
         } else {
           io.to(roomId).emit('state', publicState(room, roomId));
+          pushLiveScore(io, room, { scored: 0, isOut: true, batsmanMove: batMove, bowlerMove: bowlMove });
         }
       } else {
         inn.score += batMove;
@@ -337,7 +366,10 @@ export function registerGameHandlers(io: GameServer): void {
 
         if (room.mode === 'overs' && inn.balls >= totalBalls(room)) {
           endInnings(io, roomId, room, 'overs_complete');
+          return;
         }
+
+        pushLiveScore(io, room, { scored: batMove, isOut: false, batsmanMove: batMove, bowlerMove: bowlMove });
       }
     });
 
@@ -446,6 +478,7 @@ export function registerGameHandlers(io: GameServer): void {
         fixtures: [],
         currentMatchIndex: 0,
         pointsTable: {},
+        liveScore: null,
       };
       tournaments.set(code, tournament);
       socket.join('t:' + tournamentId);
@@ -549,6 +582,12 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
     room.batsmanIdx = room.bowlerIdx;
     room.bowlerIdx = tmp;
     room.pendingMoves = {};
+
+    // Clear live score at innings break; spectators will see it again from the first ball of innings 2
+    if (room.tournamentId) {
+      const t = tournaments.get(room.tournamentId);
+      if (t) t.liveScore = null;
+    }
 
     const target = room.innings[0].score + 1;
     io.to(roomId).emit('innings_start', {
@@ -687,6 +726,7 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
             tied
           );
 
+          tournament.liveScore = null;
           io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
           setTimeout(() => {

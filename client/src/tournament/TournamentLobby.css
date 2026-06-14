@@ -503,6 +503,77 @@
   color: var(--muted);
 }
 
+/* ─── Spectator scoreboard ─── */
+
+.t-spectator {
+  border: 1px solid var(--accent);
+  background: #16a34a0a;
+}
+
+.t-spec-score {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.t-spec-runs {
+  font-size: 2.4rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.t-spec-sep {
+  font-size: 1.4rem;
+  color: var(--muted);
+}
+
+.t-spec-detail {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.t-spec-target {
+  font-size: 0.85rem;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.t-spec-players {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.t-spec-bat {
+  color: var(--bat);
+}
+
+.t-spec-bowl {
+  color: var(--bowl);
+}
+
+.t-spec-last {
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.35rem 0.6rem;
+  border-radius: 7px;
+  align-self: flex-start;
+}
+
+.t-spec-last.run {
+  background: #16a34a18;
+  color: var(--accent);
+}
+
+.t-spec-last.out {
+  background: #ef444418;
+  color: var(--danger);
+}
+
 /* ─── Leave button ─── */
 
 .btn-lobby {

@@ -122,6 +122,33 @@ body {
   color: #fff;
 }
 
+/* ─── Auto-play toggle (Shreyansh only) ─── */
+.autoplay-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface2);
+  border: 1px solid #ffffff20;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: all 0.2s;
+}
+.autoplay-btn:hover {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.autoplay-btn.active {
+  background: linear-gradient(135deg, #f59e0b22, #f59e0b18);
+  border-color: var(--warn);
+  color: var(--warn);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
 /* ─── Header user area ─── */
 .header-user {
   display: flex;

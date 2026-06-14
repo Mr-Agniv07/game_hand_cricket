@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TournamentState, PointsTableEntry } from '@cric/types';
+import type { TournamentState, PointsTableEntry, LiveMatchScore } from '@cric/types';
 import './TournamentLobby.css';
 
 interface TournamentLobbyProps {
@@ -20,6 +20,62 @@ function nrrColor(nrr: number): string {
 }
 
 const RANK_MEDALS = ['🥇', '🥈', '🥉', '4'];
+
+function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
+  const {
+    batsmanName,
+    bowlerName,
+    score,
+    balls,
+    overs,
+    wicketsLost,
+    mode,
+    wickets,
+    target,
+    currentInnings,
+    lastBall,
+  } = liveScore;
+
+  const oversDisplay = `${Math.floor(balls / 6)}.${balls % 6}`;
+  const runsNeeded = target !== null ? target - score : null;
+
+  return (
+    <div className="t-section t-spectator">
+      <div className="t-section-title">
+        Live — Innings {currentInnings}
+      </div>
+
+      <div className="t-spec-score">
+        <span className="t-spec-runs">{score}</span>
+        <span className="t-spec-sep">/</span>
+        {mode === 'overs' ? (
+          <span className="t-spec-detail">{oversDisplay} ov</span>
+        ) : (
+          <span className="t-spec-detail">{wicketsLost}W ({wickets}wkt)</span>
+        )}
+      </div>
+
+      {runsNeeded !== null && (
+        <div className="t-spec-target">
+          Target {target} — need <strong>{runsNeeded}</strong> more
+        </div>
+      )}
+
+      <div className="t-spec-players">
+        <span className="t-spec-bat">🏏 {batsmanName}</span>
+        <span className="t-spec-bowl">🎳 {bowlerName}</span>
+      </div>
+
+      {lastBall && (
+        <div className={`t-spec-last ${lastBall.isOut ? 'out' : 'run'}`}>
+          {lastBall.isOut
+            ? `💥 OUT! Both played ${lastBall.batsmanMove}`
+            : `+${lastBall.scored}  (${lastBall.batsmanMove} vs ${lastBall.bowlerMove})`}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TournamentLobby({ tournamentState, myId, onLeave }: TournamentLobbyProps) {
   const { code, players, phase, fixtures, currentMatchIndex, pointsTable } = tournamentState;
@@ -118,6 +174,11 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
             </>
           )}
         </div>
+      )}
+
+      {/* Spectator scoreboard — shown to waiting players when a match is live */}
+      {phase === 'in_progress' && !imPlaying && tournamentState.liveScore && (
+        <SpectatorScore liveScore={tournamentState.liveScore} />
       )}
 
       {/* Points table */}
