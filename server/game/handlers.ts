@@ -293,7 +293,11 @@ export function registerGameHandlers(io: GameServer): void {
 
       if (batMove === bowlMove) {
         inn.wicketsLost += 1;
-        const inningsOver = room.mode !== 'wickets' || inn.wicketsLost >= room.wickets;
+        // In overs mode a dismissal is a zero-run ball — overs complete the innings.
+        // In wickets mode the innings ends when all lives are consumed.
+        const ovComplete = room.mode === 'overs' && inn.balls >= totalBalls(room);
+        const allOut = room.mode === 'wickets' && inn.wicketsLost >= room.wickets;
+        const inningsOver = ovComplete || allOut;
 
         io.to(roomId).emit('ball_played', {
           batsmanMove: batMove,
@@ -306,8 +310,8 @@ export function registerGameHandlers(io: GameServer): void {
         });
 
         if (inningsOver) {
-          inn.isOut = true;
-          endInnings(io, roomId, room, room.mode === 'wickets' ? 'all_out' : 'out');
+          inn.isOut = allOut;
+          endInnings(io, roomId, room, allOut ? 'all_out' : 'overs_complete');
         } else {
           io.to(roomId).emit('state', publicState(room, roomId));
         }
