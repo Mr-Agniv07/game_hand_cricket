@@ -62,9 +62,9 @@ export default function GameScreen({
     mlRef.current.recordMove(opponentMove);
   }, [lastBall, isBatsman, isAutoPlay]);
 
-  // Reset the model when innings change (roles swap, fresh patterns).
+  // New innings: clear Markov context but keep frequency data across the break.
   useEffect(() => {
-    mlRef.current.reset();
+    mlRef.current.newInnings();
   }, [currentInnings]);
 
   // Unlock the numpad whenever the server advances the ball count or the innings
