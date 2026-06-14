@@ -1,4 +1,5 @@
 import type { InningsEndPayload, InningsEndReason } from '@cric/types';
+import './InningsEndOverlay.css';
 
 interface InningsEndOverlayProps {
   data: InningsEndPayload;

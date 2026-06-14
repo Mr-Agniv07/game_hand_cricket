@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { apiPost } from '../api';
+import './AuthScreen.css';
 import type { AuthResponse } from '@cric/types';
 
 type AuthTab = 'login' | 'signup';

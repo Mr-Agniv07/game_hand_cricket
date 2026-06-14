@@ -1,0 +1,44 @@
+.toss-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+}
+.toss-card h2 { font-size: 1.5rem; }
+.coin {
+  font-size: 4rem;
+  line-height: 1;
+}
+.coin.flipping {
+  animation: flip 0.8s ease-in-out;
+}
+@keyframes flip {
+  0%   { transform: rotateY(0); }
+  50%  { transform: rotateY(90deg); }
+  100% { transform: rotateY(0); }
+}
+.toss-prompt { color: var(--muted); }
+.toss-choices {
+  display: flex;
+  gap: .75rem;
+  width: 100%;
+}
+.toss-btn {
+  flex: 1;
+  padding: .9rem;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.toss-btn:disabled { opacity: .5; cursor: not-allowed; }
+.toss-btn.heads { background: var(--bat); color: #000; }
+.toss-btn.tails { background: var(--bowl); color: #000; }
+
+.toss-result { display: flex; flex-direction: column; align-items: center; gap: .7rem; }
+.coin-result { font-size: 1.6rem; font-weight: 800; }
+.toss-winner { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+.toss-sub { color: var(--muted); font-size: .85rem; }

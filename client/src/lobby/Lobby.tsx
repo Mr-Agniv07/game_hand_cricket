@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { apiGet } from '../api';
+import './Lobby.css';
 import type { Mode, MatchHistoryEntry } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';

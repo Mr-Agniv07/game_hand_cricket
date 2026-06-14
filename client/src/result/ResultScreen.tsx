@@ -1,5 +1,6 @@
 import type { GameOverPayload } from '@cric/types';
 import type { RematchState } from '../types';
+import './ResultScreen.css';
 
 interface ResultScreenProps {
   gameOver: GameOverPayload;

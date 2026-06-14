@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
 import { apiGet, apiPost, apiDelete } from '../api';
+import './FriendsPanel.css';
 import type { Friend, SearchResult, Mode, ChallengeDeclinedPayload } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser, AppPhase } from '../types';

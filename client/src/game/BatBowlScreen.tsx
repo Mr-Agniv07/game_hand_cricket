@@ -1,5 +1,6 @@
 import type { AppSocket } from '../socket';
 import type { GameState, BatBowlChoice } from '@cric/types';
+import './BatBowlScreen.css';
 
 interface BatBowlScreenProps {
   socket: AppSocket;

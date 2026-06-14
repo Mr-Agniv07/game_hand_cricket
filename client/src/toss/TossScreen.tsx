@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AppSocket } from '../socket';
+import './TossScreen.css';
 import type { TossStartPayload, TossResultPayload, TossCall } from '@cric/types';
 
 interface TossScreenProps {
