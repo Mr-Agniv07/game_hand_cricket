@@ -11,20 +11,30 @@ client is a thin renderer driven by socket events.
 
 ## Package manager
 
-Use **pnpm**, not npm (both packages declare `packageManager: pnpm@10.33.0`).
+Use **pnpm**, not npm. This is a **pnpm workspace**: the root `package.json` owns the
+`packageManager` pin (`pnpm@10.33.0`), and there is a single `pnpm-lock.yaml` at the
+root. `pnpm-workspace.yaml` lists the two member packages (`server`, `client`).
 
 ## Layout & commands
 
-Two independent packages with their own `node_modules` — there is no root workspace.
-Run each in its own terminal from its own directory.
+A pnpm workspace with two member packages, `server/` and `client/`. Dependencies are
+installed once from the root and hoisted into the root `node_modules`.
+
+From the **repo root**:
+- `pnpm install` — installs both packages.
+- `pnpm dev` — runs **both** dev servers in parallel (`pnpm -r --parallel run dev`).
+- `pnpm dev:server` / `pnpm dev:client` — run just one (`--filter`).
+- `pnpm start` — `node index.js` for the server.
+- `pnpm build` / `pnpm preview` — client production build / preview.
+
+The member packages keep their own scripts and can still be run from their own
+directory (e.g. `cd server && pnpm dev`):
 
 - **server/** — Node + Express + Socket.io, ES modules (`"type": "module"`).
-  - `pnpm install`
   - `pnpm dev` — nodemon, auto-restart (use this while developing)
   - `pnpm start` — plain `node index.js`
   - Listens on `PORT` env or `3001`.
 - **client/** — React 19 + Vite.
-  - `pnpm install`
   - `pnpm dev` — Vite dev server
   - `pnpm build`, `pnpm preview`
   - Server URL comes from `VITE_SERVER_URL` (defaults to `http://localhost:3001`), see `client/src/socket.js`.
