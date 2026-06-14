@@ -2,42 +2,65 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+import type {
+  UserStats,
+  MatchHistoryEntry,
+  Mode,
+  PublicUser,
+  Friend,
+} from '@cric/types';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = join(__dir, 'db.json');
 
-function load() {
+/** Full user record as persisted in db.json (never sent to clients verbatim). */
+export interface DbUser {
+  id: string;
+  username: string;
+  passwordHash: string;
+  token: string | null;
+  stats: UserStats;
+  matchHistory: MatchHistoryEntry[];
+  friends?: string[];
+  createdAt: string;
+}
+
+interface Database {
+  users: DbUser[];
+}
+
+function load(): Database {
   if (!existsSync(DB_PATH)) return { users: [] };
   try {
-    return JSON.parse(readFileSync(DB_PATH, 'utf8'));
+    return JSON.parse(readFileSync(DB_PATH, 'utf8')) as Database;
   } catch {
     return { users: [] };
   }
 }
 
-function save(data) {
+function save(data: Database): void {
   writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
-export function findByUsername(username) {
+export function findByUsername(username: string): DbUser | null {
   const db = load();
   return db.users.find(u => u.username.toLowerCase() === username.toLowerCase()) ?? null;
 }
 
-export function findById(id) {
+export function findById(id: string): DbUser | null {
   const db = load();
   return db.users.find(u => u.id === id) ?? null;
 }
 
-export function findByToken(token) {
+export function findByToken(token: string): DbUser | null {
   const db = load();
   return db.users.find(u => u.token === token) ?? null;
 }
 
-export function createUser(username, passwordHash) {
+export function createUser(username: string, passwordHash: string): DbUser | null {
   const db = load();
   if (db.users.some(u => u.username.toLowerCase() === username.toLowerCase())) return null;
-  const user = {
+  const user: DbUser = {
     id: randomUUID(),
     username,
     passwordHash,
@@ -51,7 +74,7 @@ export function createUser(username, passwordHash) {
   return user;
 }
 
-export function saveToken(userId, token) {
+export function saveToken(userId: string, token: string): void {
   const db = load();
   const user = db.users.find(u => u.id === userId);
   if (!user) return;
@@ -59,7 +82,7 @@ export function saveToken(userId, token) {
   save(db);
 }
 
-export function addFriend(userId, friendId) {
+export function addFriend(userId: string, friendId: string): boolean {
   const db = load();
   const user = db.users.find(u => u.id === userId);
   const friend = db.users.find(u => u.id === friendId);
@@ -72,7 +95,7 @@ export function addFriend(userId, friendId) {
   return true;
 }
 
-export function removeFriend(userId, friendId) {
+export function removeFriend(userId: string, friendId: string): void {
   const db = load();
   const user = db.users.find(u => u.id === userId);
   const friend = db.users.find(u => u.id === friendId);
@@ -81,17 +104,17 @@ export function removeFriend(userId, friendId) {
   save(db);
 }
 
-export function getFriends(userId) {
+export function getFriends(userId: string): Friend[] {
   const db = load();
   const user = db.users.find(u => u.id === userId);
   if (!user?.friends?.length) return [];
   return user.friends
     .map(fid => db.users.find(u => u.id === fid))
-    .filter(Boolean)
-    .map(u => ({ id: u.id, username: u.username, stats: u.stats }));
+    .filter((u): u is DbUser => Boolean(u))
+    .map(u => ({ id: u.id, username: u.username, stats: u.stats, online: false }));
 }
 
-export function searchUsers(query, excludeId) {
+export function searchUsers(query: string, excludeId: string): PublicUser[] {
   if (!query || query.length < 2) return [];
   const db = load();
   const q = query.toLowerCase();
@@ -101,8 +124,19 @@ export function searchUsers(query, excludeId) {
     .map(u => ({ id: u.id, username: u.username }));
 }
 
+export interface GameStatsResult {
+  userId: string | null | undefined;
+  win: boolean;
+  tie: boolean;
+  runsScored: number;
+  opponentName: string;
+  opponentScore: number;
+  mode: Mode;
+  count: number;
+}
+
 // Load once, update both players, save once — avoids double-write race on Windows/OneDrive
-export function updateGameStats(results) {
+export function updateGameStats(results: GameStatsResult[]): void {
   const db = load();
   for (const { userId, win, tie, runsScored, opponentName, opponentScore, mode, count } of results) {
     if (!userId) continue;
@@ -129,7 +163,7 @@ export function updateGameStats(results) {
   save(db);
 }
 
-export function getMatchHistory(userId) {
+export function getMatchHistory(userId: string): MatchHistoryEntry[] {
   const db = load();
   const user = db.users.find(u => u.id === userId);
   return user?.matchHistory ?? [];

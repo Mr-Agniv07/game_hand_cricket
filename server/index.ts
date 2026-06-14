@@ -3,21 +3,45 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { randomUUID } from 'crypto';
-import { findByUsername, findById, createUser, updateGameStats, getMatchHistory, addFriend, removeFriend, getFriends, searchUsers } from './db.js';
-import { hashPassword, verifyPassword, createToken, verifyToken } from './auth.js';
+import {
+  findByUsername, findById, createUser, updateGameStats, getMatchHistory,
+  addFriend, removeFriend, getFriends, searchUsers,
+} from './db.ts';
+import { hashPassword, verifyPassword, createToken, verifyToken } from './auth.ts';
+import type { Request, Response, NextFunction } from 'express';
+import type { Socket, DefaultEventsMap } from 'socket.io';
+import type {
+  ServerToClientEvents, ClientToServerEvents, GameState, Mode, Phase,
+  TossCall, InningsEndReason, RoomCreatedPayload,
+} from '@cric/types';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 const httpServer = createServer(app);
 
-const io = new Server(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
-});
+// Data attached to each socket beyond socket.id.
+interface SocketData {
+  userId: string | null;
+  roomId?: string;
+  playerName?: string;
+}
+
+type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+
+const io = new Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>(
+  httpServer,
+  { cors: { origin: '*', methods: ['GET', 'POST'] } },
+);
+
+// Express Request augmented by requireAuth.
+interface AuthRequest extends Request {
+  userId?: string;
+}
 
 // ─── Auth HTTP routes ─────────────────────────────────────────────────────────
 
-app.post('/api/signup', (req, res) => {
+app.post('/api/signup', (req: Request, res: Response) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
   if (username.length < 2 || username.length > 20) return res.status(400).json({ error: 'Username must be 2–20 characters.' });
@@ -28,7 +52,7 @@ app.post('/api/signup', (req, res) => {
   res.json({ id: user.id, username: user.username, token, stats: user.stats });
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', (req: Request, res: Response) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
   const user = findByUsername(username.trim());
@@ -38,7 +62,7 @@ app.post('/api/login', (req, res) => {
   res.json({ id: user.id, username: user.username, token, stats: user.stats });
 });
 
-app.get('/api/me', (req, res) => {
+app.get('/api/me', (req: Request, res: Response) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token.' });
   const userId = verifyToken(token);
@@ -50,95 +74,144 @@ app.get('/api/me', (req, res) => {
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 
-function requireAuth(req, res, next) {
+function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
   const userId = verifyToken(token);
   if (!userId) return res.status(401).json({ error: 'Invalid token' });
-  req.userId = userId;
+  (req as AuthRequest).userId = userId;
   next();
 }
 
 // ─── Friends HTTP routes ──────────────────────────────────────────────────────
 
-app.get('/api/friends', requireAuth, (req, res) => {
-  const friends = getFriends(req.userId);
+app.get('/api/friends', requireAuth, (req: Request, res: Response) => {
+  const userId = (req as AuthRequest).userId!;
+  const friends = getFriends(userId);
   res.json(friends.map(f => ({ ...f, online: onlineUsers.has(f.id) })));
 });
 
-app.get('/api/users/search', requireAuth, (req, res) => {
-  const q = (req.query.q || '').trim();
+app.get('/api/users/search', requireAuth, (req: Request, res: Response) => {
+  const userId = (req as AuthRequest).userId!;
+  const q = (typeof req.query.q === 'string' ? req.query.q : '').trim();
   if (q.length < 2) return res.json([]);
-  const results = searchUsers(q, req.userId);
-  const myFriendIds = new Set(getFriends(req.userId).map(f => f.id));
+  const results = searchUsers(q, userId);
+  const myFriendIds = new Set(getFriends(userId).map(f => f.id));
   res.json(results.map(u => ({ ...u, isFriend: myFriendIds.has(u.id), online: onlineUsers.has(u.id) })));
 });
 
-app.post('/api/friends/add', requireAuth, (req, res) => {
+app.post('/api/friends/add', requireAuth, (req: Request, res: Response) => {
+  const userId = (req as AuthRequest).userId!;
   const { friendId } = req.body || {};
   if (!friendId) return res.status(400).json({ error: 'friendId required' });
-  if (friendId === req.userId) return res.status(400).json({ error: 'Cannot add yourself' });
-  const ok = addFriend(req.userId, friendId);
+  if (friendId === userId) return res.status(400).json({ error: 'Cannot add yourself' });
+  const ok = addFriend(userId, friendId);
   if (!ok) return res.status(404).json({ error: 'User not found' });
   res.json({ ok: true });
 });
 
-app.delete('/api/friends/:friendId', requireAuth, (req, res) => {
-  removeFriend(req.userId, req.params.friendId);
+app.delete('/api/friends/:friendId', requireAuth, (req: Request, res: Response) => {
+  const userId = (req as AuthRequest).userId!;
+  removeFriend(userId, req.params.friendId as string);
   res.json({ ok: true });
 });
 
-app.get('/api/history', requireAuth, (req, res) => {
-  const history = getMatchHistory(req.userId);
+app.get('/api/history', requireAuth, (req: Request, res: Response) => {
+  const userId = (req as AuthRequest).userId!;
+  const history = getMatchHistory(userId);
   res.json([...history].reverse()); // newest first
 });
 
 // ─── Runtime state ────────────────────────────────────────────────────────────
 
-const onlineUsers = new Map();      // userId → socketId
-const pendingChallenges = new Map(); // challengeId → challenge object
+const onlineUsers = new Map<string, string>();      // userId → socketId
+
+interface PendingChallenge {
+  challengerId: string;
+  challengerSocketId: string;
+  toUserId: string;
+  overs: number;
+  mode: Mode;
+  wickets: number;
+  timeout: NodeJS.Timeout;
+}
+const pendingChallenges = new Map<string, PendingChallenge>(); // challengeId → challenge object
 
 // ─── roomId -> gameState ──────────────────────────────────────────────────────
-const rooms = new Map();
 
-function makeRoomId() {
+interface RoomPlayer {
+  id: string;
+  name: string;
+  userId: string | null;
+}
+
+interface RoomInnings {
+  score: number;
+  balls: number;
+  isOut: boolean;
+  wicketsLost: number;
+  moves: number[];
+}
+
+interface Room {
+  players: RoomPlayer[];
+  overs: number;
+  mode: Mode;
+  wickets: number;
+  phase: Phase;
+  tossCallerId: string | null;
+  tossCall: TossCall | null;
+  tossWinnerId: string | null;
+  batsmanIdx: number | null;
+  bowlerIdx: number | null;
+  innings: [RoomInnings, RoomInnings];
+  currentInnings: number;
+  pendingMoves: Record<string, number>;
+  rematchRequests?: Set<number> | null;
+  _graceTimers?: Record<string, NodeJS.Timeout>;
+}
+
+const rooms = new Map<string, Room>();
+
+function makeRoomId(): string {
   return Math.random().toString(36).substring(2, 7).toUpperCase();
 }
 
-function createRoom(overs, mode, wickets) {
+function freshInnings(): RoomInnings {
+  return { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] };
+}
+
+function createRoom(overs: number, mode: Mode, wickets: number): Room {
   return {
-    players: [],           // [{ id, name }]
+    players: [],
     overs,
-    mode: mode || 'overs', // 'overs' | 'wickets'
+    mode: mode || 'overs',
     wickets: wickets || 1,
-    phase: 'waiting',      // waiting | toss_call | bat_bowl | innings | result
-    tossCallerId: null,    // socket id of who calls the toss
-    tossCall: null,        // 'heads' | 'tails'
+    phase: 'waiting',
+    tossCallerId: null,
+    tossCall: null,
     tossWinnerId: null,
-    batsmanIdx: null,      // index in players[]
+    batsmanIdx: null,
     bowlerIdx: null,
-    innings: [
-      { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] },
-      { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] },
-    ],
+    innings: [freshInnings(), freshInnings()],
     currentInnings: 0,
-    pendingMoves: {},      // { socketId: number }
+    pendingMoves: {},
   };
 }
 
-function totalBalls(room) {
+function totalBalls(room: Room): number {
   return room.overs * 6;
 }
 
-function batsmanId(room) {
-  return room.players[room.batsmanIdx].id;
+function batsmanId(room: Room): string {
+  return room.players[room.batsmanIdx!].id;
 }
 
-function bowlerId(room) {
-  return room.players[room.bowlerIdx].id;
+function bowlerId(room: Room): string {
+  return room.players[room.bowlerIdx!].id;
 }
 
-function publicState(room, roomId) {
+function publicState(room: Room, roomId: string): GameState {
   const inn = room.innings[room.currentInnings];
   const target = room.currentInnings === 1 ? room.innings[0].score + 1 : null;
   return {
@@ -167,7 +240,7 @@ io.use((socket, next) => {
   next(); // guests (no token) are allowed; stats just won't be tracked
 });
 
-io.on('connection', (socket) => {
+io.on('connection', (socket: GameSocket) => {
   console.log('connected', socket.id);
   if (socket.data.userId) onlineUsers.set(socket.data.userId, socket.id);
 
@@ -179,7 +252,7 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     socket.data.roomId = roomId;
     socket.data.playerName = playerName;
-    socket.emit('room_created', { roomId });
+    socket.emit('room_created', { roomId } satisfies RoomCreatedPayload);
     socket.emit('state', publicState(room, roomId));
   });
 
@@ -208,29 +281,29 @@ io.on('connection', (socket) => {
 
   socket.on('toss_call', ({ call }) => {
     const roomId = socket.data.roomId;
-    const room = rooms.get(roomId);
-    if (!room || room.phase !== 'toss_call') return;
+    const room = roomId ? rooms.get(roomId) : undefined;
+    if (!room || !roomId || room.phase !== 'toss_call') return;
     if (socket.id !== room.tossCallerId) return;
 
     room.tossCall = call;
-    const result = Math.random() < 0.5 ? 'heads' : 'tails';
+    const result: TossCall = Math.random() < 0.5 ? 'heads' : 'tails';
     const won = result === call;
-    room.tossWinnerId = won ? socket.id : room.players.find(p => p.id !== socket.id).id;
+    room.tossWinnerId = won ? socket.id : room.players.find(p => p.id !== socket.id)!.id;
     room.phase = 'bat_bowl';
 
     io.to(roomId).emit('toss_result', {
       call,
       result,
       winnerId: room.tossWinnerId,
-      winnerName: room.players.find(p => p.id === room.tossWinnerId).name,
+      winnerName: room.players.find(p => p.id === room.tossWinnerId)!.name,
     });
     io.to(roomId).emit('state', publicState(room, roomId));
   });
 
   socket.on('bat_bowl_choice', ({ choice }) => {
     const roomId = socket.data.roomId;
-    const room = rooms.get(roomId);
-    if (!room || room.phase !== 'bat_bowl') return;
+    const room = roomId ? rooms.get(roomId) : undefined;
+    if (!room || !roomId || room.phase !== 'bat_bowl') return;
     if (socket.id !== room.tossWinnerId) return;
 
     const winnerIdx = room.players.findIndex(p => p.id === room.tossWinnerId);
@@ -256,8 +329,8 @@ io.on('connection', (socket) => {
 
   socket.on('play_move', ({ number }) => {
     const roomId = socket.data.roomId;
-    const room = rooms.get(roomId);
-    if (!room || room.phase !== 'innings') return;
+    const room = roomId ? rooms.get(roomId) : undefined;
+    if (!room || !roomId || room.phase !== 'innings') return;
 
     const playerIdx = room.players.findIndex(p => p.id === socket.id);
     if (playerIdx === -1) return;
@@ -376,7 +449,7 @@ io.on('connection', (socket) => {
     const challengerSocket = io.sockets.sockets.get(ch.challengerSocketId);
 
     if (!accept) {
-      const decliner = findById(socket.data.userId);
+      const decliner = socket.data.userId ? findById(socket.data.userId) : null;
       challengerSocket?.emit('challenge_declined', { username: decliner?.username || 'Opponent' });
       return;
     }
@@ -385,7 +458,7 @@ io.on('connection', (socket) => {
     const roomId = makeRoomId();
     const room = createRoom(ch.overs, ch.mode, ch.wickets);
     const challenger = findById(ch.challengerId);
-    const challenged = findById(socket.data.userId);
+    const challenged = socket.data.userId ? findById(socket.data.userId) : null;
 
     room.players.push({ id: ch.challengerSocketId, name: challenger?.username || 'Player 1', userId: ch.challengerId });
     room.players.push({ id: socket.id,             name: challenged?.username || 'Player 2', userId: socket.data.userId });
@@ -416,11 +489,11 @@ io.on('connection', (socket) => {
 
   socket.on('request_rematch', () => {
     const roomId = socket.data.roomId;
-    const room = rooms.get(roomId);
-    if (!room || room.phase !== 'result') return;
+    const room = roomId ? rooms.get(roomId) : undefined;
+    if (!room || !roomId || room.phase !== 'result') return;
     const playerIdx = room.players.findIndex(p => p.id === socket.id);
     if (playerIdx === -1) return;
-    if (!room.rematchRequests) room.rematchRequests = new Set();
+    if (!room.rematchRequests) room.rematchRequests = new Set<number>();
     room.rematchRequests.add(playerIdx);
     // Notify the other player that this one wants rematch
     socket.to(roomId).emit('rematch_requested', { from: room.players[playerIdx].name });
@@ -458,7 +531,7 @@ io.on('connection', (socket) => {
   });
 });
 
-function endInnings(roomId, room, reason) {
+function endInnings(roomId: string, room: Room, reason: InningsEndReason): void {
   const inn = room.innings[room.currentInnings];
   io.to(roomId).emit('innings_end', {
     inningsNumber: room.currentInnings + 1,
@@ -477,8 +550,8 @@ function endInnings(roomId, room, reason) {
     const target = room.innings[0].score + 1;
     io.to(roomId).emit('innings_start', {
       inningsNumber: 2,
-      batsmanName: room.players[room.batsmanIdx].name,
-      bowlerName: room.players[room.bowlerIdx].name,
+      batsmanName: room.players[room.batsmanIdx!].name,
+      bowlerName: room.players[room.bowlerIdx!].name,
       target,
     });
     io.to(roomId).emit('state', publicState(room, roomId));
@@ -486,17 +559,19 @@ function endInnings(roomId, room, reason) {
     // Game over
     const inn1 = room.innings[0];
     const inn2 = room.innings[1];
-    let winnerId, winnerName, resultText;
+    let winnerId: string | null;
+    let winnerName: string | null;
+    let resultText: string;
 
     if (reason === 'target_reached') {
-      winnerId = room.players[room.batsmanIdx].id;
-      winnerName = room.players[room.batsmanIdx].name;
+      winnerId = room.players[room.batsmanIdx!].id;
+      winnerName = room.players[room.batsmanIdx!].name;
       resultText = `${winnerName} won by chasing the target!`;
     } else {
       // 2nd innings ended via out or overs — check scores
       if (inn2.score >= inn1.score + 1) {
-        winnerId = room.players[room.batsmanIdx].id;
-        winnerName = room.players[room.batsmanIdx].name;
+        winnerId = room.players[room.batsmanIdx!].id;
+        winnerName = room.players[room.batsmanIdx!].name;
         resultText = `${winnerName} won!`;
       } else if (inn2.score === inn1.score) {
         resultText = 'Match tied!';
@@ -504,7 +579,7 @@ function endInnings(roomId, room, reason) {
         winnerName = null;
       } else {
         // First innings team wins
-        const firstBatsmanIdx = room.bowlerIdx; // they were batting in 1st innings (roles swapped)
+        const firstBatsmanIdx = room.bowlerIdx!; // they were batting in 1st innings (roles swapped)
         winnerId = room.players[firstBatsmanIdx].id;
         winnerName = room.players[firstBatsmanIdx].name;
         const margin = inn1.score - inn2.score;
@@ -515,9 +590,9 @@ function endInnings(roomId, room, reason) {
     // Align scores to the players array (player order), not innings order.
     // At game over, roles are swapped: bowlerIdx batted innings 1, batsmanIdx
     // batted innings 2.
-    const playerScores = [0, 0];
-    playerScores[room.bowlerIdx] = inn1.score;
-    playerScores[room.batsmanIdx] = inn2.score;
+    const playerScores: [number, number] = [0, 0];
+    playerScores[room.bowlerIdx!] = inn1.score;
+    playerScores[room.batsmanIdx!] = inn2.score;
 
     // Persist stats for both players in a single DB read/write
     const matchCount = room.mode === 'overs' ? room.overs : room.wickets;
@@ -538,11 +613,8 @@ function endInnings(roomId, room, reason) {
   }
 }
 
-function startRematch(roomId, room) {
-  room.innings = [
-    { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] },
-    { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] },
-  ];
+function startRematch(roomId: string, room: Room): void {
+  room.innings = [freshInnings(), freshInnings()];
   room.currentInnings = 0;
   room.pendingMoves = {};
   room.tossCallerId = null;

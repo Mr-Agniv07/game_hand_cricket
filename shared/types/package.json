@@ -1,0 +1,19 @@
+{
+  "name": "@cric/types",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2"
+  }
+}
