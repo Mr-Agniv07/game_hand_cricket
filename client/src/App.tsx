@@ -48,6 +48,7 @@ export default function App() {
   const [tournamentState, setTournamentState] = useState<TournamentState | null>(null);
   const [isTournamentMatch, setIsTournamentMatch] = useState(false);
   const isTournamentMatchRef = useRef(false);
+  const [isAutoPlay, setIsAutoPlay] = useState(false);
 
   const bound = useRef(false);
 
@@ -238,6 +239,7 @@ export default function App() {
     setError(null);
     setMyPlayerIdx(null);
     setRematchState(null);
+    setIsAutoPlay(false);
   }
 
   function resetState() {
@@ -274,6 +276,19 @@ export default function App() {
           phase !== 'lobby' &&
           phase !== 'tournament_lobby' &&
           phase !== 'tournament_result' && <span className="room-badge">Room: {roomId}</span>}
+        {user?.username?.toLowerCase() === 'shreyansh' &&
+          (phase === 'waiting' ||
+            phase === 'toss_call' ||
+            phase === 'bat_bowl' ||
+            phase === 'innings') && (
+            <button
+              className={`autoplay-btn${isAutoPlay ? ' active' : ''}`}
+              onClick={() => setIsAutoPlay((v) => !v)}
+              title="Let computer play on your behalf"
+            >
+              🤖 {isAutoPlay ? 'Auto: ON' : 'Auto Play'}
+            </button>
+          )}
         {user && phase !== 'auth' && phase !== 'loading' && (
           <div className="header-user">
             <button className="friends-toggle-btn" onClick={() => setFriendsOpen((o) => !o)}>
@@ -386,11 +401,17 @@ export default function App() {
       )}
 
       {phase === 'toss_call' && tossInfo && (
-        <TossScreen socket={socket} myId={myId} tossInfo={tossInfo} tossResult={tossResult} />
+        <TossScreen
+          socket={socket}
+          myId={myId}
+          tossInfo={tossInfo}
+          tossResult={tossResult}
+          isAutoPlay={isAutoPlay}
+        />
       )}
 
       {phase === 'bat_bowl' && gameState && (
-        <BatBowlScreen socket={socket} myId={myId} gameState={gameState} />
+        <BatBowlScreen socket={socket} myId={myId} gameState={gameState} isAutoPlay={isAutoPlay} />
       )}
 
       {phase === 'innings' && gameState && inningsInfo && (
@@ -400,6 +421,7 @@ export default function App() {
           gameState={gameState}
           inningsInfo={inningsInfo}
           lastBall={lastBall}
+          isAutoPlay={isAutoPlay}
         />
       )}
 

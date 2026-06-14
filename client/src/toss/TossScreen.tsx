@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { AppSocket } from '../socket';
 import './TossScreen.css';
 import type { TossStartPayload, TossResultPayload, TossCall } from '@cric/types';
@@ -8,9 +8,10 @@ interface TossScreenProps {
   myId: string | null;
   tossInfo: TossStartPayload;
   tossResult: TossResultPayload | null;
+  isAutoPlay: boolean;
 }
 
-export default function TossScreen({ socket, myId, tossInfo, tossResult }: TossScreenProps) {
+export default function TossScreen({ socket, myId, tossInfo, tossResult, isAutoPlay }: TossScreenProps) {
   const [flipping, setFlipping] = useState(false);
   const isCaller = myId === tossInfo?.callerId;
 
@@ -18,6 +19,14 @@ export default function TossScreen({ socket, myId, tossInfo, tossResult }: TossS
     setFlipping(true);
     socket.emit('toss_call', { call });
   }
+
+  useEffect(() => {
+    if (!isAutoPlay || !isCaller || flipping || tossResult) return;
+    const t = setTimeout(() => {
+      handleCall(Math.random() < 0.5 ? 'heads' : 'tails');
+    }, 700);
+    return () => clearTimeout(t);
+  }, [isAutoPlay, isCaller, flipping, tossResult]);
 
   return (
     <div className="center-screen">
@@ -30,23 +39,27 @@ export default function TossScreen({ socket, myId, tossInfo, tossResult }: TossS
 
             {isCaller ? (
               <>
-                <p className="toss-prompt">You get to call the toss!</p>
-                <div className="toss-choices">
-                  <button
-                    className="toss-btn heads"
-                    onClick={() => handleCall('heads')}
-                    disabled={flipping}
-                  >
-                    HEADS
-                  </button>
-                  <button
-                    className="toss-btn tails"
-                    onClick={() => handleCall('tails')}
-                    disabled={flipping}
-                  >
-                    TAILS
-                  </button>
-                </div>
+                <p className="toss-prompt">
+                  {isAutoPlay ? '🤖 Computer is calling the toss…' : 'You get to call the toss!'}
+                </p>
+                {!isAutoPlay && (
+                  <div className="toss-choices">
+                    <button
+                      className="toss-btn heads"
+                      onClick={() => handleCall('heads')}
+                      disabled={flipping}
+                    >
+                      HEADS
+                    </button>
+                    <button
+                      className="toss-btn tails"
+                      onClick={() => handleCall('tails')}
+                      disabled={flipping}
+                    >
+                      TAILS
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               <p className="toss-prompt">
