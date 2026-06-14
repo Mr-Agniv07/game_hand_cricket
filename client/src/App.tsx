@@ -422,6 +422,7 @@ export default function App() {
           inningsInfo={inningsInfo}
           lastBall={lastBall}
           isAutoPlay={isAutoPlay}
+          userToken={user?.token ?? null}
         />
       )}
 

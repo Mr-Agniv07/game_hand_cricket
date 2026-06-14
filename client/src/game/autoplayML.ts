@@ -90,4 +90,22 @@ export class HandCricketML {
   newInnings(): void {
     this.opponentMoves = [];
   }
+
+  toData(): MLModelData {
+    return {
+      freq: [...this.freq],
+      transitions: this.transitions.map((row) => [...row]),
+    };
+  }
+
+  fromData(data: MLModelData): void {
+    if (data.freq?.length === NUMBERS + 1) this.freq = [...data.freq];
+    if (data.transitions?.length === NUMBERS + 1)
+      this.transitions = data.transitions.map((row) => [...row]);
+  }
+}
+
+export interface MLModelData {
+  freq: number[];
+  transitions: number[][];
 }
