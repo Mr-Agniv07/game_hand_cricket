@@ -11,9 +11,10 @@ interface GameScreenProps {
   gameState: GameState;
   inningsInfo: InningsStartPayload;
   lastBall: BallPlayedPayload | null;
+  isAutoPlay: boolean;
 }
 
-export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }: GameScreenProps) {
+export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall, isAutoPlay }: GameScreenProps) {
   const [myMove, setMyMove] = useState<number | null>(null);
   const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
 
@@ -50,9 +51,17 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }:
   // set-then-null) makes this robust to React's batching at the innings break —
   // otherwise myMove could stay set and freeze the numpad for the whole 2nd
   // innings (a hang for BOTH players).
+  // When autoplay is on, also auto-submit a random move after a short delay.
   useEffect(() => {
     setMyMove(null);
-  }, [balls, currentInnings]);
+    if (!isAutoPlay) return;
+    const t = setTimeout(() => {
+      const n = Math.floor(Math.random() * 6) + 1;
+      setMyMove(n);
+      socket.emit('play_move', { number: n });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [balls, currentInnings, isAutoPlay]);
 
   function playMove(n: number) {
     if (myMove !== null) return;
@@ -149,7 +158,11 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }:
 
       {myMove !== null && !ballAnim && (
         <p className="waiting-label">
-          You played <strong>{myMove}</strong> · waiting for opponent…
+          {isAutoPlay ? (
+            <>🤖 Computer played <strong>{myMove}</strong> · waiting for opponent…</>
+          ) : (
+            <>You played <strong>{myMove}</strong> · waiting for opponent…</>
+          )}
         </p>
       )}
 
