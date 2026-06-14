@@ -60,6 +60,16 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }:
     socket.emit('play_move', { number: n });
   }
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key >= '1' && e.key <= '6') playMove(Number(e.key));
+      if (e.key === 'r' || e.key === 'R') playMove(Math.ceil(Math.random() * 6));
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [myMove]);
+
   const oversDisplay = `${Math.floor(balls / 6)}.${balls % 6}`;
   const runsNeeded = target ? target - score : null;
   const ballsLeft = mode === 'overs' ? totalBalls - balls : null;
