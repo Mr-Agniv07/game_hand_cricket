@@ -1,33 +1,48 @@
-// Lightweight online-learning model for the autoplay feature.
+// Online learning model for the autoplay feature.
 //
-// Tracks the opponent's move history with:
-//   - a global frequency table (how often they pick each number)
-//   - a first-order Markov transition matrix (what they tend to pick after each number)
+// Three signals applied together:
 //
-// Both structures use Laplace smoothing (initialised to 1) so early decisions
-// aren't dominated by a single observation.
+//   1. Global frequency table — how often the opponent picks each number.
+//      Laplace-smoothed (priors = 1) so early balls don't dominate.
 //
-// After enough history the model blends both signals (60 % Markov, 40 % global).
-// Before that it falls back to global frequency alone.
+//   2. First-order Markov transitions — what they tend to pick after each number.
+//      Blended in after BLEND_THRESHOLD observations (60 % Markov, 40 % global).
+//
+//   3. Recency decay — each recordMove() multiplies existing counts by DECAY
+//      before adding the new observation, so recent behaviour outweighs old.
+//
+// Decisions are probabilistic, not deterministic: picks are sampled from a
+// weighted distribution rather than always returning argmin/argmax. This keeps
+// the ML unpredictable to an observant opponent while still biasing toward
+// good choices.
+//
+// newInnings() clears the move sequence (so Markov context doesn't bleed across
+// innings) but preserves the frequency table — player biases carry over.
 
 const NUMBERS = 6;
-const BLEND_THRESHOLD = 5; // balls before switching to Markov blend
+const BLEND_THRESHOLD = 5;
 const MARKOV_WEIGHT = 0.6;
+const DECAY = 0.95;
 
 export class HandCricketML {
   private opponentMoves: number[] = [];
-  // freq[1..6] — count of opponent picking i; index 0 unused
+  // freq[1..6]: decayed count of opponent picking i; index 0 unused
   private freq = [0, 1, 1, 1, 1, 1, 1];
-  // transitions[last][next] — count of (last → next); row/col 0 unused
+  // transitions[last][next]: decayed count of (last → next); row/col 0 unused
   private transitions: number[][] = Array.from({ length: NUMBERS + 1 }, () => [
     0, 1, 1, 1, 1, 1, 1,
   ]);
 
   recordMove(move: number): void {
     if (move < 1 || move > NUMBERS) return;
+    // Decay all counts before recording — recent moves matter more
+    for (let i = 1; i <= NUMBERS; i++) {
+      this.freq[i] *= DECAY;
+      for (let j = 1; j <= NUMBERS; j++) this.transitions[i][j] *= DECAY;
+    }
     const last = this.opponentMoves.at(-1);
-    if (last !== undefined) this.transitions[last][move]++;
-    this.freq[move]++;
+    if (last !== undefined) this.transitions[last][move] += 1;
+    this.freq[move] += 1;
     this.opponentMoves.push(move);
   }
 
@@ -43,29 +58,36 @@ export class HandCricketML {
         (c, i) => MARKOV_WEIGHT * (c / transTotal) + (1 - MARKOV_WEIGHT) * freqProbs[i]
       );
     }
-
     return freqProbs;
   }
 
-  // As batsman: pick the number the bowler is LEAST likely to match
+  // Weighted random sample from weights[1..6] (index 0 is always 0/ignored).
+  private sample(weights: number[]): number {
+    let total = 0;
+    for (let i = 1; i <= NUMBERS; i++) total += weights[i];
+    let r = Math.random() * total;
+    for (let i = 1; i <= NUMBERS; i++) {
+      r -= weights[i];
+      if (r <= 0) return i;
+    }
+    return NUMBERS;
+  }
+
+  // As batsman: sample inversely — prefer numbers the bowler rarely picks.
   pickAsBatsman(): number {
     const probs = this.predictProbs();
-    let best = 1;
-    for (let i = 2; i <= NUMBERS; i++) if (probs[i] < probs[best]) best = i;
-    return best;
+    const weights = probs.map((p, i) => (i === 0 ? 0 : 1 / (p + 1e-6)));
+    return this.sample(weights);
   }
 
-  // As bowler: pick the number the batsman is MOST likely to play
+  // As bowler: sample directly — prefer numbers the batsman often picks.
   pickAsBowler(): number {
-    const probs = this.predictProbs();
-    let best = 1;
-    for (let i = 2; i <= NUMBERS; i++) if (probs[i] > probs[best]) best = i;
-    return best;
+    return this.sample(this.predictProbs());
   }
 
-  reset(): void {
+  // Between innings: clear move sequence so Markov context doesn't bleed,
+  // but keep frequency data — player biases persist across innings.
+  newInnings(): void {
     this.opponentMoves = [];
-    this.freq = [0, 1, 1, 1, 1, 1, 1];
-    this.transitions = Array.from({ length: NUMBERS + 1 }, () => [0, 1, 1, 1, 1, 1, 1]);
   }
 }
