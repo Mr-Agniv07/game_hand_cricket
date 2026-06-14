@@ -13,6 +13,8 @@ export type AppPhase =
   | 'loading'
   | 'auth'
   | 'lobby'
+  | 'tournament_lobby'
+  | 'tournament_result'
   | 'waiting'
   | 'toss_call'
   | 'bat_bowl'

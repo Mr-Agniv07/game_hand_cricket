@@ -1,6 +1,9 @@
 import { randomUUID } from 'crypto';
 import type { Server, Socket, DefaultEventsMap } from 'socket.io';
-import type { ServerToClientEvents, ClientToServerEvents, Mode, InningsEndReason, RoomCreatedPayload } from '@cric/types';
+import type {
+  ServerToClientEvents, ClientToServerEvents, Mode, InningsEndReason, RoomCreatedPayload,
+  TournamentState, TournamentPlayer, FixtureMatch, PointsTableEntry,
+} from '@cric/types';
 import { findById, updateGameStats } from '../db.ts';
 import { verifyToken } from '../auth/auth.ts';
 import { type Room, makeRoomId, freshInnings, createRoom, totalBalls, batsmanId, bowlerId, publicState } from './room.ts';
@@ -9,6 +12,115 @@ export interface SocketData {
   userId: string | null;
   roomId?: string;
   playerName?: string;
+  tournamentId?: string;
+}
+
+// ─── Tournament state ─────────────────────────────────────────────────────────
+
+interface TournamentPlayerEntry {
+  id: string;
+  name: string;
+  userId: string | null;
+}
+
+interface InternalFixtureMatch {
+  matchNum: number;
+  player1Idx: number;
+  player2Idx: number;
+  status: 'upcoming' | 'live' | 'done';
+  result: 'p1' | 'p2' | 'tie' | null;
+  p1Score: number;
+  p2Score: number;
+  roomId: string | null;
+}
+
+interface InternalPointsEntry {
+  played: number;
+  won: number;
+  lost: number;
+  tied: number;
+  points: number;
+  runsScored: number;
+  ballsFaced: number;
+  runsConceded: number;
+  ballsBowled: number;
+}
+
+interface Tournament {
+  id: string;
+  code: string;
+  overs: number;
+  mode: Mode;
+  wickets: number;
+  players: TournamentPlayerEntry[];
+  phase: 'waiting' | 'in_progress' | 'complete';
+  fixtures: InternalFixtureMatch[];
+  currentMatchIndex: number;
+  pointsTable: Record<string, InternalPointsEntry>;
+}
+
+const tournaments = new Map<string, Tournament>(); // keyed by tournament code
+
+// Round-robin home+away: 12 matches total, each pair plays twice
+const FIXTURE_TEMPLATE: [number, number][] = [
+  [0, 1], [2, 3],
+  [0, 2], [1, 3],
+  [0, 3], [1, 2],
+  [1, 0], [3, 2],
+  [2, 0], [3, 1],
+  [3, 0], [2, 1],
+];
+
+function computeNRR(e: InternalPointsEntry): number {
+  if (e.ballsFaced === 0 || e.ballsBowled === 0) return 0;
+  return (e.runsScored * 6 / e.ballsFaced) - (e.runsConceded * 6 / e.ballsBowled);
+}
+
+function publicTournamentState(t: Tournament): TournamentState {
+  return {
+    id: t.id,
+    code: t.code,
+    overs: t.overs,
+    mode: t.mode,
+    wickets: t.wickets,
+    players: t.players.map((p): TournamentPlayer => ({ id: p.id, name: p.name })),
+    phase: t.phase,
+    fixtures: t.fixtures.map((f): FixtureMatch => ({
+      matchNum: f.matchNum,
+      player1Idx: f.player1Idx,
+      player2Idx: f.player2Idx,
+      status: f.status,
+      result: f.result,
+      p1Score: f.p1Score,
+      p2Score: f.p2Score,
+    })),
+    currentMatchIndex: t.currentMatchIndex,
+    pointsTable: Object.fromEntries(
+      Object.entries(t.pointsTable).map(([id, e]): [string, PointsTableEntry] => [
+        id,
+        { ...e, nrr: computeNRR(e) },
+      ])
+    ),
+  };
+}
+
+function generateFixture(tournament: Tournament): void {
+  tournament.fixtures = FIXTURE_TEMPLATE.map(([p1Idx, p2Idx], i) => ({
+    matchNum: i + 1,
+    player1Idx: p1Idx,
+    player2Idx: p2Idx,
+    status: 'upcoming' as const,
+    result: null,
+    p1Score: 0,
+    p2Score: 0,
+    roomId: null,
+  }));
+  for (const p of tournament.players) {
+    tournament.pointsTable[p.id] = {
+      played: 0, won: 0, lost: 0, tied: 0, points: 0,
+      runsScored: 0, ballsFaced: 0, runsConceded: 0, ballsBowled: 0,
+    };
+  }
 }
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -274,6 +386,48 @@ export function registerGameHandlers(io: GameServer): void {
       });
     });
 
+    socket.on('create_tournament', ({ playerName, overs, mode, wickets }) => {
+      const code = makeRoomId();
+      const tournamentId = randomUUID();
+      const tournament: Tournament = {
+        id: tournamentId,
+        code,
+        overs: Number(overs) || 2,
+        mode: mode || 'overs',
+        wickets: Number(wickets) || 2,
+        players: [{ id: socket.id, name: playerName, userId: socket.data.userId }],
+        phase: 'waiting',
+        fixtures: [],
+        currentMatchIndex: 0,
+        pointsTable: {},
+      };
+      tournaments.set(code, tournament);
+      socket.join('t:' + tournamentId);
+      socket.data.tournamentId = tournamentId;
+      socket.emit('tournament_created', publicTournamentState(tournament));
+    });
+
+    socket.on('join_tournament', ({ code, playerName }) => {
+      const tournament = tournaments.get(code.toUpperCase());
+      if (!tournament) return socket.emit('error', { message: 'Tournament not found.' });
+      if (tournament.phase !== 'waiting') return socket.emit('error', { message: 'Tournament already started.' });
+      if (tournament.players.length >= 4) return socket.emit('error', { message: 'Tournament is full.' });
+      if (tournament.players.some(p => p.id === socket.id)) return;
+
+      tournament.players.push({ id: socket.id, name: playerName, userId: socket.data.userId });
+      socket.join('t:' + tournament.id);
+      socket.data.tournamentId = tournament.id;
+
+      io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+
+      if (tournament.players.length === 4) {
+        generateFixture(tournament);
+        tournament.phase = 'in_progress';
+        io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+        startTournamentMatch(io, rooms, tournament, 0);
+      }
+    });
+
     socket.on('request_rematch', () => {
       const roomId = socket.data.roomId;
       const room = roomId ? rooms.get(roomId) : undefined;
@@ -377,6 +531,57 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
       { userId: room.players[1].userId, win: winnerId === room.players[1].id, tie: winnerId === null, runsScored: playerScores[1], opponentName: room.players[0].name, opponentScore: playerScores[0], mode: room.mode, count: matchCount },
     ]);
 
+    // Update tournament if this is a tournament match.
+    // At game over: room.bowlerIdx batted in innings 1; room.batsmanIdx batted in innings 2.
+    if (room.tournamentId !== undefined && room.tournamentMatchIdx !== undefined) {
+      const tournament = tournaments.get(room.tournamentId);
+      if (tournament) {
+        const matchIdx = room.tournamentMatchIdx;
+        const fixture = tournament.fixtures[matchIdx];
+        if (fixture) {
+          fixture.status = 'done';
+          const p1Id = tournament.players[fixture.player1Idx].id;
+          const inn1PlayerId = room.players[room.bowlerIdx!].id;
+
+          if (p1Id === inn1PlayerId) {
+            fixture.p1Score = inn1.score; fixture.p2Score = inn2.score;
+          } else {
+            fixture.p1Score = inn2.score; fixture.p2Score = inn1.score;
+          }
+          fixture.result = winnerId === null ? 'tie' : (winnerId === p1Id ? 'p1' : 'p2');
+
+          const updateEntry = (
+            pid: string, rs: number, bf: number, rc: number, bb: number,
+            won: boolean, tied: boolean,
+          ) => {
+            const e = tournament.pointsTable[pid];
+            if (!e) return;
+            e.played += 1; e.runsScored += rs; e.ballsFaced += bf;
+            e.runsConceded += rc; e.ballsBowled += bb;
+            if (tied) { e.tied += 1; e.points += 1; }
+            else if (won) { e.won += 1; e.points += 2; }
+            else { e.lost += 1; }
+          };
+
+          const tied = winnerId === null;
+          const inn1PId = room.players[room.bowlerIdx!].id;
+          const inn2PId = room.players[room.batsmanIdx!].id;
+          updateEntry(inn1PId, inn1.score, inn1.balls, inn2.score, inn2.balls,
+            !tied && winnerId === inn1PId, tied);
+          updateEntry(inn2PId, inn2.score, inn2.balls, inn1.score, inn1.balls,
+            !tied && winnerId === inn2PId, tied);
+
+          io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+
+          setTimeout(() => {
+            const next = matchIdx + 1;
+            if (next >= tournament.fixtures.length) finalizeTournament(io, tournament);
+            else startTournamentMatch(io, rooms, tournament, next);
+          }, 5000);
+        }
+      }
+    }
+
     room.phase = 'result';
     io.to(roomId).emit('game_over', {
       winnerId,
@@ -387,6 +592,81 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
     });
     io.to(roomId).emit('state', publicState(room, roomId));
   }
+}
+
+function finalizeTournament(io: GameServer, tournament: Tournament): void {
+  tournament.phase = 'complete';
+  const state = publicTournamentState(tournament);
+  io.to('t:' + tournament.id).emit('tournament_state', state);
+  io.to('t:' + tournament.id).emit('tournament_complete', {
+    players: state.players,
+    pointsTable: state.pointsTable,
+  });
+}
+
+function startTournamentMatch(io: GameServer, rooms: Map<string, Room>, tournament: Tournament, matchIndex: number): void {
+  if (matchIndex >= tournament.fixtures.length) {
+    finalizeTournament(io, tournament);
+    return;
+  }
+
+  tournament.currentMatchIndex = matchIndex;
+  const fixture = tournament.fixtures[matchIndex];
+  fixture.status = 'live';
+
+  const p1 = tournament.players[fixture.player1Idx];
+  const p2 = tournament.players[fixture.player2Idx];
+  const p1Socket = io.sockets.sockets.get(p1.id);
+  const p2Socket = io.sockets.sockets.get(p2.id);
+
+  if (!p1Socket || !p2Socket) {
+    // Forfeit for the disconnected player, continue to next match
+    fixture.status = 'done';
+    const p1Gone = !p1Socket;
+    fixture.result = p1Gone ? 'p2' : 'p1';
+    const winnerId = p1Gone ? p2.id : p1.id;
+    const loserId  = p1Gone ? p1.id : p2.id;
+    const we = tournament.pointsTable[winnerId];
+    const le = tournament.pointsTable[loserId];
+    if (we) { we.played += 1; we.won += 1; we.points += 2; }
+    if (le) { le.played += 1; le.lost += 1; }
+    io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+    setTimeout(() => {
+      const next = matchIndex + 1;
+      if (next >= tournament.fixtures.length) finalizeTournament(io, tournament);
+      else startTournamentMatch(io, rooms, tournament, next);
+    }, 1000);
+    return;
+  }
+
+  const roomId = makeRoomId();
+  const room = createRoom(tournament.overs, tournament.mode, tournament.wickets);
+  room.players.push({ id: p1.id, name: p1.name, userId: p1.userId });
+  room.players.push({ id: p2.id, name: p2.name, userId: p2.userId });
+  room.tournamentId = tournament.code;
+  room.tournamentMatchIdx = matchIndex;
+  rooms.set(roomId, room);
+  fixture.roomId = roomId;
+
+  p1Socket.join(roomId);
+  p1Socket.data.roomId = roomId;
+  p2Socket.join(roomId);
+  p2Socket.data.roomId = roomId;
+
+  p1Socket.emit('tournament_match_starting', { roomId, opponentName: p2.name, matchNum: fixture.matchNum, myPlayerIdx: 0 });
+  p2Socket.emit('tournament_match_starting', { roomId, opponentName: p1.name, matchNum: fixture.matchNum, myPlayerIdx: 1 });
+
+  const callerIdx = Math.floor(Math.random() * 2);
+  room.tossCallerId = room.players[callerIdx].id;
+  room.phase = 'toss_call';
+
+  io.to(roomId).emit('state', publicState(room, roomId));
+  io.to(roomId).emit('toss_start', {
+    callerId: room.tossCallerId,
+    callerName: room.players[callerIdx].name,
+  });
+
+  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 }
 
 function startRematch(io: GameServer, roomId: string, room: Room): void {

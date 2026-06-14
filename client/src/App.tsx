@@ -9,10 +9,12 @@ import BatBowlScreen from './game/BatBowlScreen';
 import GameScreen from './game/GameScreen';
 import ResultScreen from './result/ResultScreen';
 import InningsEndOverlay from './game/InningsEndOverlay';
+import TournamentLobby from './components/TournamentLobby';
+import TournamentResult from './components/TournamentResult';
 import type {
   GameState, TossStartPayload, TossResultPayload, InningsStartPayload,
   BallPlayedPayload, GameOverPayload, InningsEndPayload, ChallengeReceivedPayload,
-  AuthResponse,
+  AuthResponse, TournamentState,
 } from '@cric/types';
 import type { ClientUser, AppPhase, RematchState } from './types';
 import './App.css';
@@ -36,6 +38,9 @@ export default function App() {
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [incomingChallenge, setIncomingChallenge] = useState<ChallengeReceivedPayload | null>(null);
   const [rematchState, setRematchState] = useState<RematchState>(null);
+  const [tournamentState, setTournamentState] = useState<TournamentState | null>(null);
+  const [isTournamentMatch, setIsTournamentMatch] = useState(false);
+  const isTournamentMatchRef = useRef(false);
 
   const bound = useRef(false);
 
@@ -47,7 +52,6 @@ export default function App() {
     socket.on('connect', () => setMyId(socket.id ?? null));
 
     socket.on('connect_error', () => {
-      // Token may have expired (server restart). Force re-login.
       localStorage.removeItem(STORED_KEY);
       setUser(null);
       setPhase('auth');
@@ -63,7 +67,7 @@ export default function App() {
 
     socket.on('toss_start', (info) => {
       setTossInfo(info);
-      setTossResult(null); // clear any stale result from a previous game / rematch
+      setTossResult(null);
       setPhase('toss_call');
     });
 
@@ -111,10 +115,35 @@ export default function App() {
 
     socket.on('opponent_disconnected', ({ name }) => {
       setError(`${name} disconnected. Game ended.`);
-      setTimeout(resetToLobby, 3000);
+      setTimeout(() => {
+        if (isTournamentMatchRef.current) resetToTournamentLobby();
+        else resetToLobby();
+      }, 3000);
     });
 
     socket.on('error', ({ message }) => setError(message));
+
+    socket.on('tournament_created', (state) => {
+      setTournamentState(state);
+      setPhase('tournament_lobby');
+    });
+
+    socket.on('tournament_state', (state) => {
+      setTournamentState(state);
+      if (state.phase === 'complete') setPhase('tournament_result');
+    });
+
+    socket.on('tournament_match_starting', ({ roomId: rid, myPlayerIdx: pidx }) => {
+      setRoomId(rid);
+      setMyPlayerIdx(pidx);
+      isTournamentMatchRef.current = true;
+      setIsTournamentMatch(true);
+      // phase transitions via incoming toss_start
+    });
+
+    socket.on('tournament_complete', () => {
+      setPhase('tournament_result');
+    });
 
     // ── Restore stored session ───────────────────────────────────────────────
     const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
@@ -181,7 +210,7 @@ export default function App() {
     setRematchState('waiting');
   }
 
-  function resetState() {
+  function resetGameState() {
     setRoomId(null);
     setGameState(null);
     setTossInfo(null);
@@ -195,10 +224,16 @@ export default function App() {
     setRematchState(null);
   }
 
+  function resetState() {
+    resetGameState();
+    isTournamentMatchRef.current = false;
+    setIsTournamentMatch(false);
+    setTournamentState(null);
+  }
+
   function resetToLobby() {
     resetState();
     setPhase('lobby');
-    // Refresh stats after returning from a game
     const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
     if (stored?.token) {
       apiGet('/api/me', stored.token)
@@ -207,12 +242,19 @@ export default function App() {
     }
   }
 
+  function resetToTournamentLobby() {
+    resetGameState();
+    isTournamentMatchRef.current = false;
+    setIsTournamentMatch(false);
+    setPhase('tournament_lobby');
+  }
+
   return (
     <div className="app">
       <header className="app-header">
         <span className="logo">🏏</span>
         <h1>Cric Flick</h1>
-        {roomId && phase !== 'lobby' && (
+        {roomId && phase !== 'lobby' && phase !== 'tournament_lobby' && phase !== 'tournament_result' && (
           <span className="room-badge">Room: {roomId}</span>
         )}
         {user && phase !== 'auth' && phase !== 'loading' && (
@@ -340,6 +382,24 @@ export default function App() {
           onPlayAgain={resetToLobby}
           onRematch={handleRematch}
           rematchState={rematchState}
+          isTournamentMatch={isTournamentMatch}
+          onBackToTournament={resetToTournamentLobby}
+        />
+      )}
+
+      {phase === 'tournament_lobby' && tournamentState && (
+        <TournamentLobby
+          tournamentState={tournamentState}
+          myId={myId}
+          onLeave={resetToLobby}
+        />
+      )}
+
+      {phase === 'tournament_result' && tournamentState && (
+        <TournamentResult
+          tournamentState={tournamentState}
+          myId={myId}
+          onLeave={resetToLobby}
         />
       )}
     </div>

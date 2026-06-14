@@ -7,9 +7,14 @@ interface ResultScreenProps {
   onPlayAgain: () => void;
   onRematch: () => void;
   rematchState: RematchState;
+  isTournamentMatch?: boolean;
+  onBackToTournament?: () => void;
 }
 
-export default function ResultScreen({ gameOver, myId, onPlayAgain, onRematch, rematchState }: ResultScreenProps) {
+export default function ResultScreen({
+  gameOver, myId, onPlayAgain, onRematch, rematchState,
+  isTournamentMatch = false, onBackToTournament,
+}: ResultScreenProps) {
   const { winnerId, resultText, scores, players } = gameOver;
   const iWon = winnerId === myId;
   const tied = winnerId === null;
@@ -38,22 +43,36 @@ export default function ResultScreen({ gameOver, myId, onPlayAgain, onRematch, r
           ))}
         </div>
 
-        {rematchState === 'opponent_wants' && (
-          <div className="rematch-notice">⚡ Opponent wants a rematch!</div>
+        {isTournamentMatch ? (
+          <div className="result-actions">
+            <div className="tournament-next-notice">
+              Next match starting in ~5 seconds…
+            </div>
+            {onBackToTournament && (
+              <button className="btn-lobby" onClick={onBackToTournament}>
+                Back to Tournament
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            {rematchState === 'opponent_wants' && (
+              <div className="rematch-notice">⚡ Opponent wants a rematch!</div>
+            )}
+            <div className="result-actions">
+              <button
+                className={`btn-rematch${rematchState === 'waiting' ? ' waiting' : ''}`}
+                onClick={onRematch}
+                disabled={rematchState === 'waiting'}
+              >
+                {rematchState === 'waiting' ? 'Waiting for opponent…' : '⚡ Rematch'}
+              </button>
+              <button className="btn-lobby" onClick={onPlayAgain}>
+                Back to Lobby
+              </button>
+            </div>
+          </>
         )}
-
-        <div className="result-actions">
-          <button
-            className={`btn-rematch${rematchState === 'waiting' ? ' waiting' : ''}`}
-            onClick={onRematch}
-            disabled={rematchState === 'waiting'}
-          >
-            {rematchState === 'waiting' ? 'Waiting for opponent…' : '⚡ Rematch'}
-          </button>
-          <button className="btn-lobby" onClick={onPlayAgain}>
-            Back to Lobby
-          </button>
-        </div>
       </div>
     </div>
   );

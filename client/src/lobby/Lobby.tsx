@@ -8,7 +8,7 @@ import type { ClientUser } from '../types';
 const OVER_OPTIONS = [1, 2, 3, 5, 10];
 const WICKET_OPTIONS = [1, 2, 3, 5, 10];
 
-type LobbyTab = 'create' | 'join' | 'history';
+type LobbyTab = 'create' | 'join' | 'history' | 'tournament';
 
 interface LobbyProps {
   socket: AppSocket;
@@ -25,7 +25,12 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [wickets, setWickets] = useState(2);
   const [joinCode, setJoinCode] = useState('');
   const [joinName, setJoinName] = useState(defaultName);
-  const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null); // null = not loaded yet
+  const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null);
+  const [tMode, setTMode] = useState<Mode>('overs');
+  const [tOvers, setTOvers] = useState(2);
+  const [tWickets, setTWickets] = useState(2);
+  const [tSubTab, setTSubTab] = useState<'create' | 'join'>('create');
+  const [tJoinCode, setTJoinCode] = useState('');
 
   const loggedIn = !!user;
 
@@ -49,6 +54,20 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
     const playerName = user ? user.username : joinName.trim();
     if (!playerName || !joinCode.trim()) return;
     onJoinRoom(joinCode.trim().toUpperCase(), playerName);
+  }
+
+  function handleCreateTournament(e: FormEvent) {
+    e.preventDefault();
+    const playerName = user ? user.username : name.trim();
+    if (!playerName) return;
+    socket.emit('create_tournament', { playerName, overs: tOvers, mode: tMode, wickets: tWickets });
+  }
+
+  function handleJoinTournament(e: FormEvent) {
+    e.preventDefault();
+    const playerName = user ? user.username : joinName.trim();
+    if (!playerName || !tJoinCode.trim()) return;
+    socket.emit('join_tournament', { code: tJoinCode.trim().toUpperCase(), playerName });
   }
 
   const s = user?.stats;
@@ -94,6 +113,9 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
         <button className={tab === 'join' ? 'tab active' : 'tab'} onClick={() => setTab('join')}>
           Join
         </button>
+        <button className={tab === 'tournament' ? 'tab active' : 'tab'} onClick={() => setTab('tournament')}>
+          Tournament
+        </button>
         {loggedIn && (
           <button className={tab === 'history' ? 'tab active' : 'tab'} onClick={() => setTab('history')}>
             History
@@ -118,20 +140,8 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           )}
           <label>Game Mode</label>
           <div className="over-options">
-            <button
-              type="button"
-              className={mode === 'overs' ? 'over-btn selected' : 'over-btn'}
-              onClick={() => setMode('overs')}
-            >
-              Overs
-            </button>
-            <button
-              type="button"
-              className={mode === 'wickets' ? 'over-btn selected' : 'over-btn'}
-              onClick={() => setMode('wickets')}
-            >
-              Wickets
-            </button>
+            <button type="button" className={mode === 'overs' ? 'over-btn selected' : 'over-btn'} onClick={() => setMode('overs')}>Overs</button>
+            <button type="button" className={mode === 'wickets' ? 'over-btn selected' : 'over-btn'} onClick={() => setMode('wickets')}>Wickets</button>
           </div>
 
           {mode === 'overs' && (
@@ -139,14 +149,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               <label>Number of Overs</label>
               <div className="over-options">
                 {OVER_OPTIONS.map(o => (
-                  <button
-                    key={o}
-                    type="button"
-                    className={overs === o ? 'over-btn selected' : 'over-btn'}
-                    onClick={() => setOvers(o)}
-                  >
-                    {o}
-                  </button>
+                  <button key={o} type="button" className={overs === o ? 'over-btn selected' : 'over-btn'} onClick={() => setOvers(o)}>{o}</button>
                 ))}
               </div>
             </>
@@ -157,14 +160,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               <label>Number of Wickets</label>
               <div className="over-options">
                 {WICKET_OPTIONS.map(w => (
-                  <button
-                    key={w}
-                    type="button"
-                    className={wickets === w ? 'over-btn selected' : 'over-btn'}
-                    onClick={() => setWickets(w)}
-                  >
-                    {w}
-                  </button>
+                  <button key={w} type="button" className={wickets === w ? 'over-btn selected' : 'over-btn'} onClick={() => setWickets(w)}>{w}</button>
                 ))}
               </div>
             </>
@@ -199,6 +195,75 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           />
           <button type="submit" className="btn-primary">Join Game</button>
         </form>
+      )}
+
+      {tab === 'tournament' && (
+        <div className="card form">
+          <div className="t-sub-tabs">
+            <button type="button" className={tSubTab === 'create' ? 'tab active' : 'tab'} onClick={() => setTSubTab('create')}>Create</button>
+            <button type="button" className={tSubTab === 'join' ? 'tab active' : 'tab'} onClick={() => setTSubTab('join')}>Join</button>
+          </div>
+
+          {tSubTab === 'create' && (
+            <form onSubmit={handleCreateTournament} style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', marginTop: '.75rem' }}>
+              {!loggedIn && (
+                <>
+                  <label>Your Name</label>
+                  <input value={name} onChange={e => setName(e.target.value)} placeholder="Enter your name" maxLength={20} required />
+                </>
+              )}
+              <label>Game Mode</label>
+              <div className="over-options">
+                <button type="button" className={tMode === 'overs' ? 'over-btn selected' : 'over-btn'} onClick={() => setTMode('overs')}>Overs</button>
+                <button type="button" className={tMode === 'wickets' ? 'over-btn selected' : 'over-btn'} onClick={() => setTMode('wickets')}>Wickets</button>
+              </div>
+              {tMode === 'overs' && (
+                <>
+                  <label>Overs per Match</label>
+                  <div className="over-options">
+                    {OVER_OPTIONS.map(o => (
+                      <button key={o} type="button" className={tOvers === o ? 'over-btn selected' : 'over-btn'} onClick={() => setTOvers(o)}>{o}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {tMode === 'wickets' && (
+                <>
+                  <label>Wickets per Match</label>
+                  <div className="over-options">
+                    {WICKET_OPTIONS.map(w => (
+                      <button key={w} type="button" className={tWickets === w ? 'over-btn selected' : 'over-btn'} onClick={() => setTWickets(w)}>{w}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+              <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0' }}>
+                4-player round-robin · 12 matches · Win=2pts, Tie=1pt, Loss=0pts
+              </p>
+              <button type="submit" className="btn-primary">Create Tournament</button>
+            </form>
+          )}
+
+          {tSubTab === 'join' && (
+            <form onSubmit={handleJoinTournament} style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', marginTop: '.75rem' }}>
+              {!loggedIn && (
+                <>
+                  <label>Your Name</label>
+                  <input value={joinName} onChange={e => setJoinName(e.target.value)} placeholder="Enter your name" maxLength={20} required />
+                </>
+              )}
+              <label>Tournament Code</label>
+              <input
+                value={tJoinCode}
+                onChange={e => setTJoinCode(e.target.value.toUpperCase())}
+                placeholder="e.g. AB3XZ"
+                maxLength={5}
+                required
+              />
+              <button type="submit" className="btn-primary">Join Tournament</button>
+            </form>
+          )}
+        </div>
       )}
 
       {tab === 'history' && (

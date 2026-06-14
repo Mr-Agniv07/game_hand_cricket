@@ -184,6 +184,78 @@ export interface ErrorPayload {
   message: string;
 }
 
+// ─── Tournament ──────────────────────────────────────────────────────────────
+
+export type TournamentPhase = 'waiting' | 'in_progress' | 'complete';
+export type FixtureStatus = 'upcoming' | 'live' | 'done';
+
+export interface TournamentPlayer {
+  id: string;
+  name: string;
+}
+
+export interface FixtureMatch {
+  matchNum: number;
+  player1Idx: number;
+  player2Idx: number;
+  status: FixtureStatus;
+  result: 'p1' | 'p2' | 'tie' | null;
+  p1Score: number;
+  p2Score: number;
+}
+
+export interface PointsTableEntry {
+  played: number;
+  won: number;
+  lost: number;
+  tied: number;
+  points: number;
+  runsScored: number;
+  ballsFaced: number;
+  runsConceded: number;
+  ballsBowled: number;
+  nrr: number;
+}
+
+export interface TournamentState {
+  id: string;
+  code: string;
+  overs: number;
+  mode: Mode;
+  wickets: number;
+  players: TournamentPlayer[];
+  phase: TournamentPhase;
+  fixtures: FixtureMatch[];
+  currentMatchIndex: number;
+  pointsTable: Record<string, PointsTableEntry>;
+}
+
+export interface TournamentMatchStartingPayload {
+  roomId: string;
+  opponentName: string;
+  matchNum: number;
+  myPlayerIdx: number;
+}
+
+export interface TournamentCompletePayload {
+  players: TournamentPlayer[];
+  pointsTable: Record<string, PointsTableEntry>;
+}
+
+export interface CreateTournamentPayload {
+  playerName: string;
+  overs: number;
+  mode: Mode;
+  wickets: number;
+}
+
+export interface JoinTournamentPayload {
+  code: string;
+  playerName: string;
+}
+
+// ─── Socket event maps ───────────────────────────────────────────────────────
+
 export interface ServerToClientEvents {
   room_created: (p: RoomCreatedPayload) => void;
   state: (p: GameState) => void;
@@ -203,6 +275,10 @@ export interface ServerToClientEvents {
   rematch_start: (p: RematchStartPayload) => void;
   opponent_disconnected: (p: OpponentDisconnectedPayload) => void;
   error: (p: ErrorPayload) => void;
+  tournament_created: (p: TournamentState) => void;
+  tournament_state: (p: TournamentState) => void;
+  tournament_match_starting: (p: TournamentMatchStartingPayload) => void;
+  tournament_complete: (p: TournamentCompletePayload) => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────
@@ -252,4 +328,6 @@ export interface ClientToServerEvents {
   send_challenge: (p: SendChallengePayload) => void;
   respond_challenge: (p: RespondChallengePayload) => void;
   request_rematch: () => void;
+  create_tournament: (p: CreateTournamentPayload) => void;
+  join_tournament: (p: JoinTournamentPayload) => void;
 }

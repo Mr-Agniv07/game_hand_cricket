@@ -926,6 +926,253 @@ body {
   color: var(--muted);
 }
 
+/* ─── Tournament ─── */
+.t-lobby {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1rem;
+  gap: 1.1rem;
+  width: 100%;
+}
+
+.t-section {
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+}
+
+.t-section-title {
+  font-size: .7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--muted);
+  margin-bottom: .15rem;
+}
+
+.t-code {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: .35rem;
+  color: var(--accent);
+  background: #16a34a18;
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  padding: .5rem 1rem;
+  text-align: center;
+}
+
+.t-player-slots {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: .5rem;
+}
+
+.t-player-slot {
+  padding: .6rem .75rem;
+  background: var(--surface2);
+  border-radius: 9px;
+  font-size: .88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.t-player-slot.filled { border-left: 3px solid var(--accent); color: var(--text); }
+.t-player-slot.empty  { border-left: 3px solid #ffffff18; color: var(--muted); font-style: italic; }
+.t-player-slot.me     { border-left-color: var(--warn); }
+
+.t-progress {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.t-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width .4s ease;
+}
+
+.t-live-banner {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .55rem .8rem;
+  background: #16a34a14;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.t-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  flex-shrink: 0;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .3; }
+}
+
+/* Points table */
+.t-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+.t-table th {
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  font-weight: 700;
+  padding: .4rem .55rem;
+  text-align: right;
+}
+.t-table th:first-child { text-align: left; }
+.t-table td {
+  padding: .5rem .55rem;
+  text-align: right;
+  border-top: 1px solid #ffffff08;
+}
+.t-table td:first-child { text-align: left; font-weight: 700; }
+.t-table tr.me td { background: #16a34a0a; }
+.t-table .pts { color: var(--accent); font-weight: 900; }
+.t-nrr-pos { color: var(--accent); }
+.t-nrr-neg { color: var(--danger); }
+
+/* Fixture list */
+.t-fixture {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.t-fixture-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .5rem .65rem;
+  background: var(--surface2);
+  border-radius: 9px;
+  font-size: .84rem;
+}
+.t-fixture-row.live   { border-left: 3px solid var(--accent); }
+.t-fixture-row.done   { border-left: 3px solid #ffffff18; opacity: .75; }
+.t-fixture-row.upcoming { border-left: 3px solid #ffffff18; }
+
+.t-match-num {
+  width: 22px;
+  font-size: .7rem;
+  font-weight: 800;
+  color: var(--muted);
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.t-match-teams {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  overflow: hidden;
+}
+
+.t-team { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-team.me { color: var(--warn); }
+.t-vs { color: var(--muted); font-size: .72rem; flex-shrink: 0; }
+
+.t-match-badge {
+  font-size: .68rem;
+  font-weight: 800;
+  padding: .2rem .45rem;
+  border-radius: 5px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.t-match-badge.live     { background: #16a34a22; color: var(--accent); }
+.t-match-badge.done-w   { background: #16a34a18; color: var(--accent); }
+.t-match-badge.done-l   { background: #ef444418; color: var(--danger); }
+.t-match-badge.done-t   { background: #f59e0b18; color: var(--warn); }
+.t-match-badge.upcoming { background: var(--surface); color: var(--muted); }
+
+/* Tournament sub-tabs in lobby */
+.t-sub-tabs {
+  display: flex;
+  gap: .4rem;
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: .25rem;
+}
+
+/* Tournament result screen */
+.t-result {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  gap: 1.25rem;
+}
+
+.t-result-card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.25rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  text-align: center;
+}
+
+.t-winner-trophy {
+  font-size: 3.5rem;
+  line-height: 1;
+}
+.t-winner-name {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--accent);
+}
+.t-winner-sub {
+  color: var(--muted);
+  font-size: .88rem;
+}
+
+/* Tournament match notice on ResultScreen */
+.tournament-next-notice {
+  width: 100%;
+  padding: .6rem 1rem;
+  background: #16a34a18;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: .88rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 400px) {
   .score-runs { font-size: 2.3rem; }

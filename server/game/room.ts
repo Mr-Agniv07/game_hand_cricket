@@ -30,6 +30,8 @@ export interface Room {
   pendingMoves: Record<string, number>;
   rematchRequests?: Set<number> | null;
   _graceTimers?: Record<string, NodeJS.Timeout>;
+  tournamentId?: string;
+  tournamentMatchIdx?: number;
 }
 
 export function makeRoomId(): string {
