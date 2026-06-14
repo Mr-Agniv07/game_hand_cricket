@@ -27,7 +27,6 @@ function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
     bowlerName,
     score,
     balls,
-    overs,
     wicketsLost,
     mode,
     wickets,

@@ -92,17 +92,19 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall, i
           <span className="score-runs">{score}</span>
           <span className="score-sep">/</span>
           {mode === 'overs' ? (
-            <span className="score-overs">{oversDisplay} ov</span>
+            <>
+              <span className="score-overs">{wicketsLost}W</span>
+              <span className="score-sep"> · </span>
+              <span className="score-overs">{oversDisplay} ov</span>
+            </>
           ) : (
             <span className="score-overs">{wicketsLost}W</span>
           )}
         </div>
 
-        {mode === 'wickets' && (
-          <div className="wickets-left">
-            {wicketsLeft} wicket{wicketsLeft !== 1 ? 's' : ''} remaining
-          </div>
-        )}
+        <div className="wickets-left">
+          {wicketsLeft} wicket{wicketsLeft !== 1 ? 's' : ''} remaining
+        </div>
 
         {target !== null && (
           <div className="chase-bar">
