@@ -11,7 +11,11 @@ function formatNRR(nrr: number): string {
   return (nrr > 0 ? '+' : '') + nrr.toFixed(3);
 }
 
-export default function TournamentResult({ tournamentState, myId, onLeave }: TournamentResultProps) {
+export default function TournamentResult({
+  tournamentState,
+  myId,
+  onLeave,
+}: TournamentResultProps) {
   const { players, pointsTable } = tournamentState;
 
   const sorted = [...players].sort((a, b) => {
@@ -39,8 +43,12 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
             <thead>
               <tr>
                 <th className="t-th-player">Player</th>
-                <th>P</th><th>W</th><th>L</th><th>T</th>
-                <th>Pts</th><th>NRR</th>
+                <th>P</th>
+                <th>W</th>
+                <th>L</th>
+                <th>T</th>
+                <th>Pts</th>
+                <th>NRR</th>
               </tr>
             </thead>
             <tbody>
@@ -53,7 +61,8 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
                     <td className="t-td-player">
                       <span className="t-rank">{rank + 1}</span>
                       {isWinner && <span className="t-trophy">🏆 </span>}
-                      {p.name}{isMe ? <span className="t-you"> (You)</span> : null}
+                      {p.name}
+                      {isMe ? <span className="t-you"> (You)</span> : null}
                     </td>
                     <td>{e?.played ?? 0}</td>
                     <td className="t-won">{e?.won ?? 0}</td>
@@ -68,7 +77,9 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
           </table>
         </div>
 
-        <button className="btn-lobby" onClick={onLeave}>Back to Lobby</button>
+        <button className="btn-lobby" onClick={onLeave}>
+          Back to Lobby
+        </button>
       </div>
     </div>
   );

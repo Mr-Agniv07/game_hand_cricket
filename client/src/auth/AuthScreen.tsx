@@ -28,7 +28,10 @@ export default function AuthScreen({ onAuth, onGuest }: AuthScreenProps) {
     }
     setLoading(true);
     try {
-      const data = await apiPost<AuthResponse>(tab === 'login' ? '/api/login' : '/api/signup', { username: username.trim(), password });
+      const data = await apiPost<AuthResponse>(tab === 'login' ? '/api/login' : '/api/signup', {
+        username: username.trim(),
+        password,
+      });
       onAuth(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
@@ -53,10 +56,16 @@ export default function AuthScreen({ onAuth, onGuest }: AuthScreenProps) {
       </div>
 
       <div className="tabs">
-        <button className={tab === 'login' ? 'tab active' : 'tab'} onClick={() => switchTab('login')}>
+        <button
+          className={tab === 'login' ? 'tab active' : 'tab'}
+          onClick={() => switchTab('login')}
+        >
           Sign In
         </button>
-        <button className={tab === 'signup' ? 'tab active' : 'tab'} onClick={() => switchTab('signup')}>
+        <button
+          className={tab === 'signup' ? 'tab active' : 'tab'}
+          onClick={() => switchTab('signup')}
+        >
           Sign Up
         </button>
       </div>
@@ -65,7 +74,7 @@ export default function AuthScreen({ onAuth, onGuest }: AuthScreenProps) {
         <label>Username</label>
         <input
           value={username}
-          onChange={e => setUsername(e.target.value)}
+          onChange={(e) => setUsername(e.target.value)}
           placeholder="Enter username"
           maxLength={20}
           autoFocus
@@ -76,7 +85,7 @@ export default function AuthScreen({ onAuth, onGuest }: AuthScreenProps) {
         <input
           type="password"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           placeholder="Enter password"
           required
         />
@@ -87,7 +96,7 @@ export default function AuthScreen({ onAuth, onGuest }: AuthScreenProps) {
             <input
               type="password"
               value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              onChange={(e) => setConfirm(e.target.value)}
               placeholder="Repeat password"
               required
             />

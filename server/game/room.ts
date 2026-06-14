@@ -78,7 +78,7 @@ export function publicState(room: Room, roomId: string): GameState {
   return {
     roomId,
     phase: room.phase,
-    players: room.players.map(p => p.name),
+    players: room.players.map((p) => p.name),
     overs: room.overs,
     mode: room.mode,
     wickets: room.wickets,
@@ -91,6 +91,11 @@ export function publicState(room: Room, roomId: string): GameState {
     bowlerIdx: room.bowlerIdx,
     tossCallerId: room.tossCallerId,
     tossWinnerId: room.tossWinnerId,
-    innings: room.innings.map(i => ({ score: i.score, balls: i.balls, isOut: i.isOut, wicketsLost: i.wicketsLost })),
+    innings: room.innings.map((i) => ({
+      score: i.score,
+      balls: i.balls,
+      isOut: i.isOut,
+      wicketsLost: i.wicketsLost,
+    })),
   };
 }

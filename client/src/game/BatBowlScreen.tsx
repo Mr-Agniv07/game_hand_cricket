@@ -32,9 +32,7 @@ export default function BatBowlScreen({ socket, myId, gameState }: BatBowlScreen
             </div>
           </>
         ) : (
-          <p className="waiting-text">
-            Waiting for the toss winner to choose bat or bowl…
-          </p>
+          <p className="waiting-text">Waiting for the toss winner to choose bat or bowl…</p>
         )}
       </div>
     </div>

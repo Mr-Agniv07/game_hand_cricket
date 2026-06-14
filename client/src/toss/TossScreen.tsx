@@ -26,18 +26,24 @@ export default function TossScreen({ socket, myId, tossInfo, tossResult }: TossS
 
         {!tossResult && (
           <>
-            <div className={`coin ${flipping ? 'flipping' : ''}`}>
-              {flipping ? '🪙' : '🪙'}
-            </div>
+            <div className={`coin ${flipping ? 'flipping' : ''}`}>{flipping ? '🪙' : '🪙'}</div>
 
             {isCaller ? (
               <>
                 <p className="toss-prompt">You get to call the toss!</p>
                 <div className="toss-choices">
-                  <button className="toss-btn heads" onClick={() => handleCall('heads')} disabled={flipping}>
+                  <button
+                    className="toss-btn heads"
+                    onClick={() => handleCall('heads')}
+                    disabled={flipping}
+                  >
                     HEADS
                   </button>
-                  <button className="toss-btn tails" onClick={() => handleCall('tails')} disabled={flipping}>
+                  <button
+                    className="toss-btn tails"
+                    onClick={() => handleCall('tails')}
+                    disabled={flipping}
+                  >
                     TAILS
                   </button>
                 </div>

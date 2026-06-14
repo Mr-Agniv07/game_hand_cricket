@@ -72,10 +72,11 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }:
         <div className="score-block">
           <span className="score-runs">{score}</span>
           <span className="score-sep">/</span>
-          {mode === 'overs'
-            ? <span className="score-overs">{oversDisplay} ov</span>
-            : <span className="score-overs">{wicketsLost}W</span>
-          }
+          {mode === 'overs' ? (
+            <span className="score-overs">{oversDisplay} ov</span>
+          ) : (
+            <span className="score-overs">{wicketsLost}W</span>
+          )}
         </div>
 
         {mode === 'wickets' && (
@@ -86,11 +87,18 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }:
 
         {target !== null && (
           <div className="chase-bar">
-            <span>Target <strong>{target}</strong></span>
-            {ballsLeft !== null
-              ? <span>Need <strong>{runsNeeded}</strong> in <strong>{ballsLeft}</strong> balls</span>
-              : <span>Need <strong>{runsNeeded}</strong> runs</span>
-            }
+            <span>
+              Target <strong>{target}</strong>
+            </span>
+            {ballsLeft !== null ? (
+              <span>
+                Need <strong>{runsNeeded}</strong> in <strong>{ballsLeft}</strong> balls
+              </span>
+            ) : (
+              <span>
+                Need <strong>{runsNeeded}</strong> runs
+              </span>
+            )}
           </div>
         )}
 
@@ -117,7 +125,7 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }:
       </div>
 
       <div className="numpad">
-        {NUMBERS.map(n => (
+        {NUMBERS.map((n) => (
           <button
             key={n}
             className={`num-btn${myMove === n ? ' chosen' : ''}${myMove !== null ? ' locked' : ''}`}
@@ -130,7 +138,9 @@ export default function GameScreen({ socket, myPlayerIdx, gameState, lastBall }:
       </div>
 
       {myMove !== null && !ballAnim && (
-        <p className="waiting-label">You played <strong>{myMove}</strong> · waiting for opponent…</p>
+        <p className="waiting-label">
+          You played <strong>{myMove}</strong> · waiting for opponent…
+        </p>
       )}
 
       {currentInnings === 2 && (

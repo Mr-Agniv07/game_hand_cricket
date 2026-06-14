@@ -122,11 +122,7 @@ export interface MoveReceivedPayload {
   number: number;
 }
 
-export type InningsEndReason =
-  | 'out'
-  | 'all_out'
-  | 'overs_complete'
-  | 'target_reached';
+export type InningsEndReason = 'out' | 'all_out' | 'overs_complete' | 'target_reached';
 
 export interface InningsEndPayload {
   inningsNumber: number;

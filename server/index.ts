@@ -21,7 +21,7 @@ const httpServer = createServer(app);
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>(
   httpServer,
-  { cors: { origin: '*', methods: ['GET', 'POST'] } },
+  { cors: { origin: '*', methods: ['GET', 'POST'] } }
 );
 
 app.use(authRouter);
