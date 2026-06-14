@@ -213,6 +213,20 @@ export interface PointsTableEntry {
   nrr: number;
 }
 
+export interface LiveMatchScore {
+  batsmanName: string;
+  bowlerName: string;
+  score: number;
+  balls: number;
+  overs: number;
+  wicketsLost: number;
+  mode: Mode;
+  wickets: number;
+  target: number | null;
+  currentInnings: number;
+  lastBall: { scored: number; isOut: boolean; batsmanMove: number; bowlerMove: number } | null;
+}
+
 export interface TournamentState {
   id: string;
   code: string;
@@ -224,6 +238,7 @@ export interface TournamentState {
   fixtures: FixtureMatch[];
   currentMatchIndex: number;
   pointsTable: Record<string, PointsTableEntry>;
+  liveScore: LiveMatchScore | null;
 }
 
 export interface TournamentMatchStartingPayload {
