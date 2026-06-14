@@ -43,12 +43,12 @@ directory (e.g. `cd server && pnpm dev`):
   once and consumed by both ends via `import type`. Nothing here is loaded at runtime, so
   there's no build — both sides just type-check against it.
 - **server/** — Node + Express + Socket.io, ES modules (`"type": "module"`),
-  TypeScript run via **Node ≥ 23.6 native type stripping** (no ts-node/tsx, no nodemon).
-  - `pnpm dev` — `node --watch index.ts`, auto-restart (use this while developing)
-  - `pnpm start` — `node index.ts`
+  TypeScript run via **tsx**.
+  - `pnpm dev` — `tsx watch index.ts`, auto-restart (use this while developing)
+  - `pnpm start` — `tsx index.ts`
   - `pnpm typecheck` — `tsc --noEmit`
   - Listens on `PORT` env or `3001`.
-  - Imports use explicit `.ts` extensions (`./db.ts`) — required by Node's resolver.
+  - Imports use explicit `.ts` extensions (`./db.ts`).
 - **client/** — React 19 + Vite (`.tsx` handled natively).
   - `pnpm dev` — Vite dev server
   - `pnpm build` (typecheck + build), `pnpm typecheck`, `pnpm preview`

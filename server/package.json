@@ -5,8 +5,8 @@
   "main": "index.ts",
   "type": "module",
   "scripts": {
-    "start": "node index.ts",
-    "dev": "node --watch index.ts",
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
@@ -22,6 +22,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
+    "tsx": "^4.19.4",
     "typescript": "~6.0.2"
   }
 }
