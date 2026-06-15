@@ -52,10 +52,20 @@ export default function App() {
 
   const bound = useRef(false);
   const roomIdRef = useRef<string | null>(null);
+  const tournamentCodeRef = useRef<string | null>(null);
+  const userRef = useRef<ClientUser | null>(null);
 
   useEffect(() => {
     roomIdRef.current = roomId;
   }, [roomId]);
+
+  useEffect(() => {
+    tournamentCodeRef.current = tournamentState?.code ?? null;
+  }, [tournamentState]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
     if (bound.current) return;
@@ -66,6 +76,16 @@ export default function App() {
       setMyId(socket.id ?? null);
       if (roomIdRef.current) {
         socket.emit('rejoin_room', { roomId: roomIdRef.current });
+      }
+      // Re-sync tournament identity after a reconnect even when no match room is
+      // active (between matches / spectating). Registered-user only: the server
+      // remaps by userId, so guests would just get a spurious "already started"
+      // error. join_tournament's reconnection path handles the remap.
+      if (tournamentCodeRef.current && userRef.current) {
+        socket.emit('join_tournament', {
+          code: tournamentCodeRef.current,
+          playerName: userRef.current.username,
+        });
       }
     });
 

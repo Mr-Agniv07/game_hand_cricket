@@ -352,13 +352,15 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
     socket.on('join_tournament', ({ code, playerName }) => {
       const tournament = tournaments.get(code.toUpperCase());
       if (!tournament) return socket.emit('error', { message: 'Tournament not found.' });
-      if (tournament.phase !== 'waiting')
-        return socket.emit('error', { message: 'Tournament already started.' });
 
       // Already in tournament with same socket (no-op)
       if (tournament.players.some((p) => p.id === socket.id)) return;
 
-      // Reconnection: logged-in user whose socket.id changed after a refresh
+      // Reconnection: a logged-in player whose socket.id changed (refresh, or a
+      // between-match / spectator network blip). This MUST run before the
+      // phase guard below — otherwise an in-progress tournament rejects the
+      // rejoin and the player's dead socket id is never remapped, so their
+      // upcoming fixtures forfeit when startTournamentMatch can't find them.
       const reconnIdx =
         socket.data.userId !== null
           ? tournament.players.findIndex((p) => p.userId === socket.data.userId)
@@ -373,6 +375,10 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
         return;
       }
+
+      // New joiner — only allowed while the tournament is still gathering players.
+      if (tournament.phase !== 'waiting')
+        return socket.emit('error', { message: 'Tournament already started.' });
 
       if (tournament.players.length >= 4)
         return socket.emit('error', { message: 'Tournament is full.' });
