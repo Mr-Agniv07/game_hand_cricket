@@ -35,11 +35,13 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
 
   const loggedIn = !!user;
 
+  // Refetch each time the History tab is opened so a freshly-finished match
+  // shows; keep any existing list visible (no spinner flash) while reloading.
   useEffect(() => {
-    if (tab === 'history' && history === null && user?.token) {
+    if (tab === 'history' && user?.token) {
       apiGet<MatchHistoryEntry[]>('/api/history', user.token)
         .then((data) => setHistory(data))
-        .catch(() => setHistory([]));
+        .catch(() => setHistory((h) => h ?? []));
     }
   }, [tab]);
 
