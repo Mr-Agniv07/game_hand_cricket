@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
 import { apiGet, apiPost, apiDelete } from '../api';
 import styles from './FriendsPanel.module.css';
-import type { Friend, SearchResult, Mode, ChallengeDeclinedPayload } from '@cric/types';
+import type { Friend, SearchResult, ChallengeDeclinedPayload } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser, AppPhase } from '../types';
 
@@ -31,7 +31,6 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
 
   // Challenge sub-form
   const [challengingId, setChallengingId] = useState<string | null>(null);
-  const [cMode, setCMode] = useState<Mode>('overs');
   const [cOvers, setCOvers] = useState(2);
   const [cWickets, setCWickets] = useState(2);
   const [sentTo, setSentTo] = useState<{ id: string; username: string } | null>(null);
@@ -134,7 +133,7 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
   function sendChallenge(friend: Friend) {
     socket.emit('send_challenge', {
       toUserId: friend.id,
-      mode: cMode,
+      mode: 'overs',
       overs: cOvers,
       wickets: cWickets,
     });
@@ -209,33 +208,31 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
 
                   {challengingId === f.id && (
                     <div className={styles['challenge-form']}>
+                      <label style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 700 }}>
+                        Overs
+                      </label>
                       <div className="over-options">
-                        <button
-                          type="button"
-                          className={cMode === 'overs' ? 'over-btn selected' : 'over-btn'}
-                          onClick={() => setCMode('overs')}
-                        >
-                          Overs
-                        </button>
-                        <button
-                          type="button"
-                          className={cMode === 'wickets' ? 'over-btn selected' : 'over-btn'}
-                          onClick={() => setCMode('wickets')}
-                        >
-                          Wickets
-                        </button>
-                      </div>
-                      <div className="over-options">
-                        {(cMode === 'overs' ? OVER_OPTIONS : WICKET_OPTIONS).map((n) => (
+                        {OVER_OPTIONS.map((n) => (
                           <button
                             key={n}
                             type="button"
-                            className={
-                              (cMode === 'overs' ? cOvers : cWickets) === n
-                                ? 'over-btn selected'
-                                : 'over-btn'
-                            }
-                            onClick={() => (cMode === 'overs' ? setCOvers(n) : setCWickets(n))}
+                            className={cOvers === n ? 'over-btn selected' : 'over-btn'}
+                            onClick={() => setCOvers(n)}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                      <label style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 700 }}>
+                        Wickets
+                      </label>
+                      <div className="over-options">
+                        {WICKET_OPTIONS.map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            className={cWickets === n ? 'over-btn selected' : 'over-btn'}
+                            onClick={() => setCWickets(n)}
                           >
                             {n}
                           </button>

@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
-import type { UserStats, MatchHistoryEntry, Mode, PublicUser, Friend } from '@cric/types';
+import type { UserStats, MatchHistoryEntry, PublicUser, Friend } from '@cric/types';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = join(__dir, 'db.json');
@@ -164,8 +164,8 @@ export interface GameStatsResult {
   runsScored: number;
   opponentName: string;
   opponentScore: number;
-  mode: Mode;
-  count: number;
+  overs: number;
+  wickets: number;
 }
 
 // Load once, update both players, save once — avoids double-write race on Windows/OneDrive
@@ -178,8 +178,8 @@ export function updateGameStats(results: GameStatsResult[]): void {
     runsScored,
     opponentName,
     opponentScore,
-    mode,
-    count,
+    overs,
+    wickets,
   } of results) {
     if (!userId) continue;
     const user = db.users.find((u) => u.id === userId);
@@ -196,8 +196,8 @@ export function updateGameStats(results: GameStatsResult[]): void {
       result: tie ? 'tie' : win ? 'win' : 'loss',
       myScore: runsScored,
       oppScore: opponentScore ?? 0,
-      mode: mode || 'overs',
-      count: count || 1,
+      overs: overs || 1,
+      wickets: wickets || 1,
       date: new Date().toISOString(),
     });
     if (user.matchHistory.length > 10) user.matchHistory = user.matchHistory.slice(-10);

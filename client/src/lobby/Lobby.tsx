@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { apiGet } from '../api';
 import styles from './Lobby.module.css';
-import type { Mode, MatchHistoryEntry } from '@cric/types';
+import type { MatchHistoryEntry } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
 
@@ -21,13 +21,11 @@ interface LobbyProps {
 export default function Lobby({ socket, onJoinRoom, defaultName = '', user = null }: LobbyProps) {
   const [tab, setTab] = useState<LobbyTab>('create');
   const [name, setName] = useState(defaultName);
-  const [mode, setMode] = useState<Mode>('overs');
   const [overs, setOvers] = useState(2);
   const [wickets, setWickets] = useState(2);
   const [joinCode, setJoinCode] = useState('');
   const [joinName, setJoinName] = useState(defaultName);
   const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null);
-  const [tMode, setTMode] = useState<Mode>('overs');
   const [tOvers, setTOvers] = useState(2);
   const [tWickets, setTWickets] = useState(2);
   const [tSubTab, setTSubTab] = useState<'create' | 'join'>('create');
@@ -49,7 +47,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
     e.preventDefault();
     const playerName = user ? user.username : name.trim();
     if (!playerName) return;
-    socket.emit('create_room', { playerName, overs, mode, wickets });
+    socket.emit('create_room', { playerName, overs, mode: 'overs', wickets });
   }
 
   function handleJoin(e: FormEvent) {
@@ -63,7 +61,12 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
     e.preventDefault();
     const playerName = user ? user.username : name.trim();
     if (!playerName) return;
-    socket.emit('create_tournament', { playerName, overs: tOvers, mode: tMode, wickets: tWickets });
+    socket.emit('create_tournament', {
+      playerName,
+      overs: tOvers,
+      mode: 'overs',
+      wickets: tWickets,
+    });
   }
 
   function handleJoinTournament(e: FormEvent) {
@@ -150,59 +153,38 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               />
             </>
           )}
-          <label>Game Mode</label>
+          <label>Number of Overs</label>
           <div className="over-options">
-            <button
-              type="button"
-              className={mode === 'overs' ? 'over-btn selected' : 'over-btn'}
-              onClick={() => setMode('overs')}
-            >
-              Overs
-            </button>
-            <button
-              type="button"
-              className={mode === 'wickets' ? 'over-btn selected' : 'over-btn'}
-              onClick={() => setMode('wickets')}
-            >
-              Wickets
-            </button>
+            {OVER_OPTIONS.map((o) => (
+              <button
+                key={o}
+                type="button"
+                className={overs === o ? 'over-btn selected' : 'over-btn'}
+                onClick={() => setOvers(o)}
+              >
+                {o}
+              </button>
+            ))}
           </div>
 
-          {mode === 'overs' && (
-            <>
-              <label>Number of Overs</label>
-              <div className="over-options">
-                {OVER_OPTIONS.map((o) => (
-                  <button
-                    key={o}
-                    type="button"
-                    className={overs === o ? 'over-btn selected' : 'over-btn'}
-                    onClick={() => setOvers(o)}
-                  >
-                    {o}
-                  </button>
-                ))}
-              </div>
-</>
-          )}
+          <label>Number of Wickets</label>
+          <div className="over-options">
+            {WICKET_OPTIONS.map((w) => (
+              <button
+                key={w}
+                type="button"
+                className={wickets === w ? 'over-btn selected' : 'over-btn'}
+                onClick={() => setWickets(w)}
+              >
+                {w}
+              </button>
+            ))}
+          </div>
 
-          {mode === 'wickets' && (
-            <>
-              <label>Number of Wickets</label>
-              <div className="over-options">
-                {WICKET_OPTIONS.map((w) => (
-                  <button
-                    key={w}
-                    type="button"
-                    className={wickets === w ? 'over-btn selected' : 'over-btn'}
-                    onClick={() => setWickets(w)}
-                  >
-                    {w}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0' }}>
+            Innings ends at {overs} over{overs !== 1 ? 's' : ''} or {wickets} wicket
+            {wickets !== 1 ? 's' : ''} — whichever comes first.
+          </p>
 
           <button type="submit" className="btn-primary">
             Create Room
@@ -280,57 +262,32 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                   />
                 </>
               )}
-              <label>Game Mode</label>
+              <label>Overs per Match</label>
               <div className="over-options">
-                <button
-                  type="button"
-                  className={tMode === 'overs' ? 'over-btn selected' : 'over-btn'}
-                  onClick={() => setTMode('overs')}
-                >
-                  Overs
-                </button>
-                <button
-                  type="button"
-                  className={tMode === 'wickets' ? 'over-btn selected' : 'over-btn'}
-                  onClick={() => setTMode('wickets')}
-                >
-                  Wickets
-                </button>
+                {OVER_OPTIONS.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    className={tOvers === o ? 'over-btn selected' : 'over-btn'}
+                    onClick={() => setTOvers(o)}
+                  >
+                    {o}
+                  </button>
+                ))}
               </div>
-              {tMode === 'overs' && (
-                <>
-                  <label>Overs per Match</label>
-                  <div className="over-options">
-                    {OVER_OPTIONS.map((o) => (
-                      <button
-                        key={o}
-                        type="button"
-                        className={tOvers === o ? 'over-btn selected' : 'over-btn'}
-                        onClick={() => setTOvers(o)}
-                      >
-                        {o}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              {tMode === 'wickets' && (
-                <>
-                  <label>Wickets per Match</label>
-                  <div className="over-options">
-                    {WICKET_OPTIONS.map((w) => (
-                      <button
-                        key={w}
-                        type="button"
-                        className={tWickets === w ? 'over-btn selected' : 'over-btn'}
-                        onClick={() => setTWickets(w)}
-                      >
-                        {w}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+              <label>Wickets per Match</label>
+              <div className="over-options">
+                {WICKET_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className={tWickets === w ? 'over-btn selected' : 'over-btn'}
+                    onClick={() => setTWickets(w)}
+                  >
+                    {w}
+                  </button>
+                ))}
+              </div>
               <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0' }}>
                 4-player round-robin · 12 matches · Win=2pts, Tie=1pt, Loss=0pts
               </p>
@@ -399,9 +356,11 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                   <div className={styles['history-info']}>
                     <span className={styles['history-opp']}>vs {m.opponent}</span>
                     <span className={styles['history-meta']}>
-                      {m.mode === 'overs'
-                        ? `${m.count} over${m.count !== 1 ? 's' : ''}`
-                        : `${m.count} wicket${m.count !== 1 ? 's' : ''}`}
+                      {m.overs !== undefined && m.wickets !== undefined
+                        ? `${m.overs} ov · ${m.wickets} wkt`
+                        : m.mode === 'overs'
+                          ? `${m.count} overs`
+                          : `${m.count} wickets`}
                     </span>
                   </div>
                   <div className={styles['history-right']}>

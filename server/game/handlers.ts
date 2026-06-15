@@ -190,25 +190,15 @@ export function registerGameHandlers(io: GameServer): void {
 
       // Defensive: if the previous ball already completed the overs but endInnings
       // somehow wasn't triggered, catch it here before the next ball lands.
-      if (room.mode === 'overs' && inn.balls >= totalBalls(room)) {
-        console.warn(
-          `[play_move] stale ball blocked — inn.balls=${inn.balls} >= total=${totalBalls(room)} (${room.overs} overs)`
-        );
+      if (inn.balls >= totalBalls(room)) {
         endInnings(io, roomId, room, 'overs_complete');
         return;
       }
 
       inn.balls += 1;
-      console.log(
-        `[play_move] ball ${inn.balls}/${totalBalls(room)} | mode=${room.mode} overs=${room.overs} innings=${room.currentInnings}`
-      );
 
       if (batMove === bowlMove) {
         inn.wicketsLost += 1;
-        // Innings ends when all wickets fall (both modes) or overs run out (overs mode only).
-        const ovComplete = room.mode === 'overs' && inn.balls >= totalBalls(room);
-        const allOut = inn.wicketsLost >= room.wickets;
-        const inningsOver = ovComplete || allOut;
 
         io.to(roomId).emit('ball_played', {
           batsmanMove: batMove,
@@ -220,7 +210,12 @@ export function registerGameHandlers(io: GameServer): void {
           balls: inn.balls,
         });
 
-        if (inningsOver) {
+        // The innings ends as soon as EITHER limit is reached — the wicket
+        // quota falls or the over quota is bowled, whichever comes first.
+        const allOut = inn.wicketsLost >= room.wickets;
+        const ovComplete = inn.balls >= totalBalls(room);
+
+        if (allOut || ovComplete) {
           inn.isOut = allOut;
           endInnings(io, roomId, room, allOut ? 'all_out' : 'overs_complete');
         } else {
@@ -252,7 +247,7 @@ export function registerGameHandlers(io: GameServer): void {
           }
         }
 
-        if (room.mode === 'overs' && inn.balls >= totalBalls(room)) {
+        if (inn.balls >= totalBalls(room)) {
           endInnings(io, roomId, room, 'overs_complete');
           return;
         }
@@ -511,7 +506,6 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
     playerScores[room.bowlerIdx!] = inn1.score;
     playerScores[room.batsmanIdx!] = inn2.score;
 
-    const matchCount = room.mode === 'overs' ? room.overs : room.wickets;
     updateGameStats([
       {
         userId: room.players[0].userId,
@@ -520,8 +514,8 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
         runsScored: playerScores[0],
         opponentName: room.players[1].name,
         opponentScore: playerScores[1],
-        mode: room.mode,
-        count: matchCount,
+        overs: room.overs,
+        wickets: room.wickets,
       },
       {
         userId: room.players[1].userId,
@@ -530,8 +524,8 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
         runsScored: playerScores[1],
         opponentName: room.players[0].name,
         opponentScore: playerScores[0],
-        mode: room.mode,
-        count: matchCount,
+        overs: room.overs,
+        wickets: room.wickets,
       },
     ]);
 

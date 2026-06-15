@@ -47,7 +47,6 @@ export default function GameScreen({
   const currentInnings = (gameState?.currentInnings ?? 0) + 1;
   const target = gameState?.target ?? null;
 
-  const mode = gameState?.mode ?? 'overs';
   const wickets = gameState?.wickets ?? 1;
   const wicketsLost = gameState?.wicketsLost ?? 0;
   const wicketsLeft = wickets - wicketsLost;
@@ -143,7 +142,7 @@ export default function GameScreen({
 
   const oversDisplay = `${Math.floor(balls / 6)}.${balls % 6}`;
   const runsNeeded = target ? target - score : null;
-  const ballsLeft = mode === 'overs' ? totalBalls - balls : null;
+  const ballsLeft = totalBalls - balls;
 
   return (
     <div className={styles['game-screen']}>
@@ -153,15 +152,16 @@ export default function GameScreen({
         <div className={styles['score-block']}>
           <span className={styles['score-runs']}>{score}</span>
           <span className={styles['score-sep']}>/</span>
-          <>
-            <span className={styles['score-overs']}>{wicketsLost}W</span>
-            <span className={styles['score-sep']}> · </span>
-            <span className={styles['score-overs']}>{oversDisplay} ov</span>
-          </>
+          <span className={styles['score-overs']}>{wicketsLost}W</span>
+          <span className={styles['score-sep']}> · </span>
+          <span className={styles['score-overs']}>
+            {oversDisplay} / {overs} ov
+          </span>
         </div>
 
         <div className={styles['wickets-left']}>
-          {wicketsLeft} wicket{wicketsLeft !== 1 ? 's' : ''} remaining
+          {wicketsLeft} wkt{wicketsLeft !== 1 ? 's' : ''} · {ballsLeft} ball
+          {ballsLeft !== 1 ? 's' : ''} left
         </div>
 
         {target !== null && (
@@ -169,15 +169,9 @@ export default function GameScreen({
             <span>
               Target <strong>{target}</strong>
             </span>
-            {ballsLeft !== null ? (
-              <span>
-                Need <strong>{runsNeeded}</strong> in <strong>{ballsLeft}</strong> balls
-              </span>
-            ) : (
-              <span>
-                Need <strong>{runsNeeded}</strong> runs
-              </span>
-            )}
+            <span>
+              Need <strong>{runsNeeded}</strong> in <strong>{ballsLeft}</strong> balls
+            </span>
           </div>
         )}
 

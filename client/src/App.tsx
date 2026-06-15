@@ -366,9 +366,8 @@ export default function App() {
           <div className="challenge-notify">
             <p className="cn-from">{incomingChallenge.from.username} challenged you!</p>
             <p className="cn-details">
-              {incomingChallenge.mode === 'overs'
-                ? `${incomingChallenge.overs} over${incomingChallenge.overs !== 1 ? 's' : ''}`
-                : `${incomingChallenge.wickets} wicket${incomingChallenge.wickets !== 1 ? 's' : ''}`}
+              {incomingChallenge.overs} over{incomingChallenge.overs !== 1 ? 's' : ''} ·{' '}
+              {incomingChallenge.wickets} wicket{incomingChallenge.wickets !== 1 ? 's' : ''}
             </p>
             <div className="cn-actions">
               <button className="cn-accept" onClick={acceptChallenge}>

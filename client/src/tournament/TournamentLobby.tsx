@@ -28,8 +28,6 @@ function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
     score,
     balls,
     wicketsLost,
-    mode,
-    wickets,
     target,
     currentInnings,
     lastBall,
@@ -45,13 +43,9 @@ function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
       <div className={styles['t-spec-score']}>
         <span className={styles['t-spec-runs']}>{score}</span>
         <span className={styles['t-spec-sep']}>/</span>
-        {mode === 'overs' ? (
-          <span className={styles['t-spec-detail']}>{oversDisplay} ov</span>
-        ) : (
-          <span className={styles['t-spec-detail']}>
-            {wicketsLost}W ({wickets}wkt)
-          </span>
-        )}
+        <span className={styles['t-spec-detail']}>
+          {wicketsLost}W · {oversDisplay} ov
+        </span>
       </div>
 
       {runsNeeded !== null && (

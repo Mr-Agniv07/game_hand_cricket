@@ -80,8 +80,11 @@ export interface MatchHistoryEntry {
   result: MatchResult;
   myScore: number;
   oppScore: number;
-  mode: Mode;
-  count: number;
+  overs: number;
+  wickets: number;
+  /** @deprecated legacy single-limit fields, kept for old entries written before overs+wickets */
+  mode?: Mode;
+  count?: number;
   date: string;
 }
 
