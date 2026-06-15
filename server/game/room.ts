@@ -35,8 +35,12 @@ export interface Room {
   tournamentMatchIdx?: number;
 }
 
-export function makeRoomId(): string {
-  return Math.random().toString(36).substring(2, 7).toUpperCase();
+export function makeRoomId(used?: { has(id: string): boolean }): string {
+  let id: string;
+  do {
+    id = Math.random().toString(36).substring(2, 7).toUpperCase();
+  } while (used?.has(id));
+  return id;
 }
 
 export function freshInnings(): RoomInnings {

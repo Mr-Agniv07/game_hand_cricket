@@ -27,6 +27,7 @@ export default function GameScreen({
   userToken,
 }: GameScreenProps) {
   const [myMove, setMyMove] = useState<number | null>(null);
+  const myMoveRef = useRef<number | null>(null);
   const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
   const [showML, setShowML] = useState(false);
   const [mlStats, setMlStats] = useState<MLStats>(() => new HandCricketML().getStats());
@@ -88,6 +89,10 @@ export default function GameScreen({
     mlRef.current.newInnings();
   }, [currentInnings]);
 
+  useEffect(() => {
+    myMoveRef.current = myMove;
+  }, [myMove]);
+
   // Unlock the numpad whenever the server advances the ball count or the innings
   // changes. Keying off authoritative server state (not a transient lastBall
   // set-then-null) makes this robust to React's batching at the innings break —
@@ -96,6 +101,7 @@ export default function GameScreen({
   // When autoplay is on, the ML model picks the next move.
   useEffect(() => {
     setMyMove(null);
+    myMoveRef.current = null;
     if (!isAutoPlay) return;
     const t = setTimeout(() => {
       const n = isBatsman ? mlRef.current.pickAsBatsman() : mlRef.current.pickAsBowler();
@@ -114,12 +120,17 @@ export default function GameScreen({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key >= '1' && e.key <= '6') playMove(Number(e.key));
-      if (e.key === 'r' || e.key === 'R') playMove(Math.ceil(Math.random() * 6));
+      let n: number | null = null;
+      if (e.key >= '1' && e.key <= '6') n = Number(e.key);
+      else if (e.key === 'r' || e.key === 'R') n = Math.ceil(Math.random() * 6);
+      if (n === null || myMoveRef.current !== null) return;
+      myMoveRef.current = n;
+      setMyMove(n);
+      socket.emit('play_move', { number: n });
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [myMove]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const oversDisplay = `${Math.floor(balls / 6)}.${balls % 6}`;
   const runsNeeded = target ? target - score : null;

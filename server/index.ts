@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { authRouter } from './auth/routes.ts';
 import { friendsRouter } from './friends/routes.ts';
 import { registerGameHandlers } from './game/handlers.ts';
-import type { SocketData } from './game/handlers.ts';
+import type { SocketData } from './game/types.ts';
 import type { ServerToClientEvents, ClientToServerEvents } from '@cric/types';
 import type { DefaultEventsMap } from 'socket.io';
 
