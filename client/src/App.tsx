@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { socket } from './socket';
+import { socket, getClientId } from './socket';
 import { apiGet } from './api';
 import AuthScreen from './auth/AuthScreen';
 import FriendsPanel from './friends/FriendsPanel';
@@ -193,7 +193,7 @@ export default function App() {
         .then((data) => {
           const restored: ClientUser = { ...stored, stats: data.stats };
           setUser(restored);
-          socket.auth = { token: stored.token };
+          socket.auth = { token: stored.token, clientId: getClientId() };
           socket.connect();
           setPhase('lobby');
         })
@@ -207,7 +207,7 @@ export default function App() {
   }, []);
 
   function handleGuestPlay() {
-    socket.auth = {};
+    socket.auth = { clientId: getClientId() };
     if (!socket.connected) socket.connect();
     setPhase('lobby');
   }
@@ -224,7 +224,7 @@ export default function App() {
       STORED_KEY,
       JSON.stringify({ id: data.id, username: data.username, token: data.token })
     );
-    socket.auth = { token: data.token };
+    socket.auth = { token: data.token, clientId: getClientId() };
     if (!socket.connected) socket.connect();
     setPhase('lobby');
   }

@@ -56,6 +56,8 @@ export function registerGameHandlers(io: GameServer): void {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     socket.data.userId = token ? (verifyToken(token) ?? null) : null;
+    const clientId = socket.handshake.auth?.clientId;
+    socket.data.clientId = typeof clientId === 'string' ? clientId : null;
     next();
   });
 
@@ -67,7 +69,12 @@ export function registerGameHandlers(io: GameServer): void {
       const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
       const room = createRoom(Number(overs) || 1, mode || 'overs', Number(wickets) || 1);
-      room.players.push({ id: socket.id, name, userId: socket.data.userId });
+      room.players.push({
+        id: socket.id,
+        name,
+        userId: socket.data.userId,
+        clientId: socket.data.clientId,
+      });
       rooms.set(roomId, room);
       socket.join(roomId);
       socket.data.roomId = roomId;
@@ -84,7 +91,12 @@ export function registerGameHandlers(io: GameServer): void {
         return socket.emit('error', { message: 'Game already started.' });
 
       const name = cleanName(playerName);
-      room.players.push({ id: socket.id, name, userId: socket.data.userId });
+      room.players.push({
+        id: socket.id,
+        name,
+        userId: socket.data.userId,
+        clientId: socket.data.clientId,
+      });
       socket.join(roomId);
       socket.data.roomId = roomId;
       socket.data.playerName = name;
@@ -396,10 +408,14 @@ export function registerGameHandlers(io: GameServer): void {
 
     socket.on('rejoin_room', ({ roomId }) => {
       const room = rooms.get(roomId);
-      if (!room || !socket.data.userId) return;
+      if (!room) return;
 
+      // Match by registered userId when present, else by the stable per-browser
+      // clientId so guests (no userId) can also recover their slot after a blip.
       const playerIdx = room.players.findIndex(
-        (p) => p.userId !== null && p.userId === socket.data.userId
+        (p) =>
+          (p.userId !== null && p.userId === socket.data.userId) ||
+          (p.clientId != null && p.clientId === socket.data.clientId)
       );
       if (playerIdx === -1) return;
 

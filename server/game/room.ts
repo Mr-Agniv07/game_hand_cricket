@@ -4,6 +4,8 @@ export interface RoomPlayer {
   id: string;
   name: string;
   userId: string | null;
+  /** Stable per-browser id; used to rejoin guests, who have no userId. */
+  clientId?: string | null;
 }
 
 export interface RoomInnings {
