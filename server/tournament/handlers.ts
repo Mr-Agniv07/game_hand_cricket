@@ -171,6 +171,54 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
   });
 }
 
+/**
+ * A player abandoned a live match (disconnect grace elapsed without reconnect).
+ * Award the fixture to the surviving player and schedule the next match —
+ * without this the whole tournament stalls on this fixture forever, since
+ * nothing else advances `currentMatchIndex` once the room is gone.
+ * `advanceDelayMs` defaults long enough for the surviving client to clear its
+ * "opponent disconnected" screen (3s) and return to the tournament lobby first.
+ */
+export function forfeitTournamentMatch(
+  io: GameServer,
+  rooms: Map<string, Room>,
+  tournament: Tournament,
+  matchIndex: number,
+  loserId: string,
+  advanceDelayMs = 4000
+): void {
+  const fixture = tournament.fixtures[matchIndex];
+  if (!fixture || fixture.status === 'done') return;
+
+  fixture.status = 'done';
+  const p1Id = tournament.players[fixture.player1Idx].id;
+  const p2Id = tournament.players[fixture.player2Idx].id;
+  const p1Lost = p1Id === loserId;
+  fixture.result = p1Lost ? 'p2' : 'p1';
+  const winnerId = p1Lost ? p2Id : p1Id;
+
+  const we = tournament.pointsTable[winnerId];
+  const le = tournament.pointsTable[loserId];
+  if (we) {
+    we.played += 1;
+    we.won += 1;
+    we.points += 2;
+  }
+  if (le) {
+    le.played += 1;
+    le.lost += 1;
+  }
+
+  tournament.liveScore = null;
+  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+
+  setTimeout(() => {
+    const next = matchIndex + 1;
+    if (next >= tournament.fixtures.length) finalizeTournament(io, tournament);
+    else startTournamentMatch(io, rooms, tournament, next);
+  }, advanceDelayMs);
+}
+
 export function startTournamentMatch(
   io: GameServer,
   rooms: Map<string, Room>,
@@ -300,7 +348,16 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
           : -1;
 
       if (reconnIdx !== -1) {
+        const oldId = tournament.players[reconnIdx].id;
         tournament.players[reconnIdx].id = socket.id;
+        // pointsTable is keyed by socket id; move the entry so results from
+        // later matches still land on this player (otherwise updateEntry's
+        // `if (!e) return` silently drops every point they earn after a refresh).
+        const entry = tournament.pointsTable[oldId];
+        if (entry) {
+          tournament.pointsTable[socket.id] = entry;
+          delete tournament.pointsTable[oldId];
+        }
         socket.join('t:' + tournament.id);
         socket.data.tournamentId = tournament.id;
         // Use tournament_created so the client transitions to tournament_lobby phase

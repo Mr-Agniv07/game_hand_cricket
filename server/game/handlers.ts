@@ -18,6 +18,7 @@ import {
   batsmanId,
   bowlerId,
   publicState,
+  remapSocketId,
 } from './room.ts';
 import type { SocketData } from './types.ts';
 import {
@@ -26,6 +27,7 @@ import {
   pushLiveScore,
   finalizeTournament,
   startTournamentMatch,
+  forfeitTournamentMatch,
   registerTournamentHandlers,
 } from '../tournament/handlers.ts';
 
@@ -355,21 +357,9 @@ export function registerGameHandlers(io: GameServer): void {
       );
       if (playerIdx === -1) return;
 
-      const oldId = room.players[playerIdx].id;
-
-      // Cancel the grace timer that was started on disconnect
-      if (room._graceTimers?.[oldId]) {
-        clearTimeout(room._graceTimers[oldId]);
-        delete room._graceTimers[oldId];
-      }
-
-      // Migrate any move the player already submitted this ball
-      if (room.pendingMoves[oldId] !== undefined) {
-        room.pendingMoves[socket.id] = room.pendingMoves[oldId];
-        delete room.pendingMoves[oldId];
-      }
-
-      room.players[playerIdx].id = socket.id;
+      // Remap every socket-id-keyed field (players, toss caller/winner,
+      // in-flight move) and cancel the disconnect grace timer in one shot.
+      remapSocketId(room, room.players[playerIdx].id, socket.id);
       socket.data.roomId = roomId;
       socket.data.playerName = room.players[playerIdx].name;
       socket.join(roomId);
@@ -397,8 +387,18 @@ export function registerGameHandlers(io: GameServer): void {
       room._graceTimers = room._graceTimers || {};
       room._graceTimers[socket.id] = setTimeout(() => {
         if (!rooms.has(roomId)) return;
-        io.to(roomId).emit('opponent_disconnected', { name: socket.data.playerName });
         rooms.delete(roomId);
+        io.to(roomId).emit('opponent_disconnected', { name: socket.data.playerName });
+
+        // A live tournament match can't just vanish — forfeit it to the
+        // surviving player and advance the bracket, or the tournament stalls
+        // on this fixture forever. ('result' means endInnings already advanced.)
+        if (room.tournamentId && room.tournamentMatchIdx !== undefined && room.phase !== 'result') {
+          const tournament = tournaments.get(room.tournamentId);
+          if (tournament) {
+            forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
+          }
+        }
       }, GRACE_MS);
     });
   });

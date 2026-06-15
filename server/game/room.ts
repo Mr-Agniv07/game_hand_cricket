@@ -77,6 +77,29 @@ export function bowlerId(room: Room): string {
   return room.players[room.bowlerIdx!].id;
 }
 
+/**
+ * A player's in-room identity is their socket.id, which changes on reconnect.
+ * Every field that stores it must be remapped together — missing one (the toss
+ * caller/winner, an in-flight move) silently breaks gating for the reconnected
+ * player and can freeze the match. Centralised so new socket-id fields are
+ * remapped in one place rather than re-introducing the bug at each call site.
+ */
+export function remapSocketId(room: Room, oldId: string, newId: string): void {
+  if (oldId === newId) return;
+  const player = room.players.find((p) => p.id === oldId);
+  if (player) player.id = newId;
+  if (room.tossCallerId === oldId) room.tossCallerId = newId;
+  if (room.tossWinnerId === oldId) room.tossWinnerId = newId;
+  if (room.pendingMoves[oldId] !== undefined) {
+    room.pendingMoves[newId] = room.pendingMoves[oldId];
+    delete room.pendingMoves[oldId];
+  }
+  if (room._graceTimers?.[oldId]) {
+    clearTimeout(room._graceTimers[oldId]);
+    delete room._graceTimers[oldId];
+  }
+}
+
 export function publicState(room: Room, roomId: string): GameState {
   const inn = room.innings[room.currentInnings];
   const target = room.currentInnings === 1 ? room.innings[0].score + 1 : null;
