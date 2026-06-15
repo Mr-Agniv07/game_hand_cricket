@@ -30,17 +30,41 @@ interface Database {
   mlProfiles?: Record<string, MLModelData>;
 }
 
+let cache: Database | null = null;
+let mlSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
 function load(): Database {
-  if (!existsSync(DB_PATH)) return { users: [] };
+  if (cache) return cache;
+  if (!existsSync(DB_PATH)) {
+    cache = { users: [] };
+    return cache;
+  }
   try {
-    return JSON.parse(readFileSync(DB_PATH, 'utf8')) as Database;
+    cache = JSON.parse(readFileSync(DB_PATH, 'utf8')) as Database;
+    return cache;
   } catch {
-    return { users: [] };
+    cache = { users: [] };
+    return cache;
   }
 }
 
 function save(data: Database): void {
+  if (mlSaveTimer) {
+    clearTimeout(mlSaveTimer);
+    mlSaveTimer = null;
+  }
   writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// Deferred write for the hot per-ball path. Any synchronous save() call
+// (auth, stats) will also flush the pending ML data since they share the
+// same in-memory object.
+function saveSoon(): void {
+  if (mlSaveTimer) clearTimeout(mlSaveTimer);
+  mlSaveTimer = setTimeout(() => {
+    mlSaveTimer = null;
+    if (cache) writeFileSync(DB_PATH, JSON.stringify(cache, null, 2), 'utf8');
+  }, 2000);
 }
 
 export function findByUsername(username: string): DbUser | null {
@@ -205,5 +229,5 @@ export function trainPlayerProfiles(
       model.transitions[lastMove][move] = (model.transitions[lastMove][move] ?? 0) + 1;
     }
   }
-  save(db);
+  saveSoon();
 }

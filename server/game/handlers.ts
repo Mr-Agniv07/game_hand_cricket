@@ -290,6 +290,7 @@ export function registerGameHandlers(io: GameServer): void {
     });
 
     socket.on('play_move', ({ number }) => {
+      if (!Number.isInteger(number) || number < 1 || number > 6) return;
       const roomId = socket.data.roomId;
       const room = roomId ? rooms.get(roomId) : undefined;
       if (!room || !roomId || room.phase !== 'innings') return;
