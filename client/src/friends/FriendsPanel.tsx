@@ -133,7 +133,6 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
   function sendChallenge(friend: Friend) {
     socket.emit('send_challenge', {
       toUserId: friend.id,
-      mode: 'overs',
       overs: cOvers,
       wickets: cWickets,
     });

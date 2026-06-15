@@ -1,4 +1,4 @@
-import type { GameState, Mode, Phase, TossCall } from '@cric/types';
+import type { GameState, Phase, TossCall } from '@cric/types';
 
 export interface RoomPlayer {
   id: string;
@@ -19,7 +19,6 @@ export interface RoomInnings {
 export interface Room {
   players: RoomPlayer[];
   overs: number;
-  mode: Mode;
   wickets: number;
   phase: Phase;
   tossCallerId: string | null;
@@ -65,11 +64,10 @@ export function freshInnings(): RoomInnings {
   return { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] };
 }
 
-export function createRoom(overs: number, mode: Mode, wickets: number): Room {
+export function createRoom(overs: number, wickets: number): Room {
   return {
     players: [],
     overs,
-    mode: mode || 'overs',
     wickets: wickets || 1,
     phase: 'waiting',
     tossCallerId: null,
@@ -127,7 +125,6 @@ export function publicState(room: Room, roomId: string): GameState {
     players: room.players.map((p) => p.name),
     playerIds: room.players.map((p) => p.userId),
     overs: room.overs,
-    mode: room.mode,
     wickets: room.wickets,
     currentInnings: room.currentInnings,
     score: inn.score,

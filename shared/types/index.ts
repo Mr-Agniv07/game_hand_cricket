@@ -5,7 +5,6 @@
 // ─── Core domain ────────────────────────────────────────────────────────────
 
 export type Phase = 'waiting' | 'toss_call' | 'bat_bowl' | 'innings' | 'result';
-export type Mode = 'overs' | 'wickets';
 export type TossCall = 'heads' | 'tails';
 export type BatBowlChoice = 'bat' | 'bowl';
 
@@ -25,7 +24,6 @@ export interface GameState {
   /** Registered user id per player slot, or null for guests. Aligns with `players`. */
   playerIds: (string | null)[];
   overs: number;
-  mode: Mode;
   wickets: number;
   currentInnings: number;
   score: number;
@@ -82,9 +80,6 @@ export interface MatchHistoryEntry {
   oppScore: number;
   overs: number;
   wickets: number;
-  /** @deprecated legacy single-limit fields, kept for old entries written before overs+wickets */
-  mode?: Mode;
-  count?: number;
   date: string;
 }
 
@@ -149,7 +144,6 @@ export interface ChallengeReceivedPayload {
   challengeId: string;
   from: { id: string; username: string };
   overs: number;
-  mode: Mode;
   wickets: number;
 }
 
@@ -227,7 +221,6 @@ export interface LiveMatchScore {
   balls: number;
   overs: number;
   wicketsLost: number;
-  mode: Mode;
   wickets: number;
   target: number | null;
   currentInnings: number;
@@ -238,7 +231,6 @@ export interface TournamentState {
   id: string;
   code: string;
   overs: number;
-  mode: Mode;
   wickets: number;
   players: TournamentPlayer[];
   phase: TournamentPhase;
@@ -263,7 +255,6 @@ export interface TournamentCompletePayload {
 export interface CreateTournamentPayload {
   playerName: string;
   overs: number;
-  mode: Mode;
   wickets: number;
 }
 
@@ -304,7 +295,6 @@ export interface ServerToClientEvents {
 export interface CreateRoomPayload {
   playerName: string;
   overs: number | string;
-  mode: Mode;
   wickets: number | string;
 }
 
@@ -328,7 +318,6 @@ export interface PlayMovePayload {
 export interface SendChallengePayload {
   toUserId: string;
   overs: number | string;
-  mode: Mode;
   wickets: number | string;
 }
 

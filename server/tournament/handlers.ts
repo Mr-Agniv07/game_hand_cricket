@@ -8,7 +8,6 @@ import type {
   FixtureMatch,
   PointsTableEntry,
   LiveMatchScore,
-  Mode,
 } from '@cric/types';
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
 import type { SocketData } from '../game/types.ts';
@@ -50,7 +49,6 @@ export interface Tournament {
   id: string;
   code: string;
   overs: number;
-  mode: Mode;
   wickets: number;
   players: TournamentPlayerEntry[];
   phase: 'waiting' | 'in_progress' | 'complete';
@@ -103,7 +101,6 @@ export function publicTournamentState(t: Tournament): TournamentState {
     id: t.id,
     code: t.code,
     overs: t.overs,
-    mode: t.mode,
     wickets: t.wickets,
     players: t.players.map((p): TournamentPlayer => ({ id: p.id, name: p.name })),
     phase: t.phase,
@@ -171,7 +168,6 @@ export function pushLiveScore(
     balls: inn.balls,
     overs: room.overs,
     wicketsLost: inn.wicketsLost,
-    mode: room.mode,
     wickets: room.wickets,
     target: room.currentInnings === 1 ? room.innings[0].score + 1 : null,
     currentInnings: room.currentInnings + 1,
@@ -286,7 +282,7 @@ export function startTournamentMatch(
   }
 
   const roomId = makeRoomId(rooms);
-  const room = createRoom(tournament.overs, tournament.mode, tournament.wickets);
+  const room = createRoom(tournament.overs, tournament.wickets);
   // Carry clientId through so a guest (no userId) whose socket id changes on a
   // blip can still be matched by rejoin_room; without it their reconnect fails
   // and the grace timer forfeits the match.
@@ -332,14 +328,13 @@ export function startTournamentMatch(
 
 export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Room>): void {
   io.on('connection', (socket) => {
-    socket.on('create_tournament', ({ playerName, overs, mode, wickets }) => {
+    socket.on('create_tournament', ({ playerName, overs, wickets }) => {
       const code = makeRoomId(tournaments);
       const tournamentId = randomUUID();
       const tournament: Tournament = {
         id: tournamentId,
         code,
         overs: clampCount(overs, 2),
-        mode: mode || 'overs',
         wickets: clampCount(wickets, 2),
         players: [
           {

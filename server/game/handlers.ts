@@ -3,7 +3,6 @@ import type { Server, Socket, DefaultEventsMap } from 'socket.io';
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
-  Mode,
   InningsEndReason,
   RoomCreatedPayload,
 } from '@cric/types';
@@ -44,7 +43,6 @@ interface PendingChallenge {
   challengerSocketId: string;
   toUserId: string;
   overs: number;
-  mode: Mode;
   wickets: number;
   timeout: NodeJS.Timeout;
 }
@@ -80,10 +78,10 @@ export function registerGameHandlers(io: GameServer): void {
     console.log('connected', socket.id);
     if (socket.data.userId) onlineUsers.set(socket.data.userId, socket.id);
 
-    socket.on('create_room', ({ playerName, overs, mode, wickets }) => {
+    socket.on('create_room', ({ playerName, overs, wickets }) => {
       const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
-      const room = createRoom(clampCount(overs, 1), mode || 'overs', clampCount(wickets, 1));
+      const room = createRoom(clampCount(overs, 1), clampCount(wickets, 1));
       room.players.push({
         id: socket.id,
         name,
@@ -313,7 +311,7 @@ export function registerGameHandlers(io: GameServer): void {
       forfeitGame(io, roomId, room, declarerIdx);
     });
 
-    socket.on('send_challenge', ({ toUserId, overs, mode, wickets }) => {
+    socket.on('send_challenge', ({ toUserId, overs, wickets }) => {
       if (!socket.data.userId) return;
       const toSocketId = onlineUsers.get(toUserId);
       if (!toSocketId) return socket.emit('challenge_error', { message: 'Player is offline' });
@@ -325,7 +323,6 @@ export function registerGameHandlers(io: GameServer): void {
       // can't drift apart.
       const challengeOvers = clampCount(overs, 2);
       const challengeWickets = clampCount(wickets, 2);
-      const challengeMode = mode || 'overs';
 
       const challengeId = randomUUID();
       const timeout = setTimeout(() => {
@@ -340,7 +337,6 @@ export function registerGameHandlers(io: GameServer): void {
         challengerSocketId: socket.id,
         toUserId,
         overs: challengeOvers,
-        mode: challengeMode,
         wickets: challengeWickets,
         timeout,
       });
@@ -349,7 +345,6 @@ export function registerGameHandlers(io: GameServer): void {
         challengeId,
         from: { id: socket.data.userId, username: challenger.username },
         overs: challengeOvers,
-        mode: challengeMode,
         wickets: challengeWickets,
       });
     });
@@ -377,7 +372,7 @@ export function registerGameHandlers(io: GameServer): void {
       }
 
       const roomId = makeRoomId(rooms);
-      const room = createRoom(ch.overs, ch.mode, ch.wickets);
+      const room = createRoom(ch.overs, ch.wickets);
       const challenger = findById(ch.challengerId);
       const challenged = socket.data.userId ? findById(socket.data.userId) : null;
 

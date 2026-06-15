@@ -45,12 +45,8 @@ authRouter.post('/api/login', (req: Request, res: Response) => {
   res.json({ id: user.id, username: user.username, token, stats: user.stats });
 });
 
-authRouter.get('/api/me', (req: Request, res: Response) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'No token.' });
-  const userId = verifyToken(token);
-  if (!userId) return res.status(401).json({ error: 'Invalid or expired token.' });
-  const user = findById(userId);
+authRouter.get('/api/me', requireAuth, (req: Request, res: Response) => {
+  const user = findById((req as AuthRequest).userId!);
   if (!user) return res.status(404).json({ error: 'User not found.' });
   res.json({ id: user.id, username: user.username, stats: user.stats });
 });

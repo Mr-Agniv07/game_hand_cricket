@@ -47,7 +47,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
     e.preventDefault();
     const playerName = user ? user.username : name.trim();
     if (!playerName) return;
-    socket.emit('create_room', { playerName, overs, mode: 'overs', wickets });
+    socket.emit('create_room', { playerName, overs, wickets });
   }
 
   function handleJoin(e: FormEvent) {
@@ -64,7 +64,6 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
     socket.emit('create_tournament', {
       playerName,
       overs: tOvers,
-      mode: 'overs',
       wickets: tWickets,
     });
   }
@@ -359,9 +358,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                     <span className={styles['history-meta']}>
                       {m.overs !== undefined && m.wickets !== undefined
                         ? `${m.overs} ov · ${m.wickets} wkt`
-                        : m.mode === 'overs'
-                          ? `${m.count} overs`
-                          : `${m.count} wickets`}
+                        : null}
                     </span>
                   </div>
                   <div className={styles['history-right']}>
