@@ -92,14 +92,19 @@ export default function App() {
     // ── Bind all socket listeners once ──────────────────────────────────────
     socket.on('connect', () => {
       setMyId(socket.id ?? null);
+      // An active match room takes priority: rejoin_room restores the live game
+      // AND re-syncs tournament identity (it remaps the tournament socket id and
+      // emits tournament_state, which preserves the match phase). We must NOT
+      // also emit join_tournament here — its reconnection path re-emits
+      // tournament_created, which forces the client to 'tournament_lobby' and
+      // ejects the player from the live match screen mid-game.
       if (roomIdRef.current) {
         socket.emit('rejoin_room', { roomId: roomIdRef.current });
-      }
-      // Re-sync tournament identity after a reconnect even when no match room is
-      // active (between matches / spectating). The server remaps by userId or
-      // the stable clientId, so guests recover too. playerName is unused on the
-      // reconnection path (it only matters for a fresh join).
-      if (tournamentCodeRef.current) {
+      } else if (tournamentCodeRef.current) {
+        // No active match room (between matches / spectating): re-sync tournament
+        // identity. The server remaps by userId or the stable clientId, so guests
+        // recover too. playerName is unused on the reconnection path (it only
+        // matters for a fresh join).
         socket.emit('join_tournament', {
           code: tournamentCodeRef.current,
           playerName: userRef.current?.username ?? '',

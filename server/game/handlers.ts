@@ -199,6 +199,16 @@ export function registerGameHandlers(io: GameServer): void {
 
       room.pendingMoves = {};
 
+      const inn = room.innings[room.currentInnings];
+
+      // Defensive: if the previous ball already completed the overs but endInnings
+      // somehow wasn't triggered, catch it here before the next ball lands. Bail
+      // BEFORE training so a discarded (uncounted) ball can't pollute the models.
+      if (inn.balls >= totalBalls(room)) {
+        endInnings(io, roomId, room, 'overs_complete');
+        return;
+      }
+
       // Train global player profiles on every ball of every game.
       // Track each player's previous move by their array index, not name —
       // two players sharing a display name would otherwise clobber each
@@ -212,15 +222,6 @@ export function registerGameHandlers(io: GameServer): void {
       ]);
       room.mlLastMoves[batIdx] = batMove;
       room.mlLastMoves[bowlIdx] = bowlMove;
-
-      const inn = room.innings[room.currentInnings];
-
-      // Defensive: if the previous ball already completed the overs but endInnings
-      // somehow wasn't triggered, catch it here before the next ball lands.
-      if (inn.balls >= totalBalls(room)) {
-        endInnings(io, roomId, room, 'overs_complete');
-        return;
-      }
 
       inn.balls += 1;
 
@@ -320,6 +321,12 @@ export function registerGameHandlers(io: GameServer): void {
       const challenger = findById(socket.data.userId);
       if (!challenger) return;
 
+      // Clamp once so the stored challenge and the payload sent to the opponent
+      // can't drift apart.
+      const challengeOvers = clampCount(overs, 2);
+      const challengeWickets = clampCount(wickets, 2);
+      const challengeMode = mode || 'overs';
+
       const challengeId = randomUUID();
       const timeout = setTimeout(() => {
         if (!pendingChallenges.has(challengeId)) return;
@@ -332,18 +339,18 @@ export function registerGameHandlers(io: GameServer): void {
         challengerId: socket.data.userId,
         challengerSocketId: socket.id,
         toUserId,
-        overs: clampCount(overs, 2),
-        mode: mode || 'overs',
-        wickets: clampCount(wickets, 2),
+        overs: challengeOvers,
+        mode: challengeMode,
+        wickets: challengeWickets,
         timeout,
       });
 
       io.to(toSocketId).emit('challenge_received', {
         challengeId,
         from: { id: socket.data.userId, username: challenger.username },
-        overs: clampCount(overs, 2),
-        mode: mode || 'overs',
-        wickets: clampCount(wickets, 2),
+        overs: challengeOvers,
+        mode: challengeMode,
+        wickets: challengeWickets,
       });
     });
 
