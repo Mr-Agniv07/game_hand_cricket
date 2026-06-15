@@ -102,8 +102,12 @@ export default function App() {
 
   // Persist (or clear) the active match room so a refresh can rejoin it.
   useEffect(() => {
-    if (roomId) saveActiveRoom({ roomId, myPlayerIdx, isTournamentMatch });
-    else clearActiveRoom();
+    if (roomId) {
+      console.log('[recover] saved active room', roomId, 'idx', myPlayerIdx);
+      saveActiveRoom({ roomId, myPlayerIdx, isTournamentMatch });
+    } else {
+      clearActiveRoom();
+    }
   }, [roomId, myPlayerIdx, isTournamentMatch]);
 
   useEffect(() => {
@@ -141,6 +145,7 @@ export default function App() {
       // also emit join_tournament here — its reconnection path re-emits
       // tournament_created, which forces the client to 'tournament_lobby' and
       // ejects the player from the live match screen mid-game.
+      console.log('[recover] connected id=%s rejoinRoom=%s', socket.id, roomIdRef.current);
       if (roomIdRef.current) {
         socket.emit('rejoin_room', { roomId: roomIdRef.current });
       } else if (tournamentCodeRef.current) {
@@ -179,6 +184,7 @@ export default function App() {
       // First snapshot after a refresh-driven rejoin: rebuild the screen from the
       // authoritative state, since the one-shot toss_start/innings_start events
       // that normally set these won't fire again.
+      console.log('[recover] got state, rebuilding phase=%s', state.phase);
       recovering.current = false;
       const names = state.players;
       const myIdx = myPlayerIdxRef.current;
@@ -325,6 +331,7 @@ export default function App() {
       localStorage.getItem(STORED_ROOM_KEY) || 'null'
     );
     const recoveringRoom = !!storedRoom?.roomId;
+    console.log('[recover] on load storedRoom=', storedRoom, 'hasToken=', !!stored?.token);
 
     // ── Restore an in-progress match (page refresh) ──────────────────────────
     // Connect IMMEDIATELY (don't wait on /api/me) so the 'connect' handler emits
@@ -351,6 +358,7 @@ export default function App() {
       // no `state` arrives — fall back to the lobby/auth after a short grace.
       setTimeout(() => {
         if (!recovering.current) return;
+        console.log('[recover] fallback fired — no state arrived, going to lobby/auth');
         recovering.current = false;
         clearActiveRoom();
         roomIdRef.current = null;

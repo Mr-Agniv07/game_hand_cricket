@@ -412,6 +412,9 @@ export function registerGameHandlers(io: GameServer): void {
 
     socket.on('rejoin_room', ({ roomId }) => {
       const room = rooms.get(roomId);
+      console.log(
+        `[rejoin] room=${roomId} found=${!!room} uid=${socket.data.userId} cid=${socket.data.clientId}`
+      );
       if (!room) return;
 
       // Match by registered userId when present, else by the stable per-browser
@@ -420,6 +423,9 @@ export function registerGameHandlers(io: GameServer): void {
         (p) =>
           (p.userId !== null && p.userId === socket.data.userId) ||
           (p.clientId != null && p.clientId === socket.data.clientId)
+      );
+      console.log(
+        `[rejoin] matchedIdx=${playerIdx} players=${JSON.stringify(room.players.map((p) => ({ uid: p.userId, cid: p.clientId })))}`
       );
       if (playerIdx === -1) return;
 
@@ -496,17 +502,22 @@ export function registerGameHandlers(io: GameServer): void {
       // longer appears in the room), do nothing — a fast refresh can rejoin
       // BEFORE the old socket's disconnect fires, and arming a timer here would
       // tear down a game the player has already recovered.
-      if (!room.players.some((p) => p.id === socket.id)) return;
+      if (!room.players.some((p) => p.id === socket.id)) {
+        console.log(`[disconnect] ${socket.id} already reclaimed in ${roomId} — no teardown`);
+        return;
+      }
 
       // Grace period: a brief disconnect (page refresh, HMR, network blip)
       // should not destroy the game. The reconnecting socket emits rejoin_room,
       // which remaps the player's id and clears this timer.
       const GRACE_MS = 15000;
+      console.log(`[disconnect] arming ${GRACE_MS}ms grace for ${socket.id} in ${roomId}`);
       room._graceTimers = room._graceTimers || {};
       room._graceTimers[socket.id] = setTimeout(() => {
         if (!rooms.has(roomId)) return;
         // Reclaimed while we waited? The player is back — don't tear down.
         if (!room.players.some((p) => p.id === socket.id)) return;
+        console.log(`[grace] tearing down room ${roomId} — ${socket.id} never returned`);
         rooms.delete(roomId);
         io.to(roomId).emit('opponent_disconnected', { name: socket.data.playerName });
 
