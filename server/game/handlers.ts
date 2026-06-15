@@ -492,12 +492,21 @@ export function registerGameHandlers(io: GameServer): void {
       const room = rooms.get(roomId);
       if (!room) return;
 
-      // Grace period: brief disconnect (HMR, StrictMode remount, network blip)
-      // should not destroy the game.
-      const GRACE_MS = 8000;
+      // If this socket's slot was already reclaimed by a reconnect (its id no
+      // longer appears in the room), do nothing — a fast refresh can rejoin
+      // BEFORE the old socket's disconnect fires, and arming a timer here would
+      // tear down a game the player has already recovered.
+      if (!room.players.some((p) => p.id === socket.id)) return;
+
+      // Grace period: a brief disconnect (page refresh, HMR, network blip)
+      // should not destroy the game. The reconnecting socket emits rejoin_room,
+      // which remaps the player's id and clears this timer.
+      const GRACE_MS = 15000;
       room._graceTimers = room._graceTimers || {};
       room._graceTimers[socket.id] = setTimeout(() => {
         if (!rooms.has(roomId)) return;
+        // Reclaimed while we waited? The player is back — don't tear down.
+        if (!room.players.some((p) => p.id === socket.id)) return;
         rooms.delete(roomId);
         io.to(roomId).emit('opponent_disconnected', { name: socket.data.playerName });
 

@@ -171,6 +171,10 @@ export default function App() {
 
     socket.on('state', (state) => {
       setGameState(state);
+      // Sync roomId from the authoritative snapshot so EVERY player (including a
+      // joiner, who otherwise never sets it) persists the active room and can
+      // recover it on refresh.
+      setRoomId(state.roomId);
       if (!recovering.current) return;
       // First snapshot after a refresh-driven rejoin: rebuild the screen from the
       // authoritative state, since the one-shot toss_start/innings_start events
@@ -316,14 +320,18 @@ export default function App() {
       setPhase('tournament_result');
     });
 
-    // ── Restore an in-progress match (page refresh) ──────────────────────────
-    // Prime the recovery refs BEFORE connecting so the 'connect' handler emits
-    // rejoin_room. The server matches us back by userId (logged in) or the
-    // stable clientId (guests), then replies with `state` which rebuilds the UI.
+    const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
     const storedRoom: StoredRoom | null = JSON.parse(
       localStorage.getItem(STORED_ROOM_KEY) || 'null'
     );
-    if (storedRoom?.roomId) {
+    const recoveringRoom = !!storedRoom?.roomId;
+
+    // ── Restore an in-progress match (page refresh) ──────────────────────────
+    // Connect IMMEDIATELY (don't wait on /api/me) so the 'connect' handler emits
+    // rejoin_room well inside the server's disconnect grace window. The server
+    // matches us back by userId (logged in) or the stable clientId (guests),
+    // then replies with `state` which rebuilds the UI.
+    if (recoveringRoom && storedRoom) {
       recovering.current = true;
       roomIdRef.current = storedRoom.roomId;
       setRoomId(storedRoom.roomId);
@@ -333,6 +341,12 @@ export default function App() {
       }
       isTournamentMatchRef.current = !!storedRoom.isTournamentMatch;
       setIsTournamentMatch(!!storedRoom.isTournamentMatch);
+
+      socket.auth = stored?.token
+        ? { token: stored.token, clientId: getClientId() }
+        : { clientId: getClientId() };
+      socket.connect();
+
       // If the server has no such room anymore (game already ended/cleaned up),
       // no `state` arrives — fall back to the lobby/auth after a short grace.
       setTimeout(() => {
@@ -342,34 +356,28 @@ export default function App() {
         roomIdRef.current = null;
         setRoomId(null);
         setPhase(userRef.current ? 'lobby' : 'auth');
-      }, 5000);
+      }, 6000);
     }
 
     // ── Restore stored session ───────────────────────────────────────────────
-    const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
     if (stored?.token) {
       apiGet('/api/me', stored.token)
         .then((data) => {
           const restored: ClientUser = { ...stored, stats: data.stats };
           setUser(restored);
           userRef.current = restored;
-          socket.auth = { token: stored.token, clientId: getClientId() };
-          socket.connect();
-          // While recovering, stay on 'loading' until the rejoined state (or the
-          // fallback timer) decides the screen.
-          if (!recovering.current) setPhase('lobby');
+          // Not already connected for recovery → normal connect into the lobby.
+          if (!recoveringRoom) {
+            socket.auth = { token: stored.token, clientId: getClientId() };
+            socket.connect();
+            setPhase('lobby');
+          }
         })
         .catch(() => {
           localStorage.removeItem(STORED_KEY);
-          clearActiveRoom();
-          recovering.current = false;
-          setPhase('auth');
+          if (!recoveringRoom) setPhase('auth');
         });
-    } else if (storedRoom?.roomId) {
-      // Guest mid-match: no account to restore, but recover the game via clientId.
-      socket.auth = { clientId: getClientId() };
-      socket.connect();
-    } else {
+    } else if (!recoveringRoom) {
       setPhase('auth');
     }
   }, []);
