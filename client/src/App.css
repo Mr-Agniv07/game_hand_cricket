@@ -230,6 +230,35 @@ body {
   background: #ef444415;
 }
 
+/* ─── Sound toggle ─── */
+.sound-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  border: 1px solid #ffffff18;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    transform 0.15s,
+    border-color 0.18s,
+    background 0.18s;
+}
+.sound-btn:hover {
+  border-color: var(--accent);
+  transform: scale(1.08);
+}
+.sound-btn:active {
+  transform: scale(0.92);
+}
+.sound-btn.muted {
+  opacity: 0.6;
+}
+
 /* ─── Spinner ─── */
 .spinner {
   width: 40px;
@@ -546,5 +575,94 @@ body {
   }
   .user-chip {
     padding: 0.18rem;
+  }
+}
+
+/* ─── Motion: screen transitions & tactile feedback ─── */
+
+/* Each phase mounts a fresh screen wrapper, so this entrance animation fires on
+   every screen change (fade up into place). */
+@keyframes screenIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.center-screen,
+.game-screen,
+.lobby,
+.auth-screen,
+.t-lobby,
+.t-result-wrap {
+  animation: screenIn 0.32s ease-out both;
+}
+
+/* Cards/overlays pop in slightly for depth. */
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.challenge-notify,
+.waiting-card {
+  animation: overlayIn 0.25s ease-out both;
+}
+
+/* Header slides down on load. */
+.app-header {
+  animation: screenIn 0.3s ease-out both;
+}
+
+/* Tactile press feedback for the main action buttons. */
+.btn-primary,
+.btn-rematch,
+.btn-lobby,
+.over-btn,
+.tab,
+.toss-btn,
+.choice-btn,
+.cn-accept,
+.cn-decline,
+.friends-toggle-btn,
+.autoplay-btn {
+  transition:
+    transform 0.1s ease,
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    box-shadow 0.2s;
+}
+.btn-primary:active,
+.btn-rematch:active,
+.btn-lobby:active,
+.over-btn:active,
+.tab:active,
+.toss-btn:active,
+.choice-btn:active,
+.cn-accept:active,
+.cn-decline:active {
+  transform: scale(0.96);
+}
+
+/* Respect users who prefer reduced motion — drop the decorative animation but
+   keep the UI fully functional. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

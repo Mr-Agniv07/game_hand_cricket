@@ -4,9 +4,93 @@
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  animation: resultIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
+@keyframes resultIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .result-emoji {
   font-size: 4rem;
+  display: inline-block;
+}
+/* Trophy leaps in and keeps a gentle victory bob. */
+.emoji-win {
+  animation: trophyIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both, trophyBob 2s 0.6s ease-in-out infinite;
+}
+@keyframes trophyIn {
+  0% {
+    transform: scale(0) rotate(-30deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes trophyBob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(4deg);
+  }
+}
+/* Loss emoji droops in with a small shake. */
+.emoji-lose {
+  animation: emojiShake 0.5s ease-in-out 0.2s 2;
+}
+@keyframes emojiShake {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(8deg);
+  }
+}
+.emoji-tie {
+  animation: trophyIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ─── Win confetti ─── */
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 40;
+}
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0;
+  animation-name: confettiFall;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+  animation-fill-mode: both;
+}
+@keyframes confettiFall {
+  0% {
+    opacity: 1;
+    transform: translateY(-12px) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(105vh) rotate(540deg);
+  }
 }
 .result-title {
   font-size: 1.8rem;
@@ -14,6 +98,16 @@
 }
 .result-title.win {
   color: var(--accent);
+  animation: titleGlow 1.6s ease-in-out infinite;
+}
+@keyframes titleGlow {
+  0%,
+  100% {
+    text-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    text-shadow: 0 0 22px rgba(34, 197, 94, 0.75);
+  }
 }
 .result-title.lose {
   color: var(--danger);

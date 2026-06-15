@@ -25,6 +25,7 @@ import type {
 } from '@cric/types';
 import type { ClientUser, AppPhase, RematchState } from './types';
 import type { OppRole } from './game/autoplayML';
+import { sounds, initAudio, isMuted, toggleMute } from './sound';
 import './App.css';
 
 type TrainEvent = { move: number; role: OppRole; seq: number };
@@ -52,6 +53,7 @@ export default function App() {
   const [isTournamentMatch, setIsTournamentMatch] = useState(false);
   const isTournamentMatchRef = useRef(false);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
+  const [muted, setMuted] = useState(isMuted());
   // Opponent-move feed for ML training. Captured at ball_played from pre-swap
   // refs and never nulled mid-match, so GameScreen trains on every ball
   // (including the innings-ending one) regardless of React's event batching.
@@ -88,6 +90,12 @@ export default function App() {
   useEffect(() => {
     if (bound.current) return;
     bound.current = true;
+
+    // Browsers keep the AudioContext suspended until a user gesture — unlock it
+    // on the first interaction so game sounds can play.
+    const unlock = () => initAudio();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
 
     // ── Bind all socket listeners once ──────────────────────────────────────
     socket.on('connect', () => {
@@ -139,6 +147,7 @@ export default function App() {
 
     socket.on('toss_result', (result) => {
       setTossResult(result);
+      sounds.toss();
       setTimeout(() => setPhase((p) => (p === 'toss_call' ? 'bat_bowl' : p)), 2500);
     });
 
@@ -150,6 +159,10 @@ export default function App() {
 
     socket.on('ball_played', (data) => {
       setLastBall(data);
+      // Sound matches the outcome: wicket, boundary (4/6), or a normal run.
+      if (data.isOut) sounds.out();
+      else if (data.scored >= 4) sounds.boundary();
+      else sounds.run();
       // Capture the opponent's move + role NOW, from refs holding the pre-swap
       // state, before innings_start/state coalesce and flip roles in the same
       // React commit. Feeds ML training in GameScreen via a value that's never
@@ -168,11 +181,16 @@ export default function App() {
 
     socket.on('innings_end', (data) => {
       setInningsEnd(data);
+      sounds.inningsEnd();
       setTimeout(() => setInningsEnd(null), 5000);
     });
 
     socket.on('game_over', (data) => {
       setGameOver(data);
+      // Win/lose/tie jingle, keyed off the player index (stable across reconnects).
+      if (data.winnerIdx === null) sounds.tie();
+      else if (data.winnerIdx === myPlayerIdxRef.current) sounds.win();
+      else sounds.lose();
       setPhase('result');
     });
 
@@ -372,6 +390,20 @@ export default function App() {
               🤖 {isAutoPlay ? 'Auto: ON' : 'Auto Play'}
             </button>
           )}
+        {phase !== 'loading' && (
+          <button
+            className={`sound-btn${muted ? ' muted' : ''}`}
+            onClick={() => {
+              initAudio();
+              setMuted(toggleMute());
+            }}
+            title={muted ? 'Unmute sounds' : 'Mute sounds'}
+            aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
+            style={user && phase !== 'auth' ? undefined : { marginLeft: 'auto' }}
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
+        )}
         {user && phase !== 'auth' && phase !== 'loading' && (
           <div className="header-user">
             <button className="friends-toggle-btn" onClick={() => setFriendsOpen((o) => !o)}>
