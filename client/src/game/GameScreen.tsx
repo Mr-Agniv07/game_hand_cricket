@@ -186,7 +186,14 @@ export default function GameScreen({
 
       {isAutoPlay && (
         <>
-          <div style={{ textAlign: 'right', marginBottom: showML ? 0 : '0.25rem' }}>
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              textAlign: 'right',
+              marginBottom: showML ? 0 : '0.25rem',
+            }}
+          >
             <button className={styles['ml-toggle-btn']} onClick={() => setShowML((v) => !v)}>
               🧠 {showML ? 'Hide insights' : 'ML insights'}
             </button>
