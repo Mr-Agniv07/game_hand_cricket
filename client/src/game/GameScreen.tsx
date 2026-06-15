@@ -4,7 +4,7 @@ import styles from './GameScreen.module.css';
 import type { GameState, BallPlayedPayload } from '@cric/types';
 import { HandCricketML } from './autoplayML';
 import { apiGet } from '../api';
-import type { MLModelData, MLStats } from './autoplayML';
+import type { MLModelData, MLStats, OppRole } from './autoplayML';
 import MLInsightsPanel from './MLInsightsPanel';
 
 const NUMBERS = [1, 2, 3, 4, 5, 6];
@@ -14,6 +14,7 @@ interface GameScreenProps {
   myPlayerIdx: number | null;
   gameState: GameState;
   lastBall: BallPlayedPayload | null;
+  trainEvent: { move: number; role: OppRole; seq: number } | null;
   isAutoPlay: boolean;
   userToken: string | null;
   onDeclare: () => void;
@@ -24,6 +25,7 @@ export default function GameScreen({
   myPlayerIdx,
   gameState,
   lastBall,
+  trainEvent,
   isAutoPlay,
   userToken,
   onDeclare,
@@ -32,7 +34,7 @@ export default function GameScreen({
   const myMoveRef = useRef<number | null>(null);
   const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
   const [showML, setShowML] = useState(false);
-  const [mlStats, setMlStats] = useState<MLStats>(() => new HandCricketML().getStats());
+  const [mlStats, setMlStats] = useState<MLStats>(() => new HandCricketML().getStats('bat'));
   const mlRef = useRef(new HandCricketML());
 
   const players = gameState?.players || [];
@@ -41,6 +43,8 @@ export default function GameScreen({
 
   const isBatsman = myPlayerIdx === batsmanIdx;
   const isBowler = myPlayerIdx === bowlerIdx;
+  // The opponent's current role is the one we predict: when I bat they bowl, etc.
+  const oppRole: OppRole = isBatsman ? 'bowl' : 'bat';
 
   const score = gameState?.score ?? 0;
   const balls = gameState?.balls ?? 0;
@@ -62,7 +66,11 @@ export default function GameScreen({
     if (!opponentId) return;
     apiGet<MLModelData | null>(`/api/ml/${encodeURIComponent(opponentId)}`, userToken)
       .then((data) => {
-        if (data) mlRef.current.fromData(data);
+        if (!data) return;
+        mlRef.current.fromData(data);
+        // Reflect the loaded profile in the insights panel immediately, instead
+        // of showing flat priors until the first live ball.
+        setMlStats(mlRef.current.getStats(oppRole));
       })
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -77,13 +85,14 @@ export default function GameScreen({
   }, [lastBall]);
 
   // Feed the opponent's move into the ML model on every ball — train always,
-  // regardless of whether autoplay is on. Must run before the autoplay effect.
+  // regardless of whether autoplay is on. Driven by trainEvent (captured in
+  // App at ball_played, with the correct pre-swap role and a value that's never
+  // nulled) so no ball is dropped to React's innings-break batching.
   useEffect(() => {
-    if (!lastBall) return;
-    const opponentMove = isBatsman ? lastBall.bowlerMove : lastBall.batsmanMove;
-    mlRef.current.recordMove(opponentMove);
-    setMlStats(mlRef.current.getStats());
-  }, [lastBall, isBatsman]);
+    if (!trainEvent) return;
+    mlRef.current.recordMove(trainEvent.move, trainEvent.role);
+    setMlStats(mlRef.current.getStats(trainEvent.role));
+  }, [trainEvent]);
 
   // New innings: clear Markov context but keep frequency data across the break.
   useEffect(() => {

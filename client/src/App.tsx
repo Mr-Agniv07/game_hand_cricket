@@ -24,7 +24,10 @@ import type {
   TournamentState,
 } from '@cric/types';
 import type { ClientUser, AppPhase, RematchState } from './types';
+import type { OppRole } from './game/autoplayML';
 import './App.css';
+
+type TrainEvent = { move: number; role: OppRole; seq: number };
 
 const STORED_KEY = 'cric_user';
 
@@ -49,11 +52,18 @@ export default function App() {
   const [isTournamentMatch, setIsTournamentMatch] = useState(false);
   const isTournamentMatchRef = useRef(false);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
+  // Opponent-move feed for ML training. Captured at ball_played from pre-swap
+  // refs and never nulled mid-match, so GameScreen trains on every ball
+  // (including the innings-ending one) regardless of React's event batching.
+  const [trainEvent, setTrainEvent] = useState<TrainEvent | null>(null);
 
   const bound = useRef(false);
   const roomIdRef = useRef<string | null>(null);
   const tournamentCodeRef = useRef<string | null>(null);
   const userRef = useRef<ClientUser | null>(null);
+  const gameStateRef = useRef<GameState | null>(null);
+  const myPlayerIdxRef = useRef<number | null>(null);
+  const trainSeqRef = useRef(0);
 
   useEffect(() => {
     roomIdRef.current = roomId;
@@ -66,6 +76,14 @@ export default function App() {
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
+  useEffect(() => {
+    myPlayerIdxRef.current = myPlayerIdx;
+  }, [myPlayerIdx]);
 
   useEffect(() => {
     if (bound.current) return;
@@ -108,6 +126,9 @@ export default function App() {
     socket.on('toss_start', (info) => {
       setTossInfo(info);
       setTossResult(null);
+      // Fresh match — drop any opponent-move feed left over from a prior game so
+      // the next game's model starts clean. Toss always precedes the first ball.
+      setTrainEvent(null);
       setPhase('toss_call');
     });
 
@@ -122,7 +143,23 @@ export default function App() {
       setPhase('innings');
     });
 
-    socket.on('ball_played', (data) => setLastBall(data));
+    socket.on('ball_played', (data) => {
+      setLastBall(data);
+      // Capture the opponent's move + role NOW, from refs holding the pre-swap
+      // state, before innings_start/state coalesce and flip roles in the same
+      // React commit. Feeds ML training in GameScreen via a value that's never
+      // nulled, so the innings-ending ball isn't dropped and the role is right.
+      const gs = gameStateRef.current;
+      const myIdx = myPlayerIdxRef.current;
+      if (gs && myIdx !== null && gs.batsmanIdx !== null) {
+        const iAmBatsman = myIdx === gs.batsmanIdx;
+        setTrainEvent({
+          move: iAmBatsman ? data.bowlerMove : data.batsmanMove,
+          role: iAmBatsman ? 'bowl' : 'bat',
+          seq: ++trainSeqRef.current,
+        });
+      }
+    });
 
     socket.on('innings_end', (data) => {
       setInningsEnd(data);
@@ -272,6 +309,7 @@ export default function App() {
     setMyPlayerIdx(null);
     setRematchState(null);
     setIsAutoPlay(false);
+    setTrainEvent(null);
   }
 
   function resetState() {
@@ -460,6 +498,7 @@ export default function App() {
           myPlayerIdx={myPlayerIdx}
           gameState={gameState}
           lastBall={lastBall}
+          trainEvent={trainEvent}
           isAutoPlay={isAutoPlay}
           userToken={user?.token ?? null}
           onDeclare={handleDeclare}
