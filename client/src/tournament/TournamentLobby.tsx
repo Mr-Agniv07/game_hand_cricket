@@ -81,10 +81,15 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
   const [copied, setCopied] = useState(false);
 
   function copyCode() {
-    navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    // clipboard API rejects in insecure contexts (e.g. http://<LAN-IP>); swallow
+    // the rejection so it doesn't surface as an unhandled promise error.
+    navigator.clipboard
+      ?.writeText(code)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
   }
 
   const sortedPlayers = [...players].sort((a, b) => {
