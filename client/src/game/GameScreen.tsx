@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AppSocket } from '../socket';
-import './GameScreen.css';
+import styles from './GameScreen.module.css';
 import type { GameState, BallPlayedPayload } from '@cric/types';
 import { HandCricketML } from './autoplayML';
 import { apiGet } from '../api';
@@ -137,26 +137,26 @@ export default function GameScreen({
   const ballsLeft = mode === 'overs' ? totalBalls - balls : null;
 
   return (
-    <div className="game-screen">
-      <div className="scoreboard">
-        <div className="innings-tag">Innings {currentInnings}</div>
+    <div className={styles['game-screen']}>
+      <div className={styles['scoreboard']}>
+        <div className={styles['innings-tag']}>Innings {currentInnings}</div>
 
-        <div className="score-block">
-          <span className="score-runs">{score}</span>
-          <span className="score-sep">/</span>
+        <div className={styles['score-block']}>
+          <span className={styles['score-runs']}>{score}</span>
+          <span className={styles['score-sep']}>/</span>
           <>
-            <span className="score-overs">{wicketsLost}W</span>
-            <span className="score-sep"> · </span>
-            <span className="score-overs">{oversDisplay} ov</span>
+            <span className={styles['score-overs']}>{wicketsLost}W</span>
+            <span className={styles['score-sep']}> · </span>
+            <span className={styles['score-overs']}>{oversDisplay} ov</span>
           </>
         </div>
 
-        <div className="wickets-left">
+        <div className={styles['wickets-left']}>
           {wicketsLeft} wicket{wicketsLeft !== 1 ? 's' : ''} remaining
         </div>
 
         {target !== null && (
-          <div className="chase-bar">
+          <div className={styles['chase-bar']}>
             <span>
               Target <strong>{target}</strong>
             </span>
@@ -172,17 +172,17 @@ export default function GameScreen({
           </div>
         )}
 
-        <div className="players-row">
-          <span className="player-name bat">🏏 {players[batsmanIdx]}</span>
-          <span className="vs">vs</span>
-          <span className="player-name bowl">🎳 {players[bowlerIdx]}</span>
+        <div className={styles['players-row']}>
+          <span className={`${styles['player-name']} ${styles.bat}`}>🏏 {players[batsmanIdx]}</span>
+          <span className={styles['vs']}>vs</span>
+          <span className={`${styles['player-name']} ${styles.bowl}`}>🎳 {players[bowlerIdx]}</span>
         </div>
       </div>
 
       {isAutoPlay && (
         <>
           <div style={{ textAlign: 'right', marginBottom: showML ? 0 : '0.25rem' }}>
-            <button className="ml-toggle-btn" onClick={() => setShowML((v) => !v)}>
+            <button className={styles['ml-toggle-btn']} onClick={() => setShowML((v) => !v)}>
               🧠 {showML ? 'Hide insights' : 'ML insights'}
             </button>
           </div>
@@ -191,7 +191,7 @@ export default function GameScreen({
       )}
 
       {ballAnim && (
-        <div className={`ball-banner ${ballAnim.isOut ? 'out' : 'run'}`}>
+        <div className={`${styles['ball-banner']} ${ballAnim.isOut ? styles.out : styles.run}`}>
           {ballAnim.isOut
             ? `💥 OUT! Both played ${ballAnim.batsmanMove}`
             : isBatsman
@@ -200,16 +200,16 @@ export default function GameScreen({
         </div>
       )}
 
-      <div className="role-label">
-        {isBatsman && <span className="role bat">You are Batting 🏏</span>}
-        {isBowler && <span className="role bowl">You are Bowling 🎳</span>}
+      <div className={styles['role-label']}>
+        {isBatsman && <span className={`${styles.role} ${styles.bat}`}>You are Batting 🏏</span>}
+        {isBowler && <span className={`${styles.role} ${styles.bowl}`}>You are Bowling 🎳</span>}
       </div>
 
-      <div className="numpad">
+      <div className={styles['numpad']}>
         {NUMBERS.map((n) => (
           <button
             key={n}
-            className={`num-btn${myMove === n ? ' chosen' : ''}${myMove !== null ? ' locked' : ''}`}
+            className={`${styles['num-btn']}${myMove === n ? ` ${styles.chosen}` : ''}${myMove !== null ? ` ${styles.locked}` : ''}`}
             onClick={() => playMove(n)}
             disabled={myMove !== null}
           >
@@ -219,7 +219,7 @@ export default function GameScreen({
       </div>
 
       {myMove !== null && !ballAnim && (
-        <p className="waiting-label">
+        <p className={styles['waiting-label']}>
           {isAutoPlay ? (
             <>
               🤖 Computer played <strong>{myMove}</strong> · waiting for opponent…
@@ -233,7 +233,7 @@ export default function GameScreen({
       )}
 
       {currentInnings === 2 && (
-        <div className="prev-innings">
+        <div className={styles['prev-innings']}>
           1st innings score: <strong>{gameState?.innings?.[0]?.score ?? 0}</strong>
         </div>
       )}

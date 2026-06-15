@@ -166,3 +166,30 @@
   font-weight: 700;
   color: var(--warn);
 }
+
+.ml-toggle-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ml-toggle-btn:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+@media (max-width: 400px) {
+  .score-runs {
+    font-size: 2.3rem;
+  }
+  .num-btn {
+    font-size: 1.5rem;
+  }
+  .numpad {
+    max-width: 100%;
+  }
+}

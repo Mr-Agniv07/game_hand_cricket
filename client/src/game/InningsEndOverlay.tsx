@@ -1,5 +1,5 @@
 import type { InningsEndPayload, InningsEndReason } from '@cric/types';
-import './InningsEndOverlay.css';
+import styles from './InningsEndOverlay.module.css';
 
 interface InningsEndOverlayProps {
   data: InningsEndPayload;
@@ -16,12 +16,12 @@ export default function InningsEndOverlay({ data, onDismiss }: InningsEndOverlay
 
   return (
     <div className="overlay" onClick={onDismiss}>
-      <div className="overlay-card" onClick={(e) => e.stopPropagation()}>
+      <div className={styles['overlay-card']} onClick={(e) => e.stopPropagation()}>
         <h2>Innings {data.inningsNumber} Over</h2>
-        <div className="big-score">{data.score}</div>
-        <p className="reason-text">{reasonText[data.reason] || ''}</p>
+        <div className={styles['big-score']}>{data.score}</div>
+        <p className={styles['reason-text']}>{reasonText[data.reason] || ''}</p>
         {data.inningsNumber === 1 && (
-          <p className="target-hint">
+          <p className={styles['target-hint']}>
             Target: <strong>{data.score + 1}</strong>
           </p>
         )}

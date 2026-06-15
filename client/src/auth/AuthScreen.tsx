@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { apiPost } from '../api';
-import './AuthScreen.css';
+import styles from './AuthScreen.module.css';
 import type { AuthResponse } from '@cric/types';
 
 type AuthTab = 'login' | 'signup';
@@ -48,11 +48,11 @@ export default function AuthScreen({ onAuth, onGuest }: AuthScreenProps) {
   }
 
   return (
-    <div className="auth-screen">
-      <div className="auth-brand">
-        <span className="auth-logo">🏏</span>
-        <h1 className="auth-title">Cric Flick</h1>
-        <p className="auth-sub">Sign in to track your stats</p>
+    <div className={styles['auth-screen']}>
+      <div className={styles['auth-brand']}>
+        <span className={styles['auth-logo']}>🏏</span>
+        <h1 className={styles['auth-title']}>Cric Flick</h1>
+        <p className={styles['auth-sub']}>Sign in to track your stats</p>
       </div>
 
       <div className="tabs">
@@ -103,14 +103,14 @@ export default function AuthScreen({ onAuth, onGuest }: AuthScreenProps) {
           </>
         )}
 
-        {error && <p className="auth-error">{error}</p>}
+        {error && <p className={styles['auth-error']}>{error}</p>}
 
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Please wait…' : tab === 'login' ? 'Sign In' : 'Create Account'}
         </button>
       </form>
 
-      <button className="guest-btn" onClick={onGuest}>
+      <button className={styles['guest-btn']} onClick={onGuest}>
         Continue as Guest
       </button>
     </div>

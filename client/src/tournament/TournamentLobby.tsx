@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TournamentState, PointsTableEntry, LiveMatchScore } from '@cric/types';
-import './TournamentLobby.css';
+import styles from './TournamentLobby.module.css';
 
 interface TournamentLobbyProps {
   tournamentState: TournamentState;
@@ -39,34 +39,34 @@ function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
   const runsNeeded = target !== null ? target - score : null;
 
   return (
-    <div className="t-section t-spectator">
-      <div className="t-section-title">Live — Innings {currentInnings}</div>
+    <div className={`${styles['t-section']} ${styles['t-spectator']}`}>
+      <div className={styles['t-section-title']}>Live — Innings {currentInnings}</div>
 
-      <div className="t-spec-score">
-        <span className="t-spec-runs">{score}</span>
-        <span className="t-spec-sep">/</span>
+      <div className={styles['t-spec-score']}>
+        <span className={styles['t-spec-runs']}>{score}</span>
+        <span className={styles['t-spec-sep']}>/</span>
         {mode === 'overs' ? (
-          <span className="t-spec-detail">{oversDisplay} ov</span>
+          <span className={styles['t-spec-detail']}>{oversDisplay} ov</span>
         ) : (
-          <span className="t-spec-detail">
+          <span className={styles['t-spec-detail']}>
             {wicketsLost}W ({wickets}wkt)
           </span>
         )}
       </div>
 
       {runsNeeded !== null && (
-        <div className="t-spec-target">
+        <div className={styles['t-spec-target']}>
           Target {target} — need <strong>{runsNeeded}</strong> more
         </div>
       )}
 
-      <div className="t-spec-players">
-        <span className="t-spec-bat">🏏 {batsmanName}</span>
-        <span className="t-spec-bowl">🎳 {bowlerName}</span>
+      <div className={styles['t-spec-players']}>
+        <span className={styles['t-spec-bat']}>🏏 {batsmanName}</span>
+        <span className={styles['t-spec-bowl']}>🎳 {bowlerName}</span>
       </div>
 
       {lastBall && (
-        <div className={`t-spec-last ${lastBall.isOut ? 'out' : 'run'}`}>
+        <div className={`${styles['t-spec-last']} ${lastBall.isOut ? styles.out : styles.run}`}>
           {lastBall.isOut
             ? `💥 OUT! Both played ${lastBall.batsmanMove}`
             : `+${lastBall.scored}  (${lastBall.batsmanMove} vs ${lastBall.bowlerMove})`}
@@ -103,56 +103,56 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
   const doneCount = fixtures.filter((f) => f.status === 'done').length;
 
   return (
-    <div className="t-lobby">
+    <div className={styles['t-lobby']}>
       {/* Code / progress header */}
-      <div className="t-info-row">
+      <div className={styles['t-info-row']}>
         {phase === 'waiting' ? (
           <>
-            <div className="t-code-block">
-              <span className="t-code-label">Tournament Code</span>
-              <div className="t-code-row">
-                <span className="t-code">{code}</span>
-                <button className="t-code-copy" onClick={copyCode}>
+            <div className={styles['t-code-block']}>
+              <span className={styles['t-code-label']}>Tournament Code</span>
+              <div className={styles['t-code-row']}>
+                <span className={styles['t-code']}>{code}</span>
+                <button className={styles['t-code-copy']} onClick={copyCode}>
                   {copied ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-              <span className="t-code-hint">Share with 3 friends to start</span>
+              <span className={styles['t-code-hint']}>Share with 3 friends to start</span>
             </div>
 
-            <div className="t-waiting-count">
-              <span className="t-count-num">{players.length}</span>
-              <span className="t-count-sep">/</span>
-              <span className="t-count-total">4</span>
-              <span className="t-count-label">players joined</span>
+            <div className={styles['t-waiting-count']}>
+              <span className={styles['t-count-num']}>{players.length}</span>
+              <span className={styles['t-count-sep']}>/</span>
+              <span className={styles['t-count-total']}>4</span>
+              <span className={styles['t-count-label']}>players joined</span>
             </div>
 
-            <div className="t-player-list">
+            <div className={styles['t-player-list']}>
               {Array.from({ length: 4 }).map((_, i) => {
                 const p = players[i];
                 const isMe = p?.id === myId;
                 return p ? (
-                  <div key={p.id} className={`t-player-chip${isMe ? ' me' : ''}`}>
-                    <span className="t-chip-dot" />
-                    <span className="t-chip-name">{p.name}</span>
-                    {isMe && <span className="t-chip-you">You</span>}
+                  <div key={p.id} className={`${styles['t-player-chip']}${isMe ? ` ${styles.me}` : ''}`}>
+                    <span className={styles['t-chip-dot']} />
+                    <span className={styles['t-chip-name']}>{p.name}</span>
+                    {isMe && <span className={styles['t-chip-you']}>You</span>}
                   </div>
                 ) : (
-                  <div key={i} className="t-player-chip empty">
-                    <span className="t-chip-dot empty" />
-                    <span className="t-chip-name">Waiting…</span>
+                  <div key={i} className={`${styles['t-player-chip']} ${styles.empty}`}>
+                    <span className={`${styles['t-chip-dot']} ${styles.empty}`} />
+                    <span className={styles['t-chip-name']}>Waiting…</span>
                   </div>
                 );
               })}
             </div>
           </>
         ) : (
-          <div className="t-progress">
-            <div className="t-progress-header">
-              <span className="t-progress-label">Match {Math.min(doneCount + 1, 12)} of 12</span>
-              <span className="t-progress-pct">{Math.round((doneCount / 12) * 100)}%</span>
+          <div className={styles['t-progress']}>
+            <div className={styles['t-progress-header']}>
+              <span className={styles['t-progress-label']}>Match {Math.min(doneCount + 1, 12)} of 12</span>
+              <span className={styles['t-progress-pct']}>{Math.round((doneCount / 12) * 100)}%</span>
             </div>
-            <div className="t-progress-bar">
-              <div className="t-progress-fill" style={{ width: `${(doneCount / 12) * 100}%` }} />
+            <div className={styles['t-progress-bar']}>
+              <div className={styles['t-progress-fill']} style={{ width: `${(doneCount / 12) * 100}%` }} />
             </div>
           </div>
         )}
@@ -160,15 +160,15 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
 
       {/* Live match banner */}
       {liveMatch && liveP1 && liveP2 && (
-        <div className={`t-live-banner${imPlaying ? ' playing' : ''}`}>
+        <div className={`${styles['t-live-banner']}${imPlaying ? ` ${styles.playing}` : ''}`}>
           {imPlaying ? (
             <>
-              <span className="t-live-dot" />
+              <span className={styles['t-live-dot']} />
               Your match is live — check the game above!
             </>
           ) : (
             <>
-              <span className="t-live-dot" />
+              <span className={styles['t-live-dot']} />
               Live — {liveP1.name} vs {liveP2.name}
             </>
           )}
@@ -182,14 +182,14 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
 
       {/* Points table */}
       {phase === 'in_progress' && (
-        <div className="t-section">
-          <div className="t-section-title">Points Table</div>
-          <div className="t-table-wrap">
-            <table className="t-table">
+        <div className={styles['t-section']}>
+          <div className={styles['t-section-title']}>Points Table</div>
+          <div className={styles['t-table-wrap']}>
+            <table className={styles['t-table']}>
               <thead>
                 <tr>
-                  <th className="t-th-rank">#</th>
-                  <th className="t-th-player">Player</th>
+                  <th className={styles['t-th-rank']}>#</th>
+                  <th className={styles['t-th-player']}>Player</th>
                   <th>P</th>
                   <th>W</th>
                   <th>L</th>
@@ -202,16 +202,16 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
                   const e = pointsTable[p.id];
                   const isMe = p.id === myId;
                   return (
-                    <tr key={p.id} className={isMe ? 't-tr-me' : ''}>
-                      <td className="t-td-rank">{RANK_MEDALS[rank]}</td>
-                      <td className="t-td-player">
+                    <tr key={p.id} className={isMe ? styles['t-tr-me'] : ''}>
+                      <td className={styles['t-td-rank']}>{RANK_MEDALS[rank]}</td>
+                      <td className={styles['t-td-player']}>
                         {p.name}
-                        {isMe ? <span className="t-you"> (You)</span> : null}
+                        {isMe ? <span className={styles['t-you']}> (You)</span> : null}
                       </td>
                       <td>{e?.played ?? 0}</td>
-                      <td className="t-won">{e?.won ?? 0}</td>
-                      <td className="t-lost">{e?.lost ?? 0}</td>
-                      <td className="t-pts">{e?.points ?? 0}</td>
+                      <td className={styles['t-won']}>{e?.won ?? 0}</td>
+                      <td className={styles['t-lost']}>{e?.lost ?? 0}</td>
+                      <td className={styles['t-pts']}>{e?.points ?? 0}</td>
                       <td style={{ color: nrrColor(e?.nrr ?? 0) }}>{formatNRR(e?.nrr ?? 0)}</td>
                     </tr>
                   );
@@ -224,9 +224,9 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
 
       {/* Fixture list */}
       {phase === 'in_progress' && (
-        <div className="t-section">
-          <div className="t-section-title">Fixture</div>
-          <div className="t-fixture">
+        <div className={styles['t-section']}>
+          <div className={styles['t-section-title']}>Fixture</div>
+          <div className={styles['t-fixture']}>
             {fixtures.map((f) => {
               const fp1 = players[f.player1Idx];
               const fp2 = players[f.player2Idx];
@@ -236,26 +236,26 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
               return (
                 <div
                   key={f.matchNum}
-                  className={`t-fixture-row ${f.status}${isMyMatch ? ' my-match' : ''}`}
+                  className={`${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}`}
                 >
-                  <span className={`t-match-badge ${f.status}`}>M{f.matchNum}</span>
-                  <div className="t-fixture-teams">
-                    <span className={fp1Won ? 't-winner' : ''}>{fp1?.name ?? '?'}</span>
-                    <span className="t-vs">vs</span>
-                    <span className={fp2Won ? 't-winner' : ''}>{fp2?.name ?? '?'}</span>
+                  <span className={`${styles['t-match-badge']} ${styles[f.status]}`}>M{f.matchNum}</span>
+                  <div className={styles['t-fixture-teams']}>
+                    <span className={fp1Won ? styles['t-winner'] : ''}>{fp1?.name ?? '?'}</span>
+                    <span className={styles['t-vs']}>vs</span>
+                    <span className={fp2Won ? styles['t-winner'] : ''}>{fp2?.name ?? '?'}</span>
                   </div>
-                  <div className="t-fixture-result">
+                  <div className={styles['t-fixture-result']}>
                     {f.status === 'done' ? (
-                      <span className="t-score">
+                      <span className={styles['t-score']}>
                         {f.p1Score}–{f.p2Score}
                       </span>
                     ) : f.status === 'live' ? (
-                      <span className="t-live-tag">
-                        <span className="t-live-dot sm" />
+                      <span className={styles['t-live-tag']}>
+                        <span className={`${styles['t-live-dot']} ${styles.sm}`} />
                         Live
                       </span>
                     ) : (
-                      <span className="t-upcoming-tag">—</span>
+                      <span className={styles['t-upcoming-tag']}>—</span>
                     )}
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 import type { GameOverPayload } from '@cric/types';
 import type { RematchState } from '../types';
-import './ResultScreen.css';
+import styles from './ResultScreen.module.css';
 
 interface ResultScreenProps {
   gameOver: GameOverPayload;
@@ -27,20 +27,20 @@ export default function ResultScreen({
 
   return (
     <div className="center-screen">
-      <div className="card result-card">
-        <div className="result-emoji">{tied ? '🤝' : iWon ? '🏆' : '😔'}</div>
-        <h2 className={`result-title ${tied ? 'tie' : iWon ? 'win' : 'lose'}`}>
+      <div className={`card ${styles['result-card']}`}>
+        <div className={styles['result-emoji']}>{tied ? '🤝' : iWon ? '🏆' : '😔'}</div>
+        <h2 className={`${styles['result-title']} ${styles[tied ? 'tie' : iWon ? 'win' : 'lose']}`}>
           {tied ? "It's a Tie!" : iWon ? 'You Won!' : 'You Lost!'}
         </h2>
-        <p className="result-text">{resultText}</p>
+        <p className={styles['result-text']}>{resultText}</p>
 
-        <div className="scorecard">
-          <div className="scorecard-row header">
+        <div className={styles['scorecard']}>
+          <div className={`${styles['scorecard-row']} ${styles.header}`}>
             <span>Player</span>
             <span>Score</span>
           </div>
           {players.map((name, i) => (
-            <div key={i} className="scorecard-row">
+            <div key={i} className={styles['scorecard-row']}>
               <span>{name}</span>
               <span>{scores[i]}</span>
             </div>
@@ -48,7 +48,7 @@ export default function ResultScreen({
         </div>
 
         {isTournamentMatch ? (
-          <div className="result-actions">
+          <div className={styles['result-actions']}>
             <div className="tournament-next-notice">Next match starting in ~5 seconds…</div>
             {onBackToTournament && (
               <button className="btn-lobby" onClick={onBackToTournament}>
@@ -59,11 +59,11 @@ export default function ResultScreen({
         ) : (
           <>
             {rematchState === 'opponent_wants' && (
-              <div className="rematch-notice">⚡ Opponent wants a rematch!</div>
+              <div className={styles['rematch-notice']}>⚡ Opponent wants a rematch!</div>
             )}
-            <div className="result-actions">
+            <div className={styles['result-actions']}>
               <button
-                className={`btn-rematch${rematchState === 'waiting' ? ' waiting' : ''}`}
+                className={`${styles['btn-rematch']}${rematchState === 'waiting' ? ` ${styles.waiting}` : ''}`}
                 onClick={onRematch}
                 disabled={rematchState === 'waiting'}
               >

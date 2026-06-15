@@ -1,5 +1,5 @@
 import type { TournamentState, PointsTableEntry } from '@cric/types';
-import './TournamentResult.css';
+import styles from './TournamentResult.module.css';
 
 interface TournamentResultProps {
   tournamentState: TournamentState;
@@ -41,30 +41,30 @@ export default function TournamentResult({
   const myRank = sorted.findIndex((p) => p.id === myId);
 
   return (
-    <div className="t-result-wrap">
-      <div className="t-result-card">
+    <div className={styles['t-result-wrap']}>
+      <div className={styles['t-result-card']}>
         {/* Winner spotlight */}
-        <div className="t-result-hero">
-          <div className="t-result-trophy">{iWon ? '🏆' : '🏏'}</div>
-          <div className="t-result-winner-name">{winner?.name ?? '?'}</div>
-          <div className="t-result-winner-sub">Tournament Champion</div>
+        <div className={styles['t-result-hero']}>
+          <div className={styles['t-result-trophy']}>{iWon ? '🏆' : '🏏'}</div>
+          <div className={styles['t-result-winner-name']}>{winner?.name ?? '?'}</div>
+          <div className={styles['t-result-winner-sub']}>Tournament Champion</div>
         </div>
 
         {/* My result badge */}
         {myRank >= 0 && (
-          <div className={`t-my-rank rank-${myRank}`}>
+          <div className={`${styles['t-my-rank']} ${styles[`rank-${myRank}`]}`}>
             {RANK_MEDALS[myRank]} {RANK_LABELS[myRank]}
           </div>
         )}
 
         {/* Final standings */}
-        <div className="t-result-section-title">Final Standings</div>
-        <div className="t-result-table-wrap">
-          <table className="t-table">
+        <div className={styles['t-result-section-title']}>Final Standings</div>
+        <div className={styles['t-result-table-wrap']}>
+          <table className={styles['t-table']}>
             <thead>
               <tr>
-                <th className="t-th-rank">#</th>
-                <th className="t-th-player">Player</th>
+                <th className={styles['t-th-rank']}>#</th>
+                <th className={styles['t-th-player']}>Player</th>
                 <th>P</th>
                 <th>W</th>
                 <th>L</th>
@@ -80,17 +80,17 @@ export default function TournamentResult({
                 return (
                   <tr
                     key={p.id}
-                    className={`${isMe ? 't-tr-me' : ''} ${isWinner ? 't-tr-winner' : ''}`}
+                    className={`${isMe ? styles['t-tr-me'] : ''} ${isWinner ? styles['t-tr-winner'] : ''}`}
                   >
-                    <td className="t-td-rank">{RANK_MEDALS[rank]}</td>
-                    <td className="t-td-player">
+                    <td className={styles['t-td-rank']}>{RANK_MEDALS[rank]}</td>
+                    <td className={styles['t-td-player']}>
                       {p.name}
-                      {isMe ? <span className="t-you"> (You)</span> : null}
+                      {isMe ? <span className={styles['t-you']}> (You)</span> : null}
                     </td>
                     <td>{e?.played ?? 0}</td>
-                    <td className="t-won">{e?.won ?? 0}</td>
-                    <td className="t-lost">{e?.lost ?? 0}</td>
-                    <td className="t-pts">{e?.points ?? 0}</td>
+                    <td className={styles['t-won']}>{e?.won ?? 0}</td>
+                    <td className={styles['t-lost']}>{e?.lost ?? 0}</td>
+                    <td className={styles['t-pts']}>{e?.points ?? 0}</td>
                     <td style={{ color: nrrColor(e?.nrr ?? 0) }}>{formatNRR(e?.nrr ?? 0)}</td>
                   </tr>
                 );

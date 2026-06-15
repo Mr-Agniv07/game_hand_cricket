@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { AppSocket } from '../socket';
 import type { GameState, BatBowlChoice } from '@cric/types';
-import './BatBowlScreen.css';
+import styles from './BatBowlScreen.module.css';
 
 interface BatBowlScreenProps {
   socket: AppSocket;
@@ -30,20 +30,20 @@ export default function BatBowlScreen({ socket, myId, gameState, isAutoPlay }: B
 
   return (
     <div className="center-screen">
-      <div className="card bat-bowl-card">
+      <div className={`card ${styles['bat-bowl-card']}`}>
         <h2>Choose Your Role</h2>
         {isChooser ? (
           <>
             {isAutoPlay ? (
-              <p className="waiting-text">🤖 Computer is choosing bat or bowl…</p>
+              <p className={styles['waiting-text']}>🤖 Computer is choosing bat or bowl…</p>
             ) : (
               <>
                 <p>You won the toss. What do you want to do?</p>
-                <div className="bat-bowl-choices">
-                  <button className="choice-btn bat" onClick={() => choose('bat')}>
+                <div className={styles['bat-bowl-choices']}>
+                  <button className={`${styles['choice-btn']} ${styles.bat}`} onClick={() => choose('bat')}>
                     🏏 BAT
                   </button>
-                  <button className="choice-btn bowl" onClick={() => choose('bowl')}>
+                  <button className={`${styles['choice-btn']} ${styles.bowl}`} onClick={() => choose('bowl')}>
                     🎳 BOWL
                   </button>
                 </div>
@@ -51,7 +51,7 @@ export default function BatBowlScreen({ socket, myId, gameState, isAutoPlay }: B
             )}
           </>
         ) : (
-          <p className="waiting-text">Waiting for the toss winner to choose bat or bowl…</p>
+          <p className={styles['waiting-text']}>Waiting for the toss winner to choose bat or bowl…</p>
         )}
       </div>
     </div>

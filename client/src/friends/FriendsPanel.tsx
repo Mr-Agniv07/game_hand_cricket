@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
 import { apiGet, apiPost, apiDelete } from '../api';
-import './FriendsPanel.css';
+import styles from './FriendsPanel.module.css';
 import type { Friend, SearchResult, Mode, ChallengeDeclinedPayload } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser, AppPhase } from '../types';
@@ -143,63 +143,63 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
   }
 
   return (
-    <div className="friends-overlay" onClick={onClose}>
-      <div className="friends-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="friends-header">
+    <div className={styles['friends-overlay']} onClick={onClose}>
+      <div className={styles['friends-panel']} onClick={(e) => e.stopPropagation()}>
+        <div className={styles['friends-header']}>
           <h2>Friends</h2>
-          <button className="friends-close" onClick={onClose}>
+          <button className={styles['friends-close']} onClick={onClose}>
             ✕
           </button>
         </div>
 
-        <div className="fp-tabs">
+        <div className={styles['fp-tabs']}>
           <button
-            className={tab === 'friends' ? 'fp-tab active' : 'fp-tab'}
+            className={tab === 'friends' ? `${styles['fp-tab']} ${styles.active}` : styles['fp-tab']}
             onClick={() => setTab('friends')}
           >
             My Friends
           </button>
           <button
-            className={tab === 'search' ? 'fp-tab active' : 'fp-tab'}
+            className={tab === 'search' ? `${styles['fp-tab']} ${styles.active}` : styles['fp-tab']}
             onClick={() => setTab('search')}
           >
             Find Players
           </button>
         </div>
 
-        {panelMsg && <div className="fp-msg">{panelMsg}</div>}
+        {panelMsg && <div className={styles['fp-msg']}>{panelMsg}</div>}
         {sentTo && (
-          <div className="fp-msg waiting">
+          <div className={`${styles['fp-msg']} ${styles.waiting}`}>
             Waiting for <strong>{sentTo.username}</strong> to respond…
           </div>
         )}
 
-        <div className="friends-body">
+        <div className={styles['friends-body']}>
           {/* ── My Friends ── */}
           {tab === 'friends' &&
             (friends.length === 0 ? (
-              <p className="fp-empty">No friends yet — use Find Players to search!</p>
+              <p className={styles['fp-empty']}>No friends yet — use Find Players to search!</p>
             ) : (
               friends.map((f) => (
-                <div key={f.id} className="fp-row">
-                  <span className={`fp-dot ${f.online ? 'online' : 'offline'}`} />
-                  <div className="fp-info">
-                    <span className="fp-name">{f.username}</span>
-                    <span className="fp-stat">
+                <div key={f.id} className={styles['fp-row']}>
+                  <span className={`${styles['fp-dot']} ${f.online ? styles.online : styles.offline}`} />
+                  <div className={styles['fp-info']}>
+                    <span className={styles['fp-name']}>{f.username}</span>
+                    <span className={styles['fp-stat']}>
                       W {f.stats.wins} · L {f.stats.losses}
                     </span>
                   </div>
-                  <div className="fp-actions">
+                  <div className={styles['fp-actions']}>
                     {f.online && canChallenge && !sentTo && (
                       <button
-                        className={`fp-challenge-btn${challengingId === f.id ? ' cancel' : ''}`}
+                        className={`${styles['fp-challenge-btn']}${challengingId === f.id ? ` ${styles.cancel}` : ''}`}
                         onClick={() => toggleChallenge(f)}
                       >
                         {challengingId === f.id ? 'Cancel' : '⚡'}
                       </button>
                     )}
                     <button
-                      className="fp-remove-btn"
+                      className={styles['fp-remove-btn']}
                       onClick={() => handleRemove(f.id)}
                       disabled={removingId === f.id}
                     >
@@ -208,7 +208,7 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
                   </div>
 
                   {challengingId === f.id && (
-                    <div className="challenge-form">
+                    <div className={styles['challenge-form']}>
                       <div className="over-options">
                         <button
                           type="button"
@@ -258,21 +258,21 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
           {tab === 'search' && (
             <>
               <input
-                className="fp-search"
+                className={styles['fp-search']}
                 placeholder="Search by username…"
                 value={query}
                 onChange={handleSearch}
                 autoFocus
               />
-              {searchBusy && <p className="fp-empty">Searching…</p>}
+              {searchBusy && <p className={styles['fp-empty']}>Searching…</p>}
               {results.map((u) => (
-                <div key={u.id} className="fp-row">
-                  <span className={`fp-dot ${u.online ? 'online' : 'offline'}`} />
-                  <div className="fp-info">
-                    <span className="fp-name">{u.username}</span>
+                <div key={u.id} className={styles['fp-row']}>
+                  <span className={`${styles['fp-dot']} ${u.online ? styles.online : styles.offline}`} />
+                  <div className={styles['fp-info']}>
+                    <span className={styles['fp-name']}>{u.username}</span>
                   </div>
                   <button
-                    className={u.isFriend ? 'fp-added-btn' : 'fp-add-btn'}
+                    className={u.isFriend ? styles['fp-added-btn'] : styles['fp-add-btn']}
                     disabled={u.isFriend || addingId === u.id}
                     onClick={() => !u.isFriend && handleAdd(u.id)}
                   >
@@ -281,7 +281,7 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
                 </div>
               ))}
               {!searchBusy && query.trim().length >= 2 && results.length === 0 && (
-                <p className="fp-empty">No players found.</p>
+                <p className={styles['fp-empty']}>No players found.</p>
               )}
             </>
           )}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { apiGet } from '../api';
-import './Lobby.css';
+import styles from './Lobby.module.css';
 import type { Mode, MatchHistoryEntry } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
@@ -74,34 +74,34 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const s = user?.stats;
 
   return (
-    <div className="lobby">
+    <div className={styles['lobby']}>
       {user && s && (
-        <div className="stats-card">
-          <div className="stats-header">{user.username}'s Stats</div>
-          <div className="stats-grid">
-            <div className="stat-item">
-              <span className="stat-value">{s.gamesPlayed}</span>
-              <span className="stat-label">Played</span>
+        <div className={styles['stats-card']}>
+          <div className={styles['stats-header']}>{user.username}'s Stats</div>
+          <div className={styles['stats-grid']}>
+            <div className={styles['stat-item']}>
+              <span className={styles['stat-value']}>{s.gamesPlayed}</span>
+              <span className={styles['stat-label']}>Played</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-value won">{s.wins}</span>
-              <span className="stat-label">Won</span>
+            <div className={styles['stat-item']}>
+              <span className={`${styles['stat-value']} ${styles.won}`}>{s.wins}</span>
+              <span className={styles['stat-label']}>Won</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-value lost">{s.losses}</span>
-              <span className="stat-label">Lost</span>
+            <div className={styles['stat-item']}>
+              <span className={`${styles['stat-value']} ${styles.lost}`}>{s.losses}</span>
+              <span className={styles['stat-label']}>Lost</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-value tied">{s.ties}</span>
-              <span className="stat-label">Tied</span>
+            <div className={styles['stat-item']}>
+              <span className={`${styles['stat-value']} ${styles.tied}`}>{s.ties}</span>
+              <span className={styles['stat-label']}>Tied</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-value">{s.runsScored}</span>
-              <span className="stat-label">Runs</span>
+            <div className={styles['stat-item']}>
+              <span className={styles['stat-value']}>{s.runsScored}</span>
+              <span className={styles['stat-label']}>Runs</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-value">{s.highScore}</span>
-              <span className="stat-label">Best</span>
+            <div className={styles['stat-item']}>
+              <span className={styles['stat-value']}>{s.highScore}</span>
+              <span className={styles['stat-label']}>Best</span>
             </div>
           </div>
         </div>
@@ -252,7 +252,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
 
       {tab === 'tournament' && (
         <div className="card form">
-          <div className="t-sub-tabs">
+          <div className={styles['t-sub-tabs']}>
             <button
               type="button"
               className={tSubTab === 'create' ? 'tab active' : 'tab'}
@@ -390,36 +390,36 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
       )}
 
       {tab === 'history' && (
-        <div className="card history-card">
-          <div className="stats-header">Last 10 Matches</div>
+        <div className={`card ${styles['history-card']}`}>
+          <div className={styles['stats-header']}>Last 10 Matches</div>
           {history === null ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem' }}>
               <div className="spinner" />
             </div>
           ) : history.length === 0 ? (
-            <p className="fp-empty" style={{ marginTop: '.5rem' }}>
+            <p className={styles['fp-empty']} style={{ marginTop: '.5rem' }}>
               No matches played yet.
             </p>
           ) : (
-            <div className="history-list">
+            <div className={styles['history-list']}>
               {history.map((m, i) => (
-                <div key={i} className={`history-row ${m.result}`}>
-                  <span className={`history-badge ${m.result}`}>
+                <div key={i} className={`${styles['history-row']} ${styles[m.result]}`}>
+                  <span className={`${styles['history-badge']} ${styles[m.result]}`}>
                     {m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'T'}
                   </span>
-                  <div className="history-info">
-                    <span className="history-opp">vs {m.opponent}</span>
-                    <span className="history-meta">
+                  <div className={styles['history-info']}>
+                    <span className={styles['history-opp']}>vs {m.opponent}</span>
+                    <span className={styles['history-meta']}>
                       {m.mode === 'overs'
                         ? `${m.count} over${m.count !== 1 ? 's' : ''}`
                         : `${m.count} wicket${m.count !== 1 ? 's' : ''}`}
                     </span>
                   </div>
-                  <div className="history-right">
-                    <span className="history-score">
+                  <div className={styles['history-right']}>
+                    <span className={styles['history-score']}>
                       {m.myScore} – {m.oppScore}
                     </span>
-                    <span className="history-date">
+                    <span className={styles['history-date']}>
                       {new Date(m.date).toLocaleDateString(undefined, {
                         month: 'short',
                         day: 'numeric',

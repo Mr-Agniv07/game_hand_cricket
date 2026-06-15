@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { AppSocket } from '../socket';
-import './TossScreen.css';
+import styles from './TossScreen.module.css';
 import type { TossStartPayload, TossResultPayload, TossCall } from '@cric/types';
 
 interface TossScreenProps {
@@ -36,29 +36,29 @@ export default function TossScreen({
 
   return (
     <div className="center-screen">
-      <div className="card toss-card">
+      <div className={`card ${styles['toss-card']}`}>
         <h2>Coin Toss</h2>
 
         {!tossResult && (
           <>
-            <div className={`coin ${flipping ? 'flipping' : ''}`}>{flipping ? '🪙' : '🪙'}</div>
+            <div className={`${styles.coin}${flipping ? ` ${styles.flipping}` : ''}`}>{flipping ? '🪙' : '🪙'}</div>
 
             {isCaller ? (
               <>
-                <p className="toss-prompt">
+                <p className={styles['toss-prompt']}>
                   {isAutoPlay ? '🤖 Computer is calling the toss…' : 'You get to call the toss!'}
                 </p>
                 {!isAutoPlay && (
-                  <div className="toss-choices">
+                  <div className={styles['toss-choices']}>
                     <button
-                      className="toss-btn heads"
+                      className={`${styles['toss-btn']} ${styles.heads}`}
                       onClick={() => handleCall('heads')}
                       disabled={flipping}
                     >
                       HEADS
                     </button>
                     <button
-                      className="toss-btn tails"
+                      className={`${styles['toss-btn']} ${styles.tails}`}
                       onClick={() => handleCall('tails')}
                       disabled={flipping}
                     >
@@ -68,7 +68,7 @@ export default function TossScreen({
                 )}
               </>
             ) : (
-              <p className="toss-prompt">
+              <p className={styles['toss-prompt']}>
                 <strong>{tossInfo.callerName}</strong> is calling the toss…
               </p>
             )}
@@ -76,19 +76,19 @@ export default function TossScreen({
         )}
 
         {tossResult && (
-          <div className="toss-result">
+          <div className={styles['toss-result']}>
             <p>
               Called: <strong>{tossResult.call.toUpperCase()}</strong>
             </p>
-            <p className={`coin-result ${tossResult.result}`}>
+            <p className={styles['coin-result']}>
               {tossResult.result === 'heads' ? '🟡 HEADS' : '⚪ TAILS'}
             </p>
-            <p className="toss-winner">
+            <p className={styles['toss-winner']}>
               {tossResult.winnerId === myId
                 ? '🎉 You won the toss!'
                 : `${tossResult.winnerName} won the toss!`}
             </p>
-            <p className="toss-sub">Waiting for toss winner to choose…</p>
+            <p className={styles['toss-sub']}>Waiting for toss winner to choose…</p>
           </div>
         )}
       </div>
