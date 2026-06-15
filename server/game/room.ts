@@ -43,6 +43,11 @@ export function makeRoomId(used?: { has(id: string): boolean }): string {
   return id;
 }
 
+/** Normalise a client-supplied display name: trim, cap length, fall back. */
+export function cleanName(name: unknown): string {
+  return (typeof name === 'string' ? name.trim() : '').slice(0, 20) || 'Player';
+}
+
 export function freshInnings(): RoomInnings {
   return { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] };
 }
@@ -77,6 +82,29 @@ export function bowlerId(room: Room): string {
   return room.players[room.bowlerIdx!].id;
 }
 
+/**
+ * A player's in-room identity is their socket.id, which changes on reconnect.
+ * Every field that stores it must be remapped together — missing one (the toss
+ * caller/winner, an in-flight move) silently breaks gating for the reconnected
+ * player and can freeze the match. Centralised so new socket-id fields are
+ * remapped in one place rather than re-introducing the bug at each call site.
+ */
+export function remapSocketId(room: Room, oldId: string, newId: string): void {
+  if (oldId === newId) return;
+  const player = room.players.find((p) => p.id === oldId);
+  if (player) player.id = newId;
+  if (room.tossCallerId === oldId) room.tossCallerId = newId;
+  if (room.tossWinnerId === oldId) room.tossWinnerId = newId;
+  if (room.pendingMoves[oldId] !== undefined) {
+    room.pendingMoves[newId] = room.pendingMoves[oldId];
+    delete room.pendingMoves[oldId];
+  }
+  if (room._graceTimers?.[oldId]) {
+    clearTimeout(room._graceTimers[oldId]);
+    delete room._graceTimers[oldId];
+  }
+}
+
 export function publicState(room: Room, roomId: string): GameState {
   const inn = room.innings[room.currentInnings];
   const target = room.currentInnings === 1 ? room.innings[0].score + 1 : null;
@@ -84,6 +112,7 @@ export function publicState(room: Room, roomId: string): GameState {
     roomId,
     phase: room.phase,
     players: room.players.map((p) => p.name),
+    playerIds: room.players.map((p) => p.userId),
     overs: room.overs,
     mode: room.mode,
     wickets: room.wickets,

@@ -12,12 +12,14 @@ import { verifyToken } from '../auth/auth.ts';
 import {
   type Room,
   makeRoomId,
+  cleanName,
   freshInnings,
   createRoom,
   totalBalls,
   batsmanId,
   bowlerId,
   publicState,
+  remapSocketId,
 } from './room.ts';
 import type { SocketData } from './types.ts';
 import {
@@ -26,6 +28,7 @@ import {
   pushLiveScore,
   finalizeTournament,
   startTournamentMatch,
+  forfeitTournamentMatch,
   registerTournamentHandlers,
 } from '../tournament/handlers.ts';
 
@@ -60,13 +63,14 @@ export function registerGameHandlers(io: GameServer): void {
     if (socket.data.userId) onlineUsers.set(socket.data.userId, socket.id);
 
     socket.on('create_room', ({ playerName, overs, mode, wickets }) => {
+      const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
       const room = createRoom(Number(overs) || 1, mode || 'overs', Number(wickets) || 1);
-      room.players.push({ id: socket.id, name: playerName, userId: socket.data.userId });
+      room.players.push({ id: socket.id, name, userId: socket.data.userId });
       rooms.set(roomId, room);
       socket.join(roomId);
       socket.data.roomId = roomId;
-      socket.data.playerName = playerName;
+      socket.data.playerName = name;
       socket.emit('room_created', { roomId } satisfies RoomCreatedPayload);
       socket.emit('state', publicState(room, roomId));
     });
@@ -78,10 +82,11 @@ export function registerGameHandlers(io: GameServer): void {
       if (room.phase !== 'waiting')
         return socket.emit('error', { message: 'Game already started.' });
 
-      room.players.push({ id: socket.id, name: playerName, userId: socket.data.userId });
+      const name = cleanName(playerName);
+      room.players.push({ id: socket.id, name, userId: socket.data.userId });
       socket.join(roomId);
       socket.data.roomId = roomId;
-      socket.data.playerName = playerName;
+      socket.data.playerName = name;
 
       const callerIdx = Math.floor(Math.random() * 2);
       room.tossCallerId = room.players[callerIdx].id;
@@ -167,15 +172,18 @@ export function registerGameHandlers(io: GameServer): void {
       room.pendingMoves = {};
 
       // Train global player profiles on every ball of every game.
+      // Track each player's previous move by their array index, not name —
+      // two players sharing a display name would otherwise clobber each
+      // other's Markov "last move" within the room.
       if (!room.mlLastMoves) room.mlLastMoves = {};
-      const batsmanName = room.players[room.batsmanIdx!].name;
-      const bowlerName = room.players[room.bowlerIdx!].name;
+      const batIdx = room.batsmanIdx!;
+      const bowlIdx = room.bowlerIdx!;
       trainPlayerProfiles([
-        { playerName: batsmanName, move: batMove, lastMove: room.mlLastMoves[batsmanName] },
-        { playerName: bowlerName, move: bowlMove, lastMove: room.mlLastMoves[bowlerName] },
+        { userId: room.players[batIdx].userId, move: batMove, lastMove: room.mlLastMoves[batIdx] },
+        { userId: room.players[bowlIdx].userId, move: bowlMove, lastMove: room.mlLastMoves[bowlIdx] },
       ]);
-      room.mlLastMoves[batsmanName] = batMove;
-      room.mlLastMoves[bowlerName] = bowlMove;
+      room.mlLastMoves[batIdx] = batMove;
+      room.mlLastMoves[bowlIdx] = bowlMove;
 
       const inn = room.innings[room.currentInnings];
       inn.balls += 1;
@@ -294,6 +302,12 @@ export function registerGameHandlers(io: GameServer): void {
         return;
       }
 
+      // Challenger may have disconnected during the 30s window; don't build a
+      // room around a dead socket that the accepter would be stuck waiting in.
+      if (!challengerSocket) {
+        return socket.emit('challenge_error', { message: 'Challenger is no longer available.' });
+      }
+
       const roomId = makeRoomId(rooms);
       const room = createRoom(ch.overs, ch.mode, ch.wickets);
       const challenger = findById(ch.challengerId);
@@ -355,21 +369,9 @@ export function registerGameHandlers(io: GameServer): void {
       );
       if (playerIdx === -1) return;
 
-      const oldId = room.players[playerIdx].id;
-
-      // Cancel the grace timer that was started on disconnect
-      if (room._graceTimers?.[oldId]) {
-        clearTimeout(room._graceTimers[oldId]);
-        delete room._graceTimers[oldId];
-      }
-
-      // Migrate any move the player already submitted this ball
-      if (room.pendingMoves[oldId] !== undefined) {
-        room.pendingMoves[socket.id] = room.pendingMoves[oldId];
-        delete room.pendingMoves[oldId];
-      }
-
-      room.players[playerIdx].id = socket.id;
+      // Remap every socket-id-keyed field (players, toss caller/winner,
+      // in-flight move) and cancel the disconnect grace timer in one shot.
+      remapSocketId(room, room.players[playerIdx].id, socket.id);
       socket.data.roomId = roomId;
       socket.data.playerName = room.players[playerIdx].name;
       socket.join(roomId);
@@ -397,8 +399,18 @@ export function registerGameHandlers(io: GameServer): void {
       room._graceTimers = room._graceTimers || {};
       room._graceTimers[socket.id] = setTimeout(() => {
         if (!rooms.has(roomId)) return;
-        io.to(roomId).emit('opponent_disconnected', { name: socket.data.playerName });
         rooms.delete(roomId);
+        io.to(roomId).emit('opponent_disconnected', { name: socket.data.playerName });
+
+        // A live tournament match can't just vanish — forfeit it to the
+        // surviving player and advance the bracket, or the tournament stalls
+        // on this fixture forever. ('result' means endInnings already advanced.)
+        if (room.tournamentId && room.tournamentMatchIdx !== undefined && room.phase !== 'result') {
+          const tournament = tournaments.get(room.tournamentId);
+          if (tournament) {
+            forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
+          }
+        }
       }, GRACE_MS);
     });
   });
@@ -569,6 +581,9 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
           io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
           setTimeout(() => {
+            // The match is over; drop its room so finished tournament rooms
+            // don't pile up in the map for the tournament's lifetime.
+            rooms.delete(roomId);
             const next = matchIdx + 1;
             if (next >= tournament.fixtures.length) finalizeTournament(io, tournament);
             else startTournamentMatch(io, rooms, tournament, next);

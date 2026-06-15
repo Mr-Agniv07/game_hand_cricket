@@ -53,13 +53,13 @@ export default function GameScreen({
   const wicketsLeft = wickets - wicketsLost;
 
   // Load global opponent profile on mount to seed the in-memory model for autoplay.
+  // Keyed by the opponent's registered user id; guests have no profile.
   // Training and persistence are handled server-side on every ball.
   useEffect(() => {
     if (!userToken || myPlayerIdx === null) return;
-    const opponentName = players[myPlayerIdx === 0 ? 1 : 0];
-    if (!opponentName) return;
-    const key = encodeURIComponent(opponentName);
-    apiGet<MLModelData | null>(`/api/ml/${key}`, userToken)
+    const opponentId = gameState?.playerIds?.[myPlayerIdx === 0 ? 1 : 0];
+    if (!opponentId) return;
+    apiGet<MLModelData | null>(`/api/ml/${encodeURIComponent(opponentId)}`, userToken)
       .then((data) => {
         if (data) mlRef.current.fromData(data);
       })
