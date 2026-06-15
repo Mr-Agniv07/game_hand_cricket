@@ -6,6 +6,8 @@ export interface RoomPlayer {
   userId: string | null;
   /** Stable per-browser id; used to rejoin guests, who have no userId. */
   clientId?: string | null;
+  /** A computer-controlled player — the server drives its toss/choice/moves. */
+  isBot?: boolean;
 }
 
 export interface RoomInnings {
@@ -34,6 +36,10 @@ export interface Room {
   mlLastMoves?: Record<string, number>;
   tournamentId?: string;
   tournamentMatchIdx?: number;
+  /** Set when at least one player is a bot — enables bot driving + move tracking. */
+  hasBot?: boolean;
+  /** Per-player-index frequency of each number played, for bot adaptation. */
+  botMoveCounts?: Record<number, number[]>;
 }
 
 export function makeRoomId(used?: { has(id: string): boolean }): string {

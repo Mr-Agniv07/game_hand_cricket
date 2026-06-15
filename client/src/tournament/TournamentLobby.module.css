@@ -1,5 +1,25 @@
 /* ─── Tournament Lobby ─── */
 
+.t-bot-fill-btn {
+  width: 100%;
+  max-width: 460px;
+  padding: 0.85rem;
+  background: linear-gradient(135deg, #16a34a, #0ea5e9);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    opacity 0.15s,
+    transform 0.12s;
+}
+.t-bot-fill-btn:hover {
+  opacity: 0.9;
+  transform: scale(1.01);
+}
+
 .t-lobby {
   flex: 1;
   display: flex;

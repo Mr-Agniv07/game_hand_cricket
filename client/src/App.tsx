@@ -687,7 +687,12 @@ export default function App() {
       )}
 
       {phase === 'tournament_lobby' && tournamentState && (
-        <TournamentLobby tournamentState={tournamentState} myId={myId} onLeave={resetToLobby} />
+        <TournamentLobby
+          tournamentState={tournamentState}
+          myId={myId}
+          onLeave={resetToLobby}
+          onStartWithBots={() => socket.emit('start_tournament_with_bots')}
+        />
       )}
 
       {phase === 'tournament_result' && tournamentState && (

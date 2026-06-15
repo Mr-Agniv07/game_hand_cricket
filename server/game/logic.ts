@@ -1,7 +1,16 @@
 import type { Server, DefaultEventsMap } from 'socket.io';
-import type { ServerToClientEvents, ClientToServerEvents, InningsEndReason } from '@cric/types';
+import type { ServerToClientEvents, ClientToServerEvents, InningsEndReason, TossCall } from '@cric/types';
 import { updateGameStats, trainPlayerProfiles } from '../db.ts';
-import { type Room, type RoomInnings, totalBalls, publicState, freshInnings } from './room.ts';
+import {
+  type Room,
+  type RoomInnings,
+  totalBalls,
+  publicState,
+  freshInnings,
+  batsmanId,
+  bowlerId,
+} from './room.ts';
+import { isBot, pickBotMove, recordMoveCounts } from './bot.ts';
 import type { SocketData } from './types.ts';
 import {
   tournaments,
@@ -12,6 +21,9 @@ import {
 } from '../tournament/handlers.ts';
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+
+/** Delay before a bot acts, so its toss/choice/moves feel paced rather than instant. */
+const BOT_DELAY_MS = 650;
 
 export function resolveBall(
   io: GameServer,
@@ -54,6 +66,9 @@ export function resolveBall(
   ]);
   room.mlLastMoves[batIdx] = batMove;
   room.mlLastMoves[bowlIdx] = bowlMove;
+
+  // Track per-player move frequencies so any bot in this room can adapt.
+  if (room.hasBot) recordMoveCounts(room, batIdx, batMove, bowlIdx, bowlMove);
 
   inn.balls += 1;
 
@@ -171,6 +186,7 @@ export function endInnings(
       target,
     });
     io.to(roomId).emit('state', publicState(room, roomId));
+    if (room.hasBot) driveBots(io, roomId, room, rooms);
   } else {
     const inn1 = room.innings[0];
     const inn2 = room.innings[1];
@@ -350,7 +366,149 @@ export function forfeitGame(
   rooms.delete(roomId);
 }
 
-export function startRematch(io: GameServer, roomId: string, room: Room): void {
+// ─── Toss / bat-bowl resolution (shared by socket handlers and the bot driver) ──
+
+/** Resolve the toss for the current caller's call, then advance to bat/bowl. */
+export function applyTossCall(
+  io: GameServer,
+  roomId: string,
+  room: Room,
+  rooms: Map<string, Room>,
+  call: TossCall
+): void {
+  if (room.phase !== 'toss_call' || !room.tossCallerId) return;
+  room.tossCall = call;
+  const result: TossCall = Math.random() < 0.5 ? 'heads' : 'tails';
+  const callerId = room.tossCallerId;
+  const won = result === call;
+  room.tossWinnerId = won ? callerId : room.players.find((p) => p.id !== callerId)!.id;
+  room.phase = 'bat_bowl';
+
+  io.to(roomId).emit('toss_result', {
+    call,
+    result,
+    winnerId: room.tossWinnerId,
+    winnerName: room.players.find((p) => p.id === room.tossWinnerId)!.name,
+  });
+  io.to(roomId).emit('state', publicState(room, roomId));
+  if (room.hasBot) driveBots(io, roomId, room, rooms);
+}
+
+/** Apply the toss winner's bat/bowl choice and start the first innings. */
+export function applyBatBowlChoice(
+  io: GameServer,
+  roomId: string,
+  room: Room,
+  rooms: Map<string, Room>,
+  choice: 'bat' | 'bowl'
+): void {
+  if (room.phase !== 'bat_bowl' || room.tossWinnerId === null) return;
+  const winnerIdx = room.players.findIndex((p) => p.id === room.tossWinnerId);
+  const otherIdx = winnerIdx === 0 ? 1 : 0;
+
+  if (choice === 'bat') {
+    room.batsmanIdx = winnerIdx;
+    room.bowlerIdx = otherIdx;
+  } else {
+    room.bowlerIdx = winnerIdx;
+    room.batsmanIdx = otherIdx;
+  }
+
+  room.phase = 'innings';
+  io.to(roomId).emit('innings_start', {
+    inningsNumber: 1,
+    batsmanName: room.players[room.batsmanIdx].name,
+    bowlerName: room.players[room.bowlerIdx].name,
+    target: null,
+  });
+  io.to(roomId).emit('state', publicState(room, roomId));
+  if (room.hasBot) driveBots(io, roomId, room, rooms);
+}
+
+// ─── Bot driver ────────────────────────────────────────────────────────────────
+
+/** Still the same live room at this id? Guards against timers firing post-teardown. */
+function roomAlive(rooms: Map<string, Room>, roomId: string, room: Room): boolean {
+  return rooms.get(roomId) === room;
+}
+
+/**
+ * Schedule whatever the bot(s) need to do next for the room's current phase:
+ * call the toss, choose bat/bowl, or play the ball. Safe to call after any
+ * state change — it only acts for bot slots that haven't acted yet.
+ */
+export function driveBots(
+  io: GameServer,
+  roomId: string,
+  room: Room,
+  rooms: Map<string, Room>
+): void {
+  if (!roomAlive(rooms, roomId, room)) return;
+
+  if (room.phase === 'toss_call') {
+    const caller = room.players.find((p) => p.id === room.tossCallerId);
+    if (caller && isBot(caller)) {
+      setTimeout(() => {
+        if (roomAlive(rooms, roomId, room) && room.phase === 'toss_call') {
+          applyTossCall(io, roomId, room, rooms, Math.random() < 0.5 ? 'heads' : 'tails');
+        }
+      }, BOT_DELAY_MS);
+    }
+    return;
+  }
+
+  if (room.phase === 'bat_bowl') {
+    const winner = room.players.find((p) => p.id === room.tossWinnerId);
+    if (winner && isBot(winner)) {
+      setTimeout(() => {
+        if (roomAlive(rooms, roomId, room) && room.phase === 'bat_bowl') {
+          applyBatBowlChoice(io, roomId, room, rooms, Math.random() < 0.5 ? 'bat' : 'bowl');
+        }
+      }, BOT_DELAY_MS);
+    }
+    return;
+  }
+
+  if (room.phase === 'innings') {
+    scheduleBotMove(io, roomId, room, rooms, room.batsmanIdx!);
+    scheduleBotMove(io, roomId, room, rooms, room.bowlerIdx!);
+  }
+}
+
+/** If the player at `idx` is a bot that hasn't submitted this ball, schedule it. */
+function scheduleBotMove(
+  io: GameServer,
+  roomId: string,
+  room: Room,
+  rooms: Map<string, Room>,
+  idx: number
+): void {
+  const player = room.players[idx];
+  if (!isBot(player) || room.pendingMoves[player.id] !== undefined) return;
+  setTimeout(() => {
+    if (!roomAlive(rooms, roomId, room) || room.phase !== 'innings') return;
+    if (room.pendingMoves[player.id] !== undefined) return;
+    room.pendingMoves[player.id] = pickBotMove(room, idx);
+
+    const batMove = room.pendingMoves[batsmanId(room)];
+    const bowlMove = room.pendingMoves[bowlerId(room)];
+    if (batMove === undefined || bowlMove === undefined) return; // still waiting on the other side
+
+    room.pendingMoves = {};
+    resolveBall(io, roomId, room, rooms, batMove, bowlMove);
+    // Bot-vs-bot: keep the match rolling. (Human games are driven by play_move.)
+    if (roomAlive(rooms, roomId, room) && room.phase === 'innings' && room.players.every(isBot)) {
+      driveBots(io, roomId, room, rooms);
+    }
+  }, BOT_DELAY_MS);
+}
+
+export function startRematch(
+  io: GameServer,
+  roomId: string,
+  room: Room,
+  rooms: Map<string, Room>
+): void {
   room.innings = [freshInnings(), freshInnings()];
   room.currentInnings = 0;
   room.pendingMoves = {};
@@ -361,6 +519,7 @@ export function startRematch(io: GameServer, roomId: string, room: Room): void {
   room.bowlerIdx = null;
   room.rematchRequests = null;
   room.mlLastMoves = {};
+  room.botMoveCounts = {};
 
   room.players.forEach((p, idx) => {
     io.to(p.id).emit('rematch_start', { roomId, myPlayerIdx: idx });
@@ -374,4 +533,5 @@ export function startRematch(io: GameServer, roomId: string, room: Room): void {
     callerId: room.tossCallerId,
     callerName: room.players[callerIdx].name,
   });
+  if (room.hasBot) driveBots(io, roomId, room, rooms);
 }

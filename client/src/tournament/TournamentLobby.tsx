@@ -6,6 +6,7 @@ interface TournamentLobbyProps {
   tournamentState: TournamentState;
   myId: string | null;
   onLeave: () => void;
+  onStartWithBots: () => void;
 }
 
 function formatNRR(nrr: number): string {
@@ -70,9 +71,16 @@ function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
   );
 }
 
-export default function TournamentLobby({ tournamentState, myId, onLeave }: TournamentLobbyProps) {
+export default function TournamentLobby({
+  tournamentState,
+  myId,
+  onLeave,
+  onStartWithBots,
+}: TournamentLobbyProps) {
   const { code, players, phase, fixtures, currentMatchIndex, pointsTable } = tournamentState;
   const [copied, setCopied] = useState(false);
+  // The host (first entrant) can start early; empty seats fill with bots.
+  const isHost = players[0]?.id === myId;
 
   function copyCode() {
     // clipboard API rejects in insecure contexts (e.g. http://<LAN-IP>); swallow
@@ -262,6 +270,12 @@ export default function TournamentLobby({ tournamentState, myId, onLeave }: Tour
             })}
           </div>
         </div>
+      )}
+
+      {phase === 'waiting' && isHost && players.length < 4 && (
+        <button className={styles['t-bot-fill-btn']} onClick={onStartWithBots}>
+          🤖 Start now — fill {4 - players.length} spot{4 - players.length !== 1 ? 's' : ''} with bots
+        </button>
       )}
 
       {phase === 'waiting' && (

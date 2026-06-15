@@ -50,6 +50,12 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
     socket.emit('create_room', { playerName, overs, wickets });
   }
 
+  function handlePlayBot() {
+    const playerName = user ? user.username : name.trim();
+    if (!playerName) return;
+    socket.emit('play_vs_bot', { playerName, overs, wickets });
+  }
+
   function handleJoin(e: FormEvent) {
     e.preventDefault();
     const playerName = user ? user.username : joinName.trim();
@@ -188,6 +194,9 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
 
           <button type="submit" className="btn-primary">
             Create Room
+          </button>
+          <button type="button" className={styles['bot-btn']} onClick={handlePlayBot}>
+            🤖 Play vs Bot
           </button>
         </form>
       )}

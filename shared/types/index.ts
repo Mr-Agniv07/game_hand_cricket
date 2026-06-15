@@ -298,6 +298,12 @@ export interface CreateRoomPayload {
   wickets: number | string;
 }
 
+export interface PlayVsBotPayload {
+  playerName: string;
+  overs: number | string;
+  wickets: number | string;
+}
+
 export interface JoinRoomPayload {
   roomId: string;
   playerName: string;
@@ -332,6 +338,7 @@ export interface RejoinRoomPayload {
 
 export interface ClientToServerEvents {
   create_room: (p: CreateRoomPayload) => void;
+  play_vs_bot: (p: PlayVsBotPayload) => void;
   join_room: (p: JoinRoomPayload) => void;
   rejoin_room: (p: RejoinRoomPayload) => void;
   leave_room: () => void;
@@ -344,4 +351,5 @@ export interface ClientToServerEvents {
   request_rematch: () => void;
   create_tournament: (p: CreateTournamentPayload) => void;
   join_tournament: (p: JoinTournamentPayload) => void;
+  start_tournament_with_bots: () => void;
 }

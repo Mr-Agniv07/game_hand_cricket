@@ -22,7 +22,15 @@ import {
   remapTournamentSocketId,
   registerTournamentHandlers,
 } from '../tournament/handlers.ts';
-import { resolveBall, endInnings, forfeitGame, startRematch } from './logic.ts';
+import {
+  resolveBall,
+  forfeitGame,
+  startRematch,
+  applyTossCall,
+  applyBatBowlChoice,
+  driveBots,
+} from './logic.ts';
+import { makeBotPlayer, isBot } from './bot.ts';
 
 export type { SocketData };
 
@@ -68,6 +76,30 @@ export function registerGameHandlers(io: GameServer): void {
       socket.emit('state', publicState(room, roomId));
     });
 
+    socket.on('play_vs_bot', ({ playerName, overs, wickets }) => {
+      const name = cleanName(playerName);
+      const roomId = makeRoomId(rooms);
+      const room = createRoom(clampCount(overs, 1), clampCount(wickets, 1));
+      room.hasBot = true;
+      room.players.push({ id: socket.id, name, userId: socket.data.userId, clientId: socket.data.clientId });
+      room.players.push(makeBotPlayer([name]));
+      rooms.set(roomId, room);
+      socket.join(roomId);
+      socket.data.roomId = roomId;
+      socket.data.playerName = name;
+
+      // The human is player 0; room_created sets that on the client. Then jump
+      // straight into the toss (no "waiting for opponent" — the bot is here).
+      socket.emit('room_created', { roomId } satisfies RoomCreatedPayload);
+
+      const callerIdx = Math.floor(Math.random() * 2);
+      room.tossCallerId = room.players[callerIdx].id;
+      room.phase = 'toss_call';
+      io.to(roomId).emit('state', publicState(room, roomId));
+      io.to(roomId).emit('toss_start', { callerId: room.tossCallerId, callerName: room.players[callerIdx].name });
+      driveBots(io, roomId, room, rooms);
+    });
+
     socket.on('join_room', ({ roomId, playerName }) => {
       const room = rooms.get(roomId);
       if (!room) return socket.emit('error', { message: 'Room not found.' });
@@ -93,20 +125,7 @@ export function registerGameHandlers(io: GameServer): void {
       const room = roomId ? rooms.get(roomId) : undefined;
       if (!room || !roomId || room.phase !== 'toss_call') return;
       if (socket.id !== room.tossCallerId) return;
-
-      room.tossCall = call;
-      const result = (Math.random() < 0.5 ? 'heads' : 'tails') as 'heads' | 'tails';
-      const won = result === call;
-      room.tossWinnerId = won ? socket.id : room.players.find((p) => p.id !== socket.id)!.id;
-      room.phase = 'bat_bowl';
-
-      io.to(roomId).emit('toss_result', {
-        call,
-        result,
-        winnerId: room.tossWinnerId,
-        winnerName: room.players.find((p) => p.id === room.tossWinnerId)!.name,
-      });
-      io.to(roomId).emit('state', publicState(room, roomId));
+      applyTossCall(io, roomId, room, rooms, call);
     });
 
     socket.on('bat_bowl_choice', ({ choice }) => {
@@ -114,26 +133,7 @@ export function registerGameHandlers(io: GameServer): void {
       const room = roomId ? rooms.get(roomId) : undefined;
       if (!room || !roomId || room.phase !== 'bat_bowl') return;
       if (socket.id !== room.tossWinnerId) return;
-
-      const winnerIdx = room.players.findIndex((p) => p.id === room.tossWinnerId);
-      const otherIdx = winnerIdx === 0 ? 1 : 0;
-
-      if (choice === 'bat') {
-        room.batsmanIdx = winnerIdx;
-        room.bowlerIdx = otherIdx;
-      } else {
-        room.bowlerIdx = winnerIdx;
-        room.batsmanIdx = otherIdx;
-      }
-
-      room.phase = 'innings';
-      io.to(roomId).emit('innings_start', {
-        inningsNumber: 1,
-        batsmanName: room.players[room.batsmanIdx].name,
-        bowlerName: room.players[room.bowlerIdx].name,
-        target: null,
-      });
-      io.to(roomId).emit('state', publicState(room, roomId));
+      applyBatBowlChoice(io, roomId, room, rooms, choice);
     });
 
     socket.on('play_move', ({ number }) => {
@@ -152,10 +152,16 @@ export function registerGameHandlers(io: GameServer): void {
 
       const batMove = room.pendingMoves[batsmanId(room)];
       const bowlMove = room.pendingMoves[bowlerId(room)];
-      if (batMove === undefined || bowlMove === undefined) return;
+      if (batMove === undefined || bowlMove === undefined) {
+        // Opponent still to play — if it's a bot, prompt it to respond.
+        if (room.hasBot) driveBots(io, roomId, room, rooms);
+        return;
+      }
 
       room.pendingMoves = {};
       resolveBall(io, roomId, room, rooms, batMove, bowlMove);
+      // Pre-arm the bot for the next ball (human triggers the resolve by playing).
+      if (room.hasBot) driveBots(io, roomId, room, rooms);
     });
 
     socket.on('declare', () => {
@@ -272,8 +278,12 @@ export function registerGameHandlers(io: GameServer): void {
       if (playerIdx === -1) return;
       if (!room.rematchRequests) room.rematchRequests = new Set<number>();
       room.rematchRequests.add(playerIdx);
+      // A bot opponent always accepts a rematch instantly.
+      room.players.forEach((p, i) => {
+        if (isBot(p)) room.rematchRequests!.add(i);
+      });
       socket.to(roomId).emit('rematch_requested', { from: room.players[playerIdx].name });
-      if (room.rematchRequests.size >= 2) startRematch(io, roomId, room);
+      if (room.rematchRequests.size >= 2) startRematch(io, roomId, room, rooms);
     });
 
     socket.on('rejoin_room', ({ roomId }) => {

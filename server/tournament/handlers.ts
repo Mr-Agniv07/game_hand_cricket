@@ -10,6 +10,8 @@ import type {
   LiveMatchScore,
 } from '@cric/types';
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
+import { makeBotId, randomBotName, isBot } from '../game/bot.ts';
+import { driveBots } from '../game/logic.ts';
 import type { SocketData } from '../game/types.ts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -20,6 +22,8 @@ export interface TournamentPlayerEntry {
   userId: string | null;
   /** Stable per-browser id; lets guests (no userId) reconnect to the tournament. */
   clientId?: string | null;
+  /** Computer-controlled entrant — fills empty slots and auto-plays its matches. */
+  isBot?: boolean;
 }
 
 export interface InternalFixtureMatch {
@@ -251,13 +255,16 @@ export function startTournamentMatch(
 
   const p1 = tournament.players[fixture.player1Idx];
   const p2 = tournament.players[fixture.player2Idx];
-  const p1Socket = io.sockets.sockets.get(p1.id);
-  const p2Socket = io.sockets.sockets.get(p2.id);
+  // Bots have no socket; a human is "present" only if their socket is live.
+  const p1Socket = isBot(p1) ? undefined : io.sockets.sockets.get(p1.id);
+  const p2Socket = isBot(p2) ? undefined : io.sockets.sockets.get(p2.id);
+  const p1Present = isBot(p1) || !!p1Socket;
+  const p2Present = isBot(p2) || !!p2Socket;
 
-  if (!p1Socket || !p2Socket) {
-    // Forfeit for the disconnected player, continue to next match
+  if (!p1Present || !p2Present) {
+    // A human player vanished — forfeit to the present side, continue to next match.
     fixture.status = 'done';
-    const p1Gone = !p1Socket;
+    const p1Gone = !p1Present;
     fixture.result = p1Gone ? 'p2' : 'p1';
     const winnerId = p1Gone ? p2.id : p1.id;
     const loserId = p1Gone ? p1.id : p2.id;
@@ -286,30 +293,35 @@ export function startTournamentMatch(
   // Carry clientId through so a guest (no userId) whose socket id changes on a
   // blip can still be matched by rejoin_room; without it their reconnect fails
   // and the grace timer forfeits the match.
-  room.players.push({ id: p1.id, name: p1.name, userId: p1.userId, clientId: p1.clientId });
-  room.players.push({ id: p2.id, name: p2.name, userId: p2.userId, clientId: p2.clientId });
+  room.players.push({ id: p1.id, name: p1.name, userId: p1.userId, clientId: p1.clientId, isBot: p1.isBot });
+  room.players.push({ id: p2.id, name: p2.name, userId: p2.userId, clientId: p2.clientId, isBot: p2.isBot });
+  room.hasBot = isBot(p1) || isBot(p2);
   room.tournamentId = tournament.code;
   room.tournamentMatchIdx = matchIndex;
   rooms.set(roomId, room);
   fixture.roomId = roomId;
 
-  p1Socket.join(roomId);
-  p1Socket.data.roomId = roomId;
-  p2Socket.join(roomId);
-  p2Socket.data.roomId = roomId;
-
-  p1Socket.emit('tournament_match_starting', {
-    roomId,
-    opponentName: p2.name,
-    matchNum: fixture.matchNum,
-    myPlayerIdx: 0,
-  });
-  p2Socket.emit('tournament_match_starting', {
-    roomId,
-    opponentName: p1.name,
-    matchNum: fixture.matchNum,
-    myPlayerIdx: 1,
-  });
+  // Only real sockets join the match room / get the start event; bots need neither.
+  if (p1Socket) {
+    p1Socket.join(roomId);
+    p1Socket.data.roomId = roomId;
+    p1Socket.emit('tournament_match_starting', {
+      roomId,
+      opponentName: p2.name,
+      matchNum: fixture.matchNum,
+      myPlayerIdx: 0,
+    });
+  }
+  if (p2Socket) {
+    p2Socket.join(roomId);
+    p2Socket.data.roomId = roomId;
+    p2Socket.emit('tournament_match_starting', {
+      roomId,
+      opponentName: p1.name,
+      matchNum: fixture.matchNum,
+      myPlayerIdx: 1,
+    });
+  }
 
   const callerIdx = Math.floor(Math.random() * 2);
   room.tossCallerId = room.players[callerIdx].id;
@@ -322,6 +334,9 @@ export function startTournamentMatch(
   });
 
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+
+  // Drive any bot(s) — for bot-vs-bot this plays the whole match automatically.
+  driveBots(io, roomId, room, rooms);
 }
 
 // ─── Socket handlers ──────────────────────────────────────────────────────────
@@ -411,6 +426,29 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
         startTournamentMatch(io, rooms, tournament, 0);
       }
+    });
+
+    socket.on('start_tournament_with_bots', () => {
+      // Find the tournament this socket is hosting.
+      const tournament = [...tournaments.values()].find((t) => t.players[0]?.id === socket.id);
+      if (!tournament || tournament.phase !== 'waiting') return;
+      if (tournament.players.length < 1 || tournament.players.length >= 4) return;
+
+      // Fill the remaining seats with uniquely-named bots.
+      while (tournament.players.length < 4) {
+        const taken = tournament.players.map((p) => p.name);
+        tournament.players.push({
+          id: makeBotId(),
+          name: randomBotName(taken),
+          userId: null,
+          isBot: true,
+        });
+      }
+
+      generateFixture(tournament);
+      tournament.phase = 'in_progress';
+      io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+      startTournamentMatch(io, rooms, tournament, 0);
     });
   });
 }

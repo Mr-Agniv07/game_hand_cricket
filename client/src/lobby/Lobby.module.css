@@ -7,6 +7,26 @@
   gap: 1.25rem;
 }
 
+.bot-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.6rem;
+  padding: 0.8rem;
+  background: none;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: 1px solid #ffffff22;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.bot-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.18);
+}
+
 .mode-title {
   font-size: 1.05rem;
   font-weight: 800;
