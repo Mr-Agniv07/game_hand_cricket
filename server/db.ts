@@ -27,6 +27,7 @@ export interface DbUser {
 
 interface Database {
   users: DbUser[];
+  mlProfiles?: Record<string, MLModelData>;
 }
 
 function load(): Database {
@@ -178,17 +179,31 @@ export function getMatchHistory(userId: string): MatchHistoryEntry[] {
   return user?.matchHistory ?? [];
 }
 
-export function getMLModel(userId: string, opponent: string): MLModelData | null {
+export function getPlayerProfile(playerName: string): MLModelData | null {
   const db = load();
-  const user = db.users.find((u) => u.id === userId);
-  return user?.mlModels?.[opponent.toLowerCase()] ?? null;
+  return db.mlProfiles?.[playerName.toLowerCase()] ?? null;
 }
 
-export function saveMLModel(userId: string, opponent: string, data: MLModelData): void {
+export function trainPlayerProfiles(
+  updates: Array<{ playerName: string; move: number; lastMove: number | undefined }>
+): void {
   const db = load();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return;
-  if (!user.mlModels) user.mlModels = {};
-  user.mlModels[opponent.toLowerCase()] = data;
+  if (!db.mlProfiles) db.mlProfiles = {};
+  for (const { playerName, move, lastMove } of updates) {
+    const key = playerName.toLowerCase();
+    if (!db.mlProfiles[key]) {
+      db.mlProfiles[key] = {
+        freq: [0, 1, 1, 1, 1, 1, 1],
+        transitions: Array.from({ length: 7 }, () => [0, 1, 1, 1, 1, 1, 1]),
+      };
+    }
+    const model = db.mlProfiles[key];
+    for (let i = 1; i <= 6; i++) model.freq[i] *= 0.95;
+    model.freq[move] = (model.freq[move] ?? 0) + 1;
+    if (lastMove !== undefined) {
+      for (let i = 1; i <= 6; i++) model.transitions[lastMove][i] *= 0.95;
+      model.transitions[lastMove][move] = (model.transitions[lastMove][move] ?? 0) + 1;
+    }
+  }
   save(db);
 }

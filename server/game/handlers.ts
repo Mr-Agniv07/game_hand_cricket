@@ -12,7 +12,7 @@ import type {
   PointsTableEntry,
   LiveMatchScore,
 } from '@cric/types';
-import { findById, updateGameStats } from '../db.ts';
+import { findById, updateGameStats, trainPlayerProfiles } from '../db.ts';
 import { verifyToken } from '../auth/auth.ts';
 import {
   type Room,
@@ -312,6 +312,17 @@ export function registerGameHandlers(io: GameServer): void {
 
       room.pendingMoves = {};
 
+      // Train global player profiles on every ball of every game.
+      if (!room.mlLastMoves) room.mlLastMoves = {};
+      const batsmanName = room.players[room.batsmanIdx!].name;
+      const bowlerName = room.players[room.bowlerIdx!].name;
+      trainPlayerProfiles([
+        { playerName: batsmanName, move: batMove, lastMove: room.mlLastMoves[batsmanName] },
+        { playerName: bowlerName, move: bowlMove, lastMove: room.mlLastMoves[bowlerName] },
+      ]);
+      room.mlLastMoves[batsmanName] = batMove;
+      room.mlLastMoves[bowlerName] = bowlMove;
+
       const inn = room.innings[room.currentInnings];
       inn.balls += 1;
 
@@ -589,6 +600,7 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
     room.batsmanIdx = room.bowlerIdx;
     room.bowlerIdx = tmp;
     room.pendingMoves = {};
+    room.mlLastMoves = {};
 
     // Clear live score at innings break; spectators will see it again from the first ball of innings 2
     if (room.tournamentId) {
@@ -864,6 +876,7 @@ function startRematch(io: GameServer, roomId: string, room: Room): void {
   room.batsmanIdx = null;
   room.bowlerIdx = null;
   room.rematchRequests = null;
+  room.mlLastMoves = {};
 
   room.players.forEach((p, idx) => {
     io.to(p.id).emit('rematch_start', { roomId, myPlayerIdx: idx });

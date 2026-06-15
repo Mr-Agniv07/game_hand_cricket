@@ -3,7 +3,7 @@ import type { AppSocket } from '../socket';
 import './GameScreen.css';
 import type { GameState, InningsStartPayload, BallPlayedPayload } from '@cric/types';
 import { HandCricketML } from './autoplayML';
-import { apiGet, apiPut } from '../api';
+import { apiGet } from '../api';
 import type { MLModelData, MLStats } from './autoplayML';
 import MLInsightsPanel from './MLInsightsPanel';
 
@@ -52,8 +52,8 @@ export default function GameScreen({
   const wicketsLost = gameState?.wicketsLost ?? 0;
   const wicketsLeft = wickets - wicketsLost;
 
-  // Load persisted model for this opponent on mount; save it back on unmount.
-  // Runs whenever the user is logged in — training is always on, autoplay or not.
+  // Load global opponent profile on mount to seed the in-memory model for autoplay.
+  // Training and persistence are handled server-side on every ball.
   useEffect(() => {
     if (!userToken || myPlayerIdx === null) return;
     const opponentName = players[myPlayerIdx === 0 ? 1 : 0];
@@ -64,9 +64,6 @@ export default function GameScreen({
         if (data) mlRef.current.fromData(data);
       })
       .catch(() => {});
-    return () => {
-      apiPut(`/api/ml/${key}`, mlRef.current.toData(), userToken).catch(() => {});
-    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show the ball-result banner briefly when a ball resolves.

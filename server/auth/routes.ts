@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { findByUsername, findById, createUser, getMLModel, saveMLModel } from '../db.ts';
+import { findByUsername, findById, createUser, getPlayerProfile } from '../db.ts';
 import { hashPassword, verifyPassword, createToken, verifyToken } from './auth.ts';
 
 export interface AuthRequest extends Request {
@@ -55,12 +55,5 @@ authRouter.get('/api/me', (req: Request, res: Response) => {
 });
 
 authRouter.get('/api/ml/:opponent', requireAuth, (req: Request, res: Response) => {
-  const userId = (req as AuthRequest).userId!;
-  res.json(getMLModel(userId, String(req.params.opponent)));
-});
-
-authRouter.put('/api/ml/:opponent', requireAuth, (req: Request, res: Response) => {
-  const userId = (req as AuthRequest).userId!;
-  saveMLModel(userId, String(req.params.opponent), req.body);
-  res.json({ ok: true });
+  res.json(getPlayerProfile(String(req.params.opponent)));
 });
