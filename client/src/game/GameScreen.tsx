@@ -97,14 +97,22 @@ export default function GameScreen({
   // changes. Keying off authoritative server state (not a transient lastBall
   // set-then-null) makes this robust to React's batching at the innings break —
   // otherwise myMove could stay set and freeze the numpad for the whole 2nd
-  // innings (a hang for BOTH players).
-  // When autoplay is on, the ML model picks the next move.
+  // innings (a hang for BOTH players). Deps are *only* balls/currentInnings so
+  // toggling autoplay mid-ball can't clear an already-submitted move.
   useEffect(() => {
     setMyMove(null);
     myMoveRef.current = null;
-    if (!isAutoPlay) return;
+  }, [balls, currentInnings]);
+
+  // When autoplay is on, the ML model picks this ball's move — but only if one
+  // hasn't already been submitted (guards against toggling autoplay mid-ball
+  // re-firing play_move).
+  useEffect(() => {
+    if (!isAutoPlay || myMoveRef.current !== null) return;
     const t = setTimeout(() => {
+      if (myMoveRef.current !== null) return;
       const n = isBatsman ? mlRef.current.pickAsBatsman() : mlRef.current.pickAsBowler();
+      myMoveRef.current = n;
       setMyMove(n);
       socket.emit('play_move', { number: n });
     }, 600);
@@ -113,6 +121,7 @@ export default function GameScreen({
 
   function playMove(n: number) {
     if (myMove !== null) return;
+    myMoveRef.current = n;
     setMyMove(n);
     socket.emit('play_move', { number: n });
   }
