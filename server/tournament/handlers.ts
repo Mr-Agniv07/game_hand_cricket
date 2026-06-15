@@ -10,7 +10,7 @@ import type {
   LiveMatchScore,
   Mode,
 } from '@cric/types';
-import { makeRoomId, createRoom, publicState, cleanName, type Room } from '../game/room.ts';
+import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
 import type { SocketData } from '../game/types.ts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -19,6 +19,8 @@ export interface TournamentPlayerEntry {
   id: string;
   name: string;
   userId: string | null;
+  /** Stable per-browser id; lets guests (no userId) reconnect to the tournament. */
+  clientId?: string | null;
 }
 
 export interface InternalFixtureMatch {
@@ -333,10 +335,17 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       const tournament: Tournament = {
         id: tournamentId,
         code,
-        overs: Number(overs) || 2,
+        overs: clampCount(overs, 2),
         mode: mode || 'overs',
-        wickets: Number(wickets) || 2,
-        players: [{ id: socket.id, name: cleanName(playerName), userId: socket.data.userId }],
+        wickets: clampCount(wickets, 2),
+        players: [
+          {
+            id: socket.id,
+            name: cleanName(playerName),
+            userId: socket.data.userId,
+            clientId: socket.data.clientId,
+          },
+        ],
         phase: 'waiting',
         fixtures: [],
         currentMatchIndex: 0,
@@ -361,10 +370,11 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       // phase guard below — otherwise an in-progress tournament rejects the
       // rejoin and the player's dead socket id is never remapped, so their
       // upcoming fixtures forfeit when startTournamentMatch can't find them.
-      const reconnIdx =
-        socket.data.userId !== null
-          ? tournament.players.findIndex((p) => p.userId === socket.data.userId)
-          : -1;
+      const reconnIdx = tournament.players.findIndex(
+        (p) =>
+          (socket.data.userId !== null && p.userId === socket.data.userId) ||
+          (socket.data.clientId !== null && p.clientId === socket.data.clientId)
+      );
 
       if (reconnIdx !== -1) {
         remapTournamentSocketId(tournament, tournament.players[reconnIdx].id, socket.id);
@@ -383,7 +393,12 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       if (tournament.players.length >= 4)
         return socket.emit('error', { message: 'Tournament is full.' });
 
-      tournament.players.push({ id: socket.id, name: cleanName(playerName), userId: socket.data.userId });
+      tournament.players.push({
+        id: socket.id,
+        name: cleanName(playerName),
+        userId: socket.data.userId,
+        clientId: socket.data.clientId,
+      });
       socket.join('t:' + tournament.id);
       socket.data.tournamentId = tournament.id;
 

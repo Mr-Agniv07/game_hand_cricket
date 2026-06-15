@@ -78,13 +78,13 @@ export default function App() {
         socket.emit('rejoin_room', { roomId: roomIdRef.current });
       }
       // Re-sync tournament identity after a reconnect even when no match room is
-      // active (between matches / spectating). Registered-user only: the server
-      // remaps by userId, so guests would just get a spurious "already started"
-      // error. join_tournament's reconnection path handles the remap.
-      if (tournamentCodeRef.current && userRef.current) {
+      // active (between matches / spectating). The server remaps by userId or
+      // the stable clientId, so guests recover too. playerName is unused on the
+      // reconnection path (it only matters for a fresh join).
+      if (tournamentCodeRef.current) {
         socket.emit('join_tournament', {
           code: tournamentCodeRef.current,
-          playerName: userRef.current.username,
+          playerName: userRef.current?.username ?? '',
         });
       }
     });
