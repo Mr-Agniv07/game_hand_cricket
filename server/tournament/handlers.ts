@@ -287,8 +287,11 @@ export function startTournamentMatch(
 
   const roomId = makeRoomId(rooms);
   const room = createRoom(tournament.overs, tournament.mode, tournament.wickets);
-  room.players.push({ id: p1.id, name: p1.name, userId: p1.userId });
-  room.players.push({ id: p2.id, name: p2.name, userId: p2.userId });
+  // Carry clientId through so a guest (no userId) whose socket id changes on a
+  // blip can still be matched by rejoin_room; without it their reconnect fails
+  // and the grace timer forfeits the match.
+  room.players.push({ id: p1.id, name: p1.name, userId: p1.userId, clientId: p1.clientId });
+  room.players.push({ id: p2.id, name: p2.name, userId: p2.userId, clientId: p2.clientId });
   room.tournamentId = tournament.code;
   room.tournamentMatchIdx = matchIndex;
   rooms.set(roomId, room);
