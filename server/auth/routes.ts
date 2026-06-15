@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { findByUsername, findById, createUser, getPlayerProfile } from '../db.ts';
 import { hashPassword, verifyPassword, createToken, verifyToken } from './auth.ts';
+import { isCurrentOpponent } from '../game/handlers.ts';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -55,5 +56,11 @@ authRouter.get('/api/me', (req: Request, res: Response) => {
 });
 
 authRouter.get('/api/ml/:userId', requireAuth, (req: Request, res: Response) => {
-  res.json(getPlayerProfile(String(req.params.userId)));
+  const viewerId = (req as AuthRequest).userId!;
+  const targetId = String(req.params.userId);
+  // Only your current opponent's model is fetchable — otherwise any logged-in
+  // user could scrape everyone's move tendencies and pre-scout them.
+  if (!isCurrentOpponent(viewerId, targetId))
+    return res.status(403).json({ error: 'Not your current opponent.' });
+  res.json(getPlayerProfile(targetId));
 });

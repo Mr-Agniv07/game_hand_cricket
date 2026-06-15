@@ -53,6 +53,20 @@ export const onlineUsers = new Map<string, string>(); // userId → socketId
 const pendingChallenges = new Map<string, PendingChallenge>();
 const rooms = new Map<string, Room>();
 
+/**
+ * Whether `targetUserId` is currently `viewerUserId`'s opponent in some live
+ * room. Gates the /api/ml endpoint: a player may pull their current opponent's
+ * move model (for autoplay), but not scrape arbitrary users' behaviour.
+ */
+export function isCurrentOpponent(viewerUserId: string, targetUserId: string): boolean {
+  if (!viewerUserId || !targetUserId || viewerUserId === targetUserId) return false;
+  for (const room of rooms.values()) {
+    const ids = room.players.map((p) => p.userId);
+    if (ids.includes(viewerUserId) && ids.includes(targetUserId)) return true;
+  }
+  return false;
+}
+
 export function registerGameHandlers(io: GameServer): void {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
@@ -193,8 +207,8 @@ export function registerGameHandlers(io: GameServer): void {
       const batIdx = room.batsmanIdx!;
       const bowlIdx = room.bowlerIdx!;
       trainPlayerProfiles([
-        { userId: room.players[batIdx].userId, move: batMove, lastMove: room.mlLastMoves[batIdx] },
-        { userId: room.players[bowlIdx].userId, move: bowlMove, lastMove: room.mlLastMoves[bowlIdx] },
+        { userId: room.players[batIdx].userId, role: 'bat', move: batMove, lastMove: room.mlLastMoves[batIdx] },
+        { userId: room.players[bowlIdx].userId, role: 'bowl', move: bowlMove, lastMove: room.mlLastMoves[bowlIdx] },
       ]);
       room.mlLastMoves[batIdx] = batMove;
       room.mlLastMoves[bowlIdx] = bowlMove;

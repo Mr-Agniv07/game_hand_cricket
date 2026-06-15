@@ -7,9 +7,34 @@ import type { UserStats, MatchHistoryEntry, PublicUser, Friend } from '@cric/typ
 const __dir = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = join(__dir, 'db.json');
 
-export interface MLModelData {
+/** One role's move model: Laplace-smoothed frequency + first-order transitions. */
+export interface RoleModelData {
   freq: number[];
   transitions: number[][];
+}
+
+/**
+ * A player's persisted move model, split by the role the moves were made in.
+ * Batting picks and bowling picks are different distributions, so blending
+ * them (the old single-model shape) poisoned predictions — keep them apart.
+ */
+export interface MLModelData {
+  bat: RoleModelData;
+  bowl: RoleModelData;
+}
+
+const ML_DECAY = 0.95;
+
+function emptyRoleModel(): RoleModelData {
+  return {
+    freq: [0, 1, 1, 1, 1, 1, 1],
+    transitions: Array.from({ length: 7 }, () => [0, 1, 1, 1, 1, 1, 1]),
+  };
+}
+
+/** True for the current {bat,bowl} shape; false for a legacy blended profile. */
+function isRoleSplitProfile(p: unknown): p is MLModelData {
+  return !!p && typeof p === 'object' && 'bat' in p && 'bowl' in p;
 }
 
 /** Full user record as persisted in db.json (never sent to clients verbatim). */
@@ -215,28 +240,40 @@ export function getMatchHistory(userId: string): MatchHistoryEntry[] {
 // name. Guests (no user id) are neither trained nor served.
 export function getPlayerProfile(userId: string): MLModelData | null {
   const db = load();
-  return db.mlProfiles?.[userId] ?? null;
+  const profile = db.mlProfiles?.[userId];
+  // Only serve the current role-split shape; a legacy blended record reads as
+  // "no profile" so the client falls back to a cold model rather than choking.
+  return isRoleSplitProfile(profile) ? profile : null;
 }
 
 export function trainPlayerProfiles(
-  updates: Array<{ userId: string | null; move: number; lastMove: number | undefined }>
+  updates: Array<{
+    userId: string | null;
+    role: 'bat' | 'bowl';
+    move: number;
+    lastMove: number | undefined;
+  }>
 ): void {
   const db = load();
   if (!db.mlProfiles) db.mlProfiles = {};
-  for (const { userId, move, lastMove } of updates) {
+  for (const { userId, role, move, lastMove } of updates) {
     if (!userId) continue; // guests have no durable identity to train
-    const key = userId;
-    if (!db.mlProfiles[key]) {
-      db.mlProfiles[key] = {
-        freq: [0, 1, 1, 1, 1, 1, 1],
-        transitions: Array.from({ length: 7 }, () => [0, 1, 1, 1, 1, 1, 1]),
-      };
+    // Ensure the new role-split shape; legacy blended profiles are dropped
+    // (their data conflated batting and bowling, so it isn't worth migrating).
+    let profile = db.mlProfiles[userId];
+    if (!isRoleSplitProfile(profile)) {
+      profile = { bat: emptyRoleModel(), bowl: emptyRoleModel() };
+      db.mlProfiles[userId] = profile;
     }
-    const model = db.mlProfiles[key];
-    for (let i = 1; i <= 6; i++) model.freq[i] *= 0.95;
+    const model = profile[role];
+    // Decay the whole model each observation so the served profile matches the
+    // client's online decay rule exactly (recent moves outweigh old).
+    for (let i = 1; i <= 6; i++) {
+      model.freq[i] *= ML_DECAY;
+      for (let j = 1; j <= 6; j++) model.transitions[i][j] *= ML_DECAY;
+    }
     model.freq[move] = (model.freq[move] ?? 0) + 1;
     if (lastMove !== undefined) {
-      for (let i = 1; i <= 6; i++) model.transitions[lastMove][i] *= 0.95;
       model.transitions[lastMove][move] = (model.transitions[lastMove][move] ?? 0) + 1;
     }
   }
