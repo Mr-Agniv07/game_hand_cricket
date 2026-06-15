@@ -426,6 +426,33 @@ export function registerGameHandlers(io: GameServer): void {
       socket.emit('state', publicState(room, roomId));
     });
 
+    socket.on('leave_room', () => {
+      const roomId = socket.data.roomId;
+      socket.data.roomId = undefined;
+      if (!roomId) return;
+      const room = rooms.get(roomId);
+      if (!room) return;
+      socket.leave(roomId);
+
+      // Cancel any pending disconnect-grace timer for this socket so it can't
+      // fire against a room we've already left.
+      if (room._graceTimers?.[socket.id]) {
+        clearTimeout(room._graceTimers[socket.id]);
+        delete room._graceTimers[socket.id];
+      }
+
+      // Tournament match rooms are owned by the tournament scheduler (it deletes
+      // them on advance); don't tear those down here.
+      if (room.tournamentId) return;
+
+      // Drop the player and reap the room once empty. Without this, a normal
+      // game that ends with both players clicking "Back to Lobby" would leak its
+      // Room in the in-memory map until their sockets eventually disconnect.
+      const idx = room.players.findIndex((p) => p.id === socket.id);
+      if (idx !== -1) room.players.splice(idx, 1);
+      if (room.players.length === 0) rooms.delete(roomId);
+    });
+
     socket.on('disconnect', () => {
       // Only clear the online entry if it still points at THIS socket. A fast
       // reconnect assigns a new socket id and re-sets the entry before the old

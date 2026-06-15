@@ -262,6 +262,9 @@ export default function App() {
   }
 
   function resetToLobby() {
+    // Tell the server we're done with this room so a finished game doesn't
+    // linger in its in-memory map (no-op server-side for tournament rooms).
+    if (roomIdRef.current) socket.emit('leave_room');
     resetState();
     setPhase('lobby');
     const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
