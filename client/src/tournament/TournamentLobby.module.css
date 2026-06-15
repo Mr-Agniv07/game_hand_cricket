@@ -574,3 +574,26 @@
   color: var(--danger);
 }
 
+/* ─── Mobile ─── */
+@media (max-width: 480px) {
+  .t-lobby {
+    padding: 1.1rem 0.85rem 1.5rem;
+  }
+  .t-code-block {
+    padding: 1.1rem 1rem;
+  }
+  /* Let the code + copy button stack instead of overflowing the card. */
+  .t-code-row {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .t-code {
+    font-size: 1.8rem;
+    letter-spacing: 0.35rem;
+    padding: 0.4rem 0.9rem;
+  }
+  .t-spec-runs {
+    font-size: 2rem;
+  }
+}
+

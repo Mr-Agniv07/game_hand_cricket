@@ -454,3 +454,97 @@ body {
   border-color: var(--muted);
   color: var(--text);
 }
+
+/* ─── Mobile responsiveness ─── */
+
+/* Never allow the layout to push past the viewport width on small screens. */
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* Comfortable touch targets on coarse pointers (phones/tablets). */
+@media (pointer: coarse) {
+  .num-btn,
+  .toss-btn,
+  .choice-btn,
+  .btn-primary,
+  .btn-rematch,
+  .cn-accept,
+  .cn-decline {
+    min-height: 48px;
+  }
+  .logout-btn,
+  .friends-toggle-btn,
+  .autoplay-btn {
+    min-height: 40px;
+  }
+}
+
+/* Phones: tighten the header so its row never overflows, and let the title
+   truncate instead of shoving the user controls off-screen. */
+@media (max-width: 540px) {
+  .app-header {
+    padding: 0.7rem 0.85rem;
+    gap: 0.45rem;
+  }
+  .app-header h1 {
+    font-size: 1.05rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .logo {
+    font-size: 1.25rem;
+  }
+  .header-user {
+    gap: 0.4rem;
+  }
+  /* Icon-only Friends button on phones — the label is redundant with the icon. */
+  .friends-label {
+    display: none;
+  }
+  .friends-toggle-btn,
+  .autoplay-btn {
+    padding: 0.4rem 0.6rem;
+  }
+  .user-chip-name {
+    max-width: 64px;
+  }
+  .room-badge {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.5rem;
+  }
+  /* The shared tab row (Create/Join/Tournament/History) has long labels — drop
+     the wide horizontal padding so all four fit without clipping. */
+  .tab {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* Reduce card/screen padding so content isn't cramped on narrow phones. */
+@media (max-width: 420px) {
+  .card,
+  .waiting-card,
+  .challenge-notify {
+    padding: 1.35rem 1.1rem;
+  }
+  .center-screen {
+    padding: 1rem;
+  }
+  .room-code {
+    font-size: 2rem;
+    letter-spacing: 0.3rem;
+    padding: 0.5rem 1rem;
+  }
+  /* Hide the username text on the tightest screens — the avatar still IDs the
+     user, and this frees room for the title and action buttons. */
+  .user-chip-name {
+    display: none;
+  }
+  .user-chip {
+    padding: 0.18rem;
+  }
+}
