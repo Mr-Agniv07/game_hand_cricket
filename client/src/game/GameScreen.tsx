@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AppSocket } from '../socket';
 import './GameScreen.css';
-import type { GameState, InningsStartPayload, BallPlayedPayload } from '@cric/types';
+import type { GameState, BallPlayedPayload } from '@cric/types';
 import { HandCricketML } from './autoplayML';
 import { apiGet } from '../api';
 import type { MLModelData, MLStats } from './autoplayML';
@@ -13,7 +13,6 @@ interface GameScreenProps {
   socket: AppSocket;
   myPlayerIdx: number | null;
   gameState: GameState;
-  inningsInfo: InningsStartPayload;
   lastBall: BallPlayedPayload | null;
   isAutoPlay: boolean;
   userToken: string | null;

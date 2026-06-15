@@ -419,7 +419,6 @@ export default function App() {
           socket={socket}
           myPlayerIdx={myPlayerIdx}
           gameState={gameState}
-          inningsInfo={inningsInfo}
           lastBall={lastBall}
           isAutoPlay={isAutoPlay}
           userToken={user?.token ?? null}
