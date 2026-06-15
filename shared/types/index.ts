@@ -134,6 +134,8 @@ export interface InningsEndPayload {
 
 export interface GameOverPayload {
   winnerId: string | null;
+  /** Winner's index in `players`/`scores`, or null on a tie. Stable across reconnects. */
+  winnerIdx: number | null;
   winnerName: string | null;
   resultText: string;
   scores: number[];

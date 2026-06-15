@@ -441,7 +441,7 @@ export default function App() {
       {phase === 'result' && gameOver && (
         <ResultScreen
           gameOver={gameOver}
-          myId={myId}
+          myPlayerIdx={myPlayerIdx}
           onPlayAgain={resetToLobby}
           onRematch={handleRematch}
           rematchState={rematchState}

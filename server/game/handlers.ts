@@ -595,6 +595,7 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
     room.phase = 'result';
     io.to(roomId).emit('game_over', {
       winnerId,
+      winnerIdx: winnerId === null ? null : room.players.findIndex((p) => p.id === winnerId),
       winnerName,
       resultText,
       scores: playerScores,

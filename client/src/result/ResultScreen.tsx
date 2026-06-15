@@ -4,7 +4,7 @@ import styles from './ResultScreen.module.css';
 
 interface ResultScreenProps {
   gameOver: GameOverPayload;
-  myId: string | null;
+  myPlayerIdx: number | null;
   onPlayAgain: () => void;
   onRematch: () => void;
   rematchState: RematchState;
@@ -14,16 +14,17 @@ interface ResultScreenProps {
 
 export default function ResultScreen({
   gameOver,
-  myId,
+  myPlayerIdx,
   onPlayAgain,
   onRematch,
   rematchState,
   isTournamentMatch = false,
   onBackToTournament,
 }: ResultScreenProps) {
-  const { winnerId, resultText, scores, players } = gameOver;
-  const iWon = winnerId === myId;
-  const tied = winnerId === null;
+  const { winnerIdx, resultText, scores, players } = gameOver;
+  // Compare by player index (stable across reconnects), not socket id.
+  const tied = winnerIdx === null;
+  const iWon = winnerIdx !== null && winnerIdx === myPlayerIdx;
 
   return (
     <div className="center-screen">
