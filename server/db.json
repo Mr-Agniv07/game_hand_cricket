@@ -1,0 +1,164 @@
+{
+  "users": [
+    {
+      "id": "4613b1da-2cab-47d7-8bc8-ac9f68e9c464",
+      "username": "agniv",
+      "passwordHash": "529300f76c0a862a4841c30b95cf8a84:7d0596b0406da0069ba22b342dc06889c514fc3775bff383f2182c3ed44d4418",
+      "token": "d5e805ff70ee3921fad152de33aff904f13e0600be17dcd40416086ec29a398d",
+      "stats": {
+        "gamesPlayed": 7,
+        "wins": 5,
+        "losses": 2,
+        "ties": 0,
+        "runsScored": 336,
+        "highScore": 135
+      },
+      "matchHistory": [
+        {
+          "opponent": "shreyansh",
+          "result": "loss",
+          "myScore": 20,
+          "oppScore": 21,
+          "mode": "wickets",
+          "count": 2,
+          "date": "2026-06-14T20:08:01.212Z"
+        },
+        {
+          "opponent": "shreyansh",
+          "result": "win",
+          "myScore": 23,
+          "oppScore": 22,
+          "mode": "wickets",
+          "count": 2,
+          "date": "2026-06-14T20:10:06.322Z"
+        },
+        {
+          "opponent": "shreyansh",
+          "result": "win",
+          "myScore": 23,
+          "oppScore": 7,
+          "mode": "wickets",
+          "count": 2,
+          "date": "2026-06-14T20:11:53.863Z"
+        },
+        {
+          "opponent": "shreyansh",
+          "result": "loss",
+          "myScore": 3,
+          "oppScore": 35,
+          "mode": "wickets",
+          "count": 1,
+          "date": "2026-06-14T20:14:34.002Z"
+        },
+        {
+          "opponent": "shreyansh",
+          "result": "win",
+          "myScore": 36,
+          "oppScore": 15,
+          "mode": "overs",
+          "count": 1,
+          "date": "2026-06-14T20:20:20.130Z"
+        },
+        {
+          "opponent": "shreyansh",
+          "result": "win",
+          "myScore": 135,
+          "oppScore": 133,
+          "mode": "wickets",
+          "count": 10,
+          "date": "2026-06-14T20:57:14.887Z"
+        },
+        {
+          "opponent": "shreyansh",
+          "result": "win",
+          "myScore": 96,
+          "oppScore": 95,
+          "mode": "overs",
+          "count": 10,
+          "date": "2026-06-14T21:01:48.332Z"
+        }
+      ],
+      "createdAt": "2026-06-14T19:35:23.507Z"
+    },
+    {
+      "id": "552cf2ea-4deb-403c-b94c-d6be3c489ad2",
+      "username": "shreyansh",
+      "passwordHash": "f0faa12e33bf2df421bb7263315c4fde:78a6c33e2853347ae38632ecfa861c570480a52627210de588bcb1453498cb43",
+      "token": "e947a223d353b3b32aff9766095a11b1dc2deb55a831cf3dee5b733245a60fc1",
+      "stats": {
+        "gamesPlayed": 7,
+        "wins": 2,
+        "losses": 5,
+        "ties": 0,
+        "runsScored": 328,
+        "highScore": 133
+      },
+      "matchHistory": [
+        {
+          "opponent": "agniv",
+          "result": "win",
+          "myScore": 21,
+          "oppScore": 20,
+          "mode": "wickets",
+          "count": 2,
+          "date": "2026-06-14T20:08:01.212Z"
+        },
+        {
+          "opponent": "agniv",
+          "result": "loss",
+          "myScore": 22,
+          "oppScore": 23,
+          "mode": "wickets",
+          "count": 2,
+          "date": "2026-06-14T20:10:06.322Z"
+        },
+        {
+          "opponent": "agniv",
+          "result": "loss",
+          "myScore": 7,
+          "oppScore": 23,
+          "mode": "wickets",
+          "count": 2,
+          "date": "2026-06-14T20:11:53.863Z"
+        },
+        {
+          "opponent": "agniv",
+          "result": "win",
+          "myScore": 35,
+          "oppScore": 3,
+          "mode": "wickets",
+          "count": 1,
+          "date": "2026-06-14T20:14:34.002Z"
+        },
+        {
+          "opponent": "agniv",
+          "result": "loss",
+          "myScore": 15,
+          "oppScore": 36,
+          "mode": "overs",
+          "count": 1,
+          "date": "2026-06-14T20:20:20.130Z"
+        },
+        {
+          "opponent": "agniv",
+          "result": "loss",
+          "myScore": 133,
+          "oppScore": 135,
+          "mode": "wickets",
+          "count": 10,
+          "date": "2026-06-14T20:57:14.887Z"
+        },
+        {
+          "opponent": "agniv",
+          "result": "loss",
+          "myScore": 95,
+          "oppScore": 96,
+          "mode": "overs",
+          "count": 10,
+          "date": "2026-06-14T21:01:48.332Z"
+        }
+      ],
+      "createdAt": "2026-06-14T19:42:24.860Z"
+    }
+  ]
+}
