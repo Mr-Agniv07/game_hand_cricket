@@ -11,10 +11,18 @@ export function hashPassword(password: string): string {
 }
 
 export function verifyPassword(password: string, hash: string): boolean {
-  const [salt, storedKey] = hash.split(':');
-  const key = scryptSync(password, salt, KEY_LEN);
-  const stored = Buffer.from(storedKey, 'hex');
-  return timingSafeEqual(key, stored);
+  try {
+    const [salt, storedKey] = hash.split(':');
+    if (!salt || !storedKey) return false;
+    const key = scryptSync(password, salt, KEY_LEN);
+    const stored = Buffer.from(storedKey, 'hex');
+    // timingSafeEqual throws on length mismatch; bail cleanly on a corrupt hash
+    // so a bad record yields a 401, not an unhandled 500.
+    if (stored.length !== key.length) return false;
+    return timingSafeEqual(key, stored);
+  } catch {
+    return false;
+  }
 }
 
 // In-memory cache for fast lookup; db.json is the source of truth

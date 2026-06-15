@@ -43,6 +43,11 @@ export function makeRoomId(used?: { has(id: string): boolean }): string {
   return id;
 }
 
+/** Normalise a client-supplied display name: trim, cap length, fall back. */
+export function cleanName(name: unknown): string {
+  return (typeof name === 'string' ? name.trim() : '').slice(0, 20) || 'Player';
+}
+
 export function freshInnings(): RoomInnings {
   return { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] };
 }

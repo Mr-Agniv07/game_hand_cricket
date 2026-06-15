@@ -10,7 +10,7 @@ import type {
   LiveMatchScore,
   Mode,
 } from '@cric/types';
-import { makeRoomId, createRoom, publicState, type Room } from '../game/room.ts';
+import { makeRoomId, createRoom, publicState, cleanName, type Room } from '../game/room.ts';
 import type { SocketData } from '../game/types.ts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -319,7 +319,7 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         overs: Number(overs) || 2,
         mode: mode || 'overs',
         wickets: Number(wickets) || 2,
-        players: [{ id: socket.id, name: playerName, userId: socket.data.userId }],
+        players: [{ id: socket.id, name: cleanName(playerName), userId: socket.data.userId }],
         phase: 'waiting',
         fixtures: [],
         currentMatchIndex: 0,
@@ -369,7 +369,7 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       if (tournament.players.length >= 4)
         return socket.emit('error', { message: 'Tournament is full.' });
 
-      tournament.players.push({ id: socket.id, name: playerName, userId: socket.data.userId });
+      tournament.players.push({ id: socket.id, name: cleanName(playerName), userId: socket.data.userId });
       socket.join('t:' + tournament.id);
       socket.data.tournamentId = tournament.id;
 
