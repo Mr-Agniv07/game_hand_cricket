@@ -95,6 +95,10 @@ export default function App() {
   const gameStateRef = useRef<GameState | null>(null);
   const myPlayerIdxRef = useRef<number | null>(null);
   const trainSeqRef = useRef(0);
+  // Whether we've actually entered a room this session. Guards the persist effect
+  // from clearing the saved room on the INITIAL mount (when roomId starts null) —
+  // doing so would wipe localStorage before refresh-recovery gets to read it.
+  const hasEnteredRoom = useRef(false);
 
   useEffect(() => {
     roomIdRef.current = roomId;
@@ -105,7 +109,11 @@ export default function App() {
     if (roomId) {
       console.log('[recover] saved active room', roomId, 'idx', myPlayerIdx);
       saveActiveRoom({ roomId, myPlayerIdx, isTournamentMatch });
-    } else {
+      hasEnteredRoom.current = true;
+    } else if (hasEnteredRoom.current) {
+      // Only clear after we've genuinely been in (and left) a room — never on the
+      // first mount, or we'd erase the room a refresh is trying to recover.
+      console.log('[recover] cleared active room');
       clearActiveRoom();
     }
   }, [roomId, myPlayerIdx, isTournamentMatch]);
