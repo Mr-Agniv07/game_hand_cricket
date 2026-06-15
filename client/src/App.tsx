@@ -69,10 +69,12 @@ export default function App() {
       }
     });
 
-    socket.on('connect_error', () => {
-      localStorage.removeItem(STORED_KEY);
-      setUser(null);
-      setPhase('auth');
+    // connect_error only ever signals a transport/network failure — the server
+    // middleware never rejects a connection over a bad token (it just leaves
+    // userId null). So leave the session intact and let socket.io retry;
+    // a genuinely invalid token is handled by the /api/me 401 path below.
+    socket.on('connect_error', (err) => {
+      console.warn('socket connect_error:', err.message);
     });
 
     socket.on('room_created', ({ roomId }) => {
