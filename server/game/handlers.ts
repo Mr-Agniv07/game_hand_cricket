@@ -187,7 +187,21 @@ export function registerGameHandlers(io: GameServer): void {
       room.mlLastMoves[bowlIdx] = bowlMove;
 
       const inn = room.innings[room.currentInnings];
+
+      // Defensive: if the previous ball already completed the overs but endInnings
+      // somehow wasn't triggered, catch it here before the next ball lands.
+      if (room.mode === 'overs' && inn.balls >= totalBalls(room)) {
+        console.warn(
+          `[play_move] stale ball blocked — inn.balls=${inn.balls} >= total=${totalBalls(room)} (${room.overs} overs)`
+        );
+        endInnings(io, roomId, room, 'overs_complete');
+        return;
+      }
+
       inn.balls += 1;
+      console.log(
+        `[play_move] ball ${inn.balls}/${totalBalls(room)} | mode=${room.mode} overs=${room.overs} innings=${room.currentInnings}`
+      );
 
       if (batMove === bowlMove) {
         inn.wicketsLost += 1;
