@@ -1,21 +1,14 @@
 import { randomUUID } from 'crypto';
 import type { Server, Socket, DefaultEventsMap } from 'socket.io';
-import type {
-  ServerToClientEvents,
-  ClientToServerEvents,
-  InningsEndReason,
-  RoomCreatedPayload,
-} from '@cric/types';
-import { findById, updateGameStats, trainPlayerProfiles } from '../db.ts';
+import type { ServerToClientEvents, ClientToServerEvents, RoomCreatedPayload } from '@cric/types';
+import { findById } from '../db.ts';
 import { verifyTokenGetUserId } from '../auth/auth.ts';
 import {
   type Room,
   makeRoomId,
   cleanName,
   clampCount,
-  freshInnings,
   createRoom,
-  totalBalls,
   batsmanId,
   bowlerId,
   publicState,
@@ -25,13 +18,11 @@ import type { SocketData } from './types.ts';
 import {
   tournaments,
   publicTournamentState,
-  pushLiveScore,
-  finalizeTournament,
-  startTournamentMatch,
   forfeitTournamentMatch,
   remapTournamentSocketId,
   registerTournamentHandlers,
 } from '../tournament/handlers.ts';
+import { resolveBall, endInnings, forfeitGame, startRematch } from './logic.ts';
 
 export type { SocketData };
 
@@ -68,12 +59,7 @@ export function registerGameHandlers(io: GameServer): void {
       const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
       const room = createRoom(clampCount(overs, 1), clampCount(wickets, 1));
-      room.players.push({
-        id: socket.id,
-        name,
-        userId: socket.data.userId,
-        clientId: socket.data.clientId,
-      });
+      room.players.push({ id: socket.id, name, userId: socket.data.userId, clientId: socket.data.clientId });
       rooms.set(roomId, room);
       socket.join(roomId);
       socket.data.roomId = roomId;
@@ -86,16 +72,10 @@ export function registerGameHandlers(io: GameServer): void {
       const room = rooms.get(roomId);
       if (!room) return socket.emit('error', { message: 'Room not found.' });
       if (room.players.length >= 2) return socket.emit('error', { message: 'Room is full.' });
-      if (room.phase !== 'waiting')
-        return socket.emit('error', { message: 'Game already started.' });
+      if (room.phase !== 'waiting') return socket.emit('error', { message: 'Game already started.' });
 
       const name = cleanName(playerName);
-      room.players.push({
-        id: socket.id,
-        name,
-        userId: socket.data.userId,
-        clientId: socket.data.clientId,
-      });
+      room.players.push({ id: socket.id, name, userId: socket.data.userId, clientId: socket.data.clientId });
       socket.join(roomId);
       socket.data.roomId = roomId;
       socket.data.playerName = name;
@@ -105,10 +85,7 @@ export function registerGameHandlers(io: GameServer): void {
       room.phase = 'toss_call';
 
       io.to(roomId).emit('state', publicState(room, roomId));
-      io.to(roomId).emit('toss_start', {
-        callerId: room.tossCallerId,
-        callerName: room.players[callerIdx].name,
-      });
+      io.to(roomId).emit('toss_start', { callerId: room.tossCallerId, callerName: room.players[callerIdx].name });
     });
 
     socket.on('toss_call', ({ call }) => {
@@ -167,11 +144,7 @@ export function registerGameHandlers(io: GameServer): void {
 
       const playerIdx = room.players.findIndex((p) => p.id === socket.id);
       if (playerIdx === -1) return;
-
-      const isBatsman = playerIdx === room.batsmanIdx;
-      const isBowler = playerIdx === room.bowlerIdx;
-      if (!isBatsman && !isBowler) return;
-
+      if (playerIdx !== room.batsmanIdx && playerIdx !== room.bowlerIdx) return;
       if (room.pendingMoves[socket.id] !== undefined) return;
 
       room.pendingMoves[socket.id] = number;
@@ -182,112 +155,13 @@ export function registerGameHandlers(io: GameServer): void {
       if (batMove === undefined || bowlMove === undefined) return;
 
       room.pendingMoves = {};
-
-      const inn = room.innings[room.currentInnings];
-
-      // Defensive: if the previous ball already completed the overs but endInnings
-      // somehow wasn't triggered, catch it here before the next ball lands. Bail
-      // BEFORE training so a discarded (uncounted) ball can't pollute the models.
-      if (inn.balls >= totalBalls(room)) {
-        endInnings(io, roomId, room, 'overs_complete');
-        return;
-      }
-
-      // Train global player profiles on every ball of every game.
-      // Track each player's previous move by their array index, not name —
-      // two players sharing a display name would otherwise clobber each
-      // other's Markov "last move" within the room.
-      if (!room.mlLastMoves) room.mlLastMoves = {};
-      const batIdx = room.batsmanIdx!;
-      const bowlIdx = room.bowlerIdx!;
-      trainPlayerProfiles([
-        {
-          userId: room.players[batIdx].userId,
-          role: 'bat',
-          move: batMove,
-          lastMove: room.mlLastMoves[batIdx],
-        },
-        {
-          userId: room.players[bowlIdx].userId,
-          role: 'bowl',
-          move: bowlMove,
-          lastMove: room.mlLastMoves[bowlIdx],
-        },
-      ]);
-      room.mlLastMoves[batIdx] = batMove;
-      room.mlLastMoves[bowlIdx] = bowlMove;
-
-      inn.balls += 1;
-
-      if (batMove === bowlMove) {
-        inn.wicketsLost += 1;
-
-        io.to(roomId).emit('ball_played', {
-          batsmanMove: batMove,
-          bowlerMove: bowlMove,
-          scored: 0,
-          isOut: true,
-          wicketsLost: inn.wicketsLost,
-          score: inn.score,
-          balls: inn.balls,
-        });
-
-        // The innings ends as soon as EITHER limit is reached — the wicket
-        // quota falls or the over quota is bowled, whichever comes first.
-        const allOut = inn.wicketsLost >= room.wickets;
-        const ovComplete = inn.balls >= totalBalls(room);
-
-        if (allOut || ovComplete) {
-          inn.isOut = allOut;
-          endInnings(io, roomId, room, allOut ? 'all_out' : 'overs_complete');
-        } else {
-          io.to(roomId).emit('state', publicState(room, roomId));
-          pushLiveScore(io, room, {
-            scored: 0,
-            isOut: true,
-            batsmanMove: batMove,
-            bowlerMove: bowlMove,
-          });
-        }
-      } else {
-        inn.score += batMove;
-        io.to(roomId).emit('ball_played', {
-          batsmanMove: batMove,
-          bowlerMove: bowlMove,
-          scored: batMove,
-          isOut: false,
-          score: inn.score,
-          balls: inn.balls,
-        });
-        io.to(roomId).emit('state', publicState(room, roomId));
-
-        if (room.currentInnings === 1) {
-          const target = room.innings[0].score + 1;
-          if (inn.score >= target) {
-            endInnings(io, roomId, room, 'target_reached');
-            return;
-          }
-        }
-
-        if (inn.balls >= totalBalls(room)) {
-          endInnings(io, roomId, room, 'overs_complete');
-          return;
-        }
-
-        pushLiveScore(io, room, {
-          scored: batMove,
-          isOut: false,
-          batsmanMove: batMove,
-          bowlerMove: bowlMove,
-        });
-      }
+      resolveBall(io, roomId, room, rooms, batMove, bowlMove);
     });
 
     socket.on('declare', () => {
       const roomId = socket.data.roomId;
       const room = roomId ? rooms.get(roomId) : undefined;
       if (!room || !roomId) return;
-      // Only meaningful while a match is actually in progress with two players.
       if (room.phase === 'waiting' || room.phase === 'result') return;
       if (room.players.length < 2) return;
       const declarerIdx = room.players.findIndex((p) => p.id === socket.id);
@@ -297,14 +171,12 @@ export function registerGameHandlers(io: GameServer): void {
       // (same as a disconnect), so the standings stay consistent.
       if (room.tournamentId !== undefined && room.tournamentMatchIdx !== undefined) {
         const tournament = tournaments.get(room.tournamentId);
-        if (tournament) {
-          forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
-        }
+        if (tournament) forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
         rooms.delete(roomId);
         return;
       }
 
-      forfeitGame(io, roomId, room, declarerIdx);
+      forfeitGame(io, roomId, room, declarerIdx, rooms);
     });
 
     socket.on('send_challenge', ({ toUserId, overs, wickets }) => {
@@ -355,9 +227,7 @@ export function registerGameHandlers(io: GameServer): void {
 
       if (!accept) {
         const decliner = socket.data.userId ? findById(socket.data.userId) : null;
-        challengerSocket?.emit('challenge_declined', {
-          username: decliner?.username || 'Opponent',
-        });
+        challengerSocket?.emit('challenge_declined', { username: decliner?.username || 'Opponent' });
         return;
       }
 
@@ -372,28 +242,18 @@ export function registerGameHandlers(io: GameServer): void {
       const challenger = findById(ch.challengerId);
       const challenged = socket.data.userId ? findById(socket.data.userId) : null;
 
-      room.players.push({
-        id: ch.challengerSocketId,
-        name: challenger?.username || 'Player 1',
-        userId: ch.challengerId,
-      });
-      room.players.push({
-        id: socket.id,
-        name: challenged?.username || 'Player 2',
-        userId: socket.data.userId,
-      });
+      room.players.push({ id: ch.challengerSocketId, name: challenger?.username || 'Player 1', userId: ch.challengerId });
+      room.players.push({ id: socket.id, name: challenged?.username || 'Player 2', userId: socket.data.userId });
       rooms.set(roomId, room);
 
-      if (challengerSocket) {
-        challengerSocket.join(roomId);
-        challengerSocket.data.roomId = roomId;
-        challengerSocket.data.playerName = challenger?.username;
-      }
+      challengerSocket.join(roomId);
+      challengerSocket.data.roomId = roomId;
+      challengerSocket.data.playerName = challenger?.username;
       socket.join(roomId);
       socket.data.roomId = roomId;
       socket.data.playerName = challenged?.username;
 
-      challengerSocket?.emit('challenge_room_start', { roomId, myPlayerIdx: 0 });
+      challengerSocket.emit('challenge_room_start', { roomId, myPlayerIdx: 0 });
       socket.emit('challenge_room_start', { roomId, myPlayerIdx: 1 });
 
       const callerIdx = Math.floor(Math.random() * 2);
@@ -401,10 +261,7 @@ export function registerGameHandlers(io: GameServer): void {
       room.phase = 'toss_call';
 
       io.to(roomId).emit('state', publicState(room, roomId));
-      io.to(roomId).emit('toss_start', {
-        callerId: room.tossCallerId,
-        callerName: room.players[callerIdx].name,
-      });
+      io.to(roomId).emit('toss_start', { callerId: room.tossCallerId, callerName: room.players[callerIdx].name });
     });
 
     socket.on('request_rematch', () => {
@@ -421,9 +278,7 @@ export function registerGameHandlers(io: GameServer): void {
 
     socket.on('rejoin_room', ({ roomId }) => {
       const room = rooms.get(roomId);
-      console.log(
-        `[rejoin] room=${roomId} found=${!!room} uid=${socket.data.userId} cid=${socket.data.clientId}`
-      );
+      console.log(`[rejoin] room=${roomId} found=${!!room} uid=${socket.data.userId} cid=${socket.data.clientId}`);
       if (!room) return;
 
       // Match by registered userId when present, else by the stable per-browser
@@ -433,9 +288,7 @@ export function registerGameHandlers(io: GameServer): void {
           (p.userId !== null && p.userId === socket.data.userId) ||
           (p.clientId != null && p.clientId === socket.data.clientId)
       );
-      console.log(
-        `[rejoin] matchedIdx=${playerIdx} players=${JSON.stringify(room.players.map((p) => ({ uid: p.userId, cid: p.clientId })))}`
-      );
+      console.log(`[rejoin] matchedIdx=${playerIdx} players=${JSON.stringify(room.players.map((p) => ({ uid: p.userId, cid: p.clientId })))}`);
       if (playerIdx === -1) return;
 
       const oldId = room.players[playerIdx].id;
@@ -521,7 +374,7 @@ export function registerGameHandlers(io: GameServer): void {
       // which remaps the player's id and clears this timer.
       const GRACE_MS = 15000;
       console.log(`[disconnect] arming ${GRACE_MS}ms grace for ${socket.id} in ${roomId}`);
-      room._graceTimers = room._graceTimers || {};
+      room._graceTimers ??= {};
       room._graceTimers[socket.id] = setTimeout(() => {
         if (!rooms.has(roomId)) return;
         // Reclaimed while we waited? The player is back — don't tear down.
@@ -535,283 +388,11 @@ export function registerGameHandlers(io: GameServer): void {
         // on this fixture forever. ('result' means endInnings already advanced.)
         if (room.tournamentId && room.tournamentMatchIdx !== undefined && room.phase !== 'result') {
           const tournament = tournaments.get(room.tournamentId);
-          if (tournament) {
-            forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
-          }
+          if (tournament) forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
         }
       }, GRACE_MS);
     });
   });
 
   registerTournamentHandlers(io, rooms);
-}
-
-function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsEndReason): void {
-  const inn = room.innings[room.currentInnings];
-  io.to(roomId).emit('innings_end', {
-    inningsNumber: room.currentInnings + 1,
-    score: inn.score,
-    reason,
-  });
-
-  if (room.currentInnings === 0) {
-    room.currentInnings = 1;
-    const tmp = room.batsmanIdx;
-    room.batsmanIdx = room.bowlerIdx;
-    room.bowlerIdx = tmp;
-    room.pendingMoves = {};
-    room.mlLastMoves = {};
-
-    // Clear live score at innings break; spectators will see it again from the first ball of innings 2
-    if (room.tournamentId) {
-      const t = tournaments.get(room.tournamentId);
-      if (t) t.liveScore = null;
-    }
-
-    const target = room.innings[0].score + 1;
-    io.to(roomId).emit('innings_start', {
-      inningsNumber: 2,
-      batsmanName: room.players[room.batsmanIdx!].name,
-      bowlerName: room.players[room.bowlerIdx!].name,
-      target,
-    });
-    io.to(roomId).emit('state', publicState(room, roomId));
-  } else {
-    const inn1 = room.innings[0];
-    const inn2 = room.innings[1];
-    let winnerId: string | null;
-    let winnerName: string | null;
-    let resultText: string;
-
-    if (reason === 'target_reached') {
-      winnerId = room.players[room.batsmanIdx!].id;
-      winnerName = room.players[room.batsmanIdx!].name;
-      resultText = `${winnerName} won by chasing the target!`;
-    } else {
-      if (inn2.score >= inn1.score + 1) {
-        winnerId = room.players[room.batsmanIdx!].id;
-        winnerName = room.players[room.batsmanIdx!].name;
-        resultText = `${winnerName} won!`;
-      } else if (inn2.score === inn1.score) {
-        resultText = 'Match tied!';
-        winnerId = null;
-        winnerName = null;
-      } else {
-        // First innings team wins; roles were swapped, so bowlerIdx batted 1st
-        const firstBatsmanIdx = room.bowlerIdx!;
-        winnerId = room.players[firstBatsmanIdx].id;
-        winnerName = room.players[firstBatsmanIdx].name;
-        const margin = inn1.score - inn2.score;
-        resultText = `${winnerName} won by ${margin} run${margin !== 1 ? 's' : ''}!`;
-      }
-    }
-
-    // Align scores to player array order, not innings order (roles swapped at innings break)
-    const playerScores: [number, number] = [0, 0];
-    playerScores[room.bowlerIdx!] = inn1.score;
-    playerScores[room.batsmanIdx!] = inn2.score;
-
-    updateGameStats([
-      {
-        userId: room.players[0].userId,
-        win: winnerId === room.players[0].id,
-        tie: winnerId === null,
-        runsScored: playerScores[0],
-        opponentName: room.players[1].name,
-        opponentScore: playerScores[1],
-        overs: room.overs,
-        wickets: room.wickets,
-      },
-      {
-        userId: room.players[1].userId,
-        win: winnerId === room.players[1].id,
-        tie: winnerId === null,
-        runsScored: playerScores[1],
-        opponentName: room.players[0].name,
-        opponentScore: playerScores[0],
-        overs: room.overs,
-        wickets: room.wickets,
-      },
-    ]);
-
-    // Update tournament if this is a tournament match.
-    // At game over: room.bowlerIdx batted in innings 1; room.batsmanIdx batted in innings 2.
-    if (room.tournamentId !== undefined && room.tournamentMatchIdx !== undefined) {
-      const tournament = tournaments.get(room.tournamentId);
-      if (tournament) {
-        const matchIdx = room.tournamentMatchIdx;
-        const fixture = tournament.fixtures[matchIdx];
-        if (fixture) {
-          fixture.status = 'done';
-          const p1Id = tournament.players[fixture.player1Idx].id;
-          const inn1PlayerId = room.players[room.bowlerIdx!].id;
-
-          if (p1Id === inn1PlayerId) {
-            fixture.p1Score = inn1.score;
-            fixture.p2Score = inn2.score;
-          } else {
-            fixture.p1Score = inn2.score;
-            fixture.p2Score = inn1.score;
-          }
-          fixture.result = winnerId === null ? 'tie' : winnerId === p1Id ? 'p1' : 'p2';
-
-          const updateEntry = (
-            pid: string,
-            rs: number,
-            bf: number,
-            rc: number,
-            bb: number,
-            won: boolean,
-            tied: boolean
-          ) => {
-            const e = tournament.pointsTable[pid];
-            if (!e) return;
-            e.played += 1;
-            e.runsScored += rs;
-            e.ballsFaced += bf;
-            e.runsConceded += rc;
-            e.ballsBowled += bb;
-            if (tied) {
-              e.tied += 1;
-              e.points += 1;
-            } else if (won) {
-              e.won += 1;
-              e.points += 2;
-            } else {
-              e.lost += 1;
-            }
-          };
-
-          const tied = winnerId === null;
-          const inn1PId = room.players[room.bowlerIdx!].id;
-          const inn2PId = room.players[room.batsmanIdx!].id;
-          updateEntry(
-            inn1PId,
-            inn1.score,
-            inn1.balls,
-            inn2.score,
-            inn2.balls,
-            !tied && winnerId === inn1PId,
-            tied
-          );
-          updateEntry(
-            inn2PId,
-            inn2.score,
-            inn2.balls,
-            inn1.score,
-            inn1.balls,
-            !tied && winnerId === inn2PId,
-            tied
-          );
-
-          tournament.liveScore = null;
-          io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
-
-          setTimeout(() => {
-            // The match is over; drop its room so finished tournament rooms
-            // don't pile up in the map for the tournament's lifetime.
-            rooms.delete(roomId);
-            const next = matchIdx + 1;
-            if (next >= tournament.fixtures.length) finalizeTournament(io, tournament);
-            else startTournamentMatch(io, rooms, tournament, next);
-          }, 5000);
-        }
-      }
-    }
-
-    room.phase = 'result';
-    io.to(roomId).emit('game_over', {
-      winnerId,
-      winnerIdx: winnerId === null ? null : room.players.findIndex((p) => p.id === winnerId),
-      winnerName,
-      resultText,
-      scores: playerScores,
-      players: room.players.map((p) => p.name),
-    });
-    io.to(roomId).emit('state', publicState(room, roomId));
-  }
-}
-
-/**
- * A player declared (forfeited): the opponent wins immediately. Records the
- * result with best-effort scores (whatever has been scored so far) and emits
- * game_over to the *opponent only* — the declarer is returning to the lobby on
- * their own client, so they shouldn't be dropped onto the result screen.
- */
-function forfeitGame(io: GameServer, roomId: string, room: Room, declarerIdx: number): void {
-  const winnerIdx = declarerIdx === 0 ? 1 : 0;
-  const winner = room.players[winnerIdx];
-  const loser = room.players[declarerIdx];
-
-  // Align whatever has been scored so far to player-array order. Roles swap at
-  // the innings break, so innings[0] belongs to the current bowler in innings 2.
-  const playerScores: [number, number] = [0, 0];
-  if (room.batsmanIdx !== null && room.bowlerIdx !== null) {
-    if (room.currentInnings === 0) {
-      playerScores[room.batsmanIdx] = room.innings[0].score;
-    } else {
-      playerScores[room.bowlerIdx] = room.innings[0].score;
-      playerScores[room.batsmanIdx] = room.innings[1].score;
-    }
-  }
-
-  updateGameStats([
-    {
-      userId: room.players[0].userId,
-      win: winnerIdx === 0,
-      tie: false,
-      runsScored: playerScores[0],
-      opponentName: room.players[1].name,
-      opponentScore: playerScores[1],
-      overs: room.overs,
-      wickets: room.wickets,
-    },
-    {
-      userId: room.players[1].userId,
-      win: winnerIdx === 1,
-      tie: false,
-      runsScored: playerScores[1],
-      opponentName: room.players[0].name,
-      opponentScore: playerScores[0],
-      overs: room.overs,
-      wickets: room.wickets,
-    },
-  ]);
-
-  room.phase = 'result';
-  io.to(winner.id).emit('game_over', {
-    winnerId: winner.id,
-    winnerIdx,
-    winnerName: winner.name,
-    resultText: `${loser.name} declared — you win!`,
-    scores: playerScores,
-    players: room.players.map((p) => p.name),
-  });
-  rooms.delete(roomId);
-}
-
-function startRematch(io: GameServer, roomId: string, room: Room): void {
-  room.innings = [freshInnings(), freshInnings()];
-  room.currentInnings = 0;
-  room.pendingMoves = {};
-  room.tossCallerId = null;
-  room.tossCall = null;
-  room.tossWinnerId = null;
-  room.batsmanIdx = null;
-  room.bowlerIdx = null;
-  room.rematchRequests = null;
-  room.mlLastMoves = {};
-
-  room.players.forEach((p, idx) => {
-    io.to(p.id).emit('rematch_start', { roomId, myPlayerIdx: idx });
-  });
-
-  const callerIdx = Math.floor(Math.random() * 2);
-  room.tossCallerId = room.players[callerIdx].id;
-  room.phase = 'toss_call';
-  io.to(roomId).emit('state', publicState(room, roomId));
-  io.to(roomId).emit('toss_start', {
-    callerId: room.tossCallerId,
-    callerName: room.players[callerIdx].name,
-  });
 }
