@@ -2,6 +2,3 @@ node_modules/
 dist/
 .env
 .claude/
-
-# Local game DB (user accounts/stats) — never commit
-server/db.json
