@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { AppSocket } from '../socket';
 import styles from './TossScreen.module.css';
-import type { TossStartPayload, TossResultPayload, TossCall } from '@cric/types';
+import type { GameState, TossStartPayload, TossResultPayload, TossCall } from '@cric/types';
 
 interface TossScreenProps {
   socket: AppSocket;
   myId: string | null;
+  gameState: GameState;
   tossInfo: TossStartPayload;
   tossResult: TossResultPayload | null;
   isAutoPlay: boolean;
@@ -14,12 +15,17 @@ interface TossScreenProps {
 export default function TossScreen({
   socket,
   myId,
+  gameState,
   tossInfo,
   tossResult,
   isAutoPlay,
 }: TossScreenProps) {
   const [flipping, setFlipping] = useState(false);
-  const isCaller = myId === tossInfo?.callerId;
+  // Derive identity from authoritative state, not the one-shot toss_start
+  // payload: a reconnect changes our socket.id, and the server remaps
+  // gameState.tossCallerId/tossWinnerId but does not re-emit toss_start.
+  const isCaller = myId === gameState.tossCallerId;
+  const iWonToss = myId === gameState.tossWinnerId;
 
   function handleCall(call: TossCall) {
     setFlipping(true);
@@ -84,9 +90,7 @@ export default function TossScreen({
               {tossResult.result === 'heads' ? '🟡 HEADS' : '⚪ TAILS'}
             </p>
             <p className={styles['toss-winner']}>
-              {tossResult.winnerId === myId
-                ? '🎉 You won the toss!'
-                : `${tossResult.winnerName} won the toss!`}
+              {iWonToss ? '🎉 You won the toss!' : `${tossResult.winnerName} won the toss!`}
             </p>
             <p className={styles['toss-sub']}>Waiting for toss winner to choose…</p>
           </div>

@@ -412,10 +412,11 @@ export default function App() {
         </div>
       )}
 
-      {phase === 'toss_call' && tossInfo && (
+      {phase === 'toss_call' && tossInfo && gameState && (
         <TossScreen
           socket={socket}
           myId={myId}
+          gameState={gameState}
           tossInfo={tossInfo}
           tossResult={tossResult}
           isAutoPlay={isAutoPlay}
