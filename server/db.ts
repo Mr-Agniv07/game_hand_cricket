@@ -32,10 +32,6 @@ function emptyRoleModel(): RoleModelData {
   };
 }
 
-/** True for the current {bat,bowl} shape; false for a legacy blended profile. */
-function isRoleSplitProfile(p: unknown): p is MLModelData {
-  return !!p && typeof p === 'object' && 'bat' in p && 'bowl' in p;
-}
 
 /** Full user record as persisted in db.json (never sent to clients verbatim). */
 export interface DbUser {
@@ -241,9 +237,7 @@ export function getMatchHistory(userId: string): MatchHistoryEntry[] {
 export function getPlayerProfile(userId: string): MLModelData | null {
   const db = load();
   const profile = db.mlProfiles?.[userId];
-  // Only serve the current role-split shape; a legacy blended record reads as
-  // "no profile" so the client falls back to a cold model rather than choking.
-  return isRoleSplitProfile(profile) ? profile : null;
+  return (profile as MLModelData) ?? null;
 }
 
 export function trainPlayerProfiles(
@@ -258,10 +252,8 @@ export function trainPlayerProfiles(
   if (!db.mlProfiles) db.mlProfiles = {};
   for (const { userId, role, move, lastMove } of updates) {
     if (!userId) continue; // guests have no durable identity to train
-    // Ensure the new role-split shape; legacy blended profiles are dropped
-    // (their data conflated batting and bowling, so it isn't worth migrating).
-    let profile = db.mlProfiles[userId];
-    if (!isRoleSplitProfile(profile)) {
+    let profile = db.mlProfiles[userId] as MLModelData | undefined;
+    if (!profile) {
       profile = { bat: emptyRoleModel(), bowl: emptyRoleModel() };
       db.mlProfiles[userId] = profile;
     }

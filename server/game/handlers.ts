@@ -51,19 +51,6 @@ export const onlineUsers = new Map<string, string>(); // userId → socketId
 const pendingChallenges = new Map<string, PendingChallenge>();
 const rooms = new Map<string, Room>();
 
-/**
- * Whether `targetUserId` is currently `viewerUserId`'s opponent in some live
- * room. Gates the /api/ml endpoint: a player may pull their current opponent's
- * move model (for autoplay), but not scrape arbitrary users' behaviour.
- */
-export function isCurrentOpponent(viewerUserId: string, targetUserId: string): boolean {
-  if (!viewerUserId || !targetUserId || viewerUserId === targetUserId) return false;
-  for (const room of rooms.values()) {
-    const ids = room.players.map((p) => p.userId);
-    if (ids.includes(viewerUserId) && ids.includes(targetUserId)) return true;
-  }
-  return false;
-}
 
 export function registerGameHandlers(io: GameServer): void {
   io.use((socket, next) => {
