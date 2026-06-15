@@ -153,6 +153,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               />
             </>
           )}
+          <h3 className={styles['mode-title']}>Choose your game mode</h3>
           <label>Number of Overs</label>
           <div className="over-options">
             {OVER_OPTIONS.map((o) => (

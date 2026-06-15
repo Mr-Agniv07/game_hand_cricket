@@ -16,6 +16,7 @@ interface GameScreenProps {
   lastBall: BallPlayedPayload | null;
   isAutoPlay: boolean;
   userToken: string | null;
+  onDeclare: () => void;
 }
 
 export default function GameScreen({
@@ -25,6 +26,7 @@ export default function GameScreen({
   lastBall,
   isAutoPlay,
   userToken,
+  onDeclare,
 }: GameScreenProps) {
   const [myMove, setMyMove] = useState<number | null>(null);
   const myMoveRef = useRef<number | null>(null);
@@ -240,6 +242,15 @@ export default function GameScreen({
           1st innings score: <strong>{gameState?.innings?.[0]?.score ?? 0}</strong>
         </div>
       )}
+
+      <button
+        className={styles['declare-btn']}
+        onClick={() => {
+          if (window.confirm('Declare and quit? Your opponent will be the winner.')) onDeclare();
+        }}
+      >
+        🏳️ Declare &amp; Quit
+      </button>
     </div>
   );
 }

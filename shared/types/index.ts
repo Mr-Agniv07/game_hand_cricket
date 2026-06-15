@@ -348,6 +348,7 @@ export interface ClientToServerEvents {
   toss_call: (p: TossCallPayload) => void;
   bat_bowl_choice: (p: BatBowlChoicePayload) => void;
   play_move: (p: PlayMovePayload) => void;
+  declare: () => void;
   send_challenge: (p: SendChallengePayload) => void;
   respond_challenge: (p: RespondChallengePayload) => void;
   request_rematch: () => void;

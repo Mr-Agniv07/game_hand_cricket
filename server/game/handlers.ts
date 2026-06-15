@@ -261,6 +261,30 @@ export function registerGameHandlers(io: GameServer): void {
       }
     });
 
+    socket.on('declare', () => {
+      const roomId = socket.data.roomId;
+      const room = roomId ? rooms.get(roomId) : undefined;
+      if (!room || !roomId) return;
+      // Only meaningful while a match is actually in progress with two players.
+      if (room.phase === 'waiting' || room.phase === 'result') return;
+      if (room.players.length < 2) return;
+      const declarerIdx = room.players.findIndex((p) => p.id === socket.id);
+      if (declarerIdx === -1) return;
+
+      // Tournament matches advance the bracket via the tournament forfeit path
+      // (same as a disconnect), so the standings stay consistent.
+      if (room.tournamentId !== undefined && room.tournamentMatchIdx !== undefined) {
+        const tournament = tournaments.get(room.tournamentId);
+        if (tournament) {
+          forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
+        }
+        rooms.delete(roomId);
+        return;
+      }
+
+      forfeitGame(io, roomId, room, declarerIdx);
+    });
+
     socket.on('send_challenge', ({ toUserId, overs, mode, wickets }) => {
       if (!socket.data.userId) return;
       const toSocketId = onlineUsers.get(toUserId);
@@ -625,6 +649,64 @@ function endInnings(io: GameServer, roomId: string, room: Room, reason: InningsE
     });
     io.to(roomId).emit('state', publicState(room, roomId));
   }
+}
+
+/**
+ * A player declared (forfeited): the opponent wins immediately. Records the
+ * result with best-effort scores (whatever has been scored so far) and emits
+ * game_over to the *opponent only* — the declarer is returning to the lobby on
+ * their own client, so they shouldn't be dropped onto the result screen.
+ */
+function forfeitGame(io: GameServer, roomId: string, room: Room, declarerIdx: number): void {
+  const winnerIdx = declarerIdx === 0 ? 1 : 0;
+  const winner = room.players[winnerIdx];
+  const loser = room.players[declarerIdx];
+
+  // Align whatever has been scored so far to player-array order. Roles swap at
+  // the innings break, so innings[0] belongs to the current bowler in innings 2.
+  const playerScores: [number, number] = [0, 0];
+  if (room.batsmanIdx !== null && room.bowlerIdx !== null) {
+    if (room.currentInnings === 0) {
+      playerScores[room.batsmanIdx] = room.innings[0].score;
+    } else {
+      playerScores[room.bowlerIdx] = room.innings[0].score;
+      playerScores[room.batsmanIdx] = room.innings[1].score;
+    }
+  }
+
+  updateGameStats([
+    {
+      userId: room.players[0].userId,
+      win: winnerIdx === 0,
+      tie: false,
+      runsScored: playerScores[0],
+      opponentName: room.players[1].name,
+      opponentScore: playerScores[1],
+      overs: room.overs,
+      wickets: room.wickets,
+    },
+    {
+      userId: room.players[1].userId,
+      win: winnerIdx === 1,
+      tie: false,
+      runsScored: playerScores[1],
+      opponentName: room.players[0].name,
+      opponentScore: playerScores[0],
+      overs: room.overs,
+      wickets: room.wickets,
+    },
+  ]);
+
+  room.phase = 'result';
+  io.to(winner.id).emit('game_over', {
+    winnerId: winner.id,
+    winnerIdx,
+    winnerName: winner.name,
+    resultText: `${loser.name} declared — you win!`,
+    scores: playerScores,
+    players: room.players.map((p) => p.name),
+  });
+  rooms.delete(roomId);
 }
 
 function startRematch(io: GameServer, roomId: string, room: Room): void {

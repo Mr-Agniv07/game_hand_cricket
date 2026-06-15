@@ -272,6 +272,11 @@ export default function App() {
     }
   }
 
+  function handleDeclare() {
+    socket.emit('declare');
+    resetToLobby();
+  }
+
   function resetToTournamentLobby() {
     resetGameState();
     isTournamentMatchRef.current = false;
@@ -434,6 +439,7 @@ export default function App() {
           lastBall={lastBall}
           isAutoPlay={isAutoPlay}
           userToken={user?.token ?? null}
+          onDeclare={handleDeclare}
         />
       )}
 
