@@ -53,7 +53,11 @@ function save(data: Database): void {
     clearTimeout(mlSaveTimer);
     mlSaveTimer = null;
   }
-  writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
+  try {
+    writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
+  } catch {
+    // Filesystem write failed (e.g., read-only FS, file lock); data stays in memory.
+  }
 }
 
 // Deferred write for the hot per-ball path. Any synchronous save() call
@@ -63,7 +67,11 @@ function saveSoon(): void {
   if (mlSaveTimer) clearTimeout(mlSaveTimer);
   mlSaveTimer = setTimeout(() => {
     mlSaveTimer = null;
-    if (cache) writeFileSync(DB_PATH, JSON.stringify(cache, null, 2), 'utf8');
+    try {
+      if (cache) writeFileSync(DB_PATH, JSON.stringify(cache, null, 2), 'utf8');
+    } catch {
+      // Filesystem write failed; ML data stays in memory for this session.
+    }
   }, 2000);
 }
 
