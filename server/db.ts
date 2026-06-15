@@ -203,18 +203,21 @@ export function getMatchHistory(userId: string): MatchHistoryEntry[] {
   return user?.matchHistory ?? [];
 }
 
-export function getPlayerProfile(playerName: string): MLModelData | null {
+// Profiles are keyed by registered user id (stable + unspoofable), not display
+// name. Guests (no user id) are neither trained nor served.
+export function getPlayerProfile(userId: string): MLModelData | null {
   const db = load();
-  return db.mlProfiles?.[playerName.toLowerCase()] ?? null;
+  return db.mlProfiles?.[userId] ?? null;
 }
 
 export function trainPlayerProfiles(
-  updates: Array<{ playerName: string; move: number; lastMove: number | undefined }>
+  updates: Array<{ userId: string | null; move: number; lastMove: number | undefined }>
 ): void {
   const db = load();
   if (!db.mlProfiles) db.mlProfiles = {};
-  for (const { playerName, move, lastMove } of updates) {
-    const key = playerName.toLowerCase();
+  for (const { userId, move, lastMove } of updates) {
+    if (!userId) continue; // guests have no durable identity to train
+    const key = userId;
     if (!db.mlProfiles[key]) {
       db.mlProfiles[key] = {
         freq: [0, 1, 1, 1, 1, 1, 1],

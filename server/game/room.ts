@@ -112,6 +112,7 @@ export function publicState(room: Room, roomId: string): GameState {
     roomId,
     phase: room.phase,
     players: room.players.map((p) => p.name),
+    playerIds: room.players.map((p) => p.userId),
     overs: room.overs,
     mode: room.mode,
     wickets: room.wickets,

@@ -179,8 +179,8 @@ export function registerGameHandlers(io: GameServer): void {
       const batIdx = room.batsmanIdx!;
       const bowlIdx = room.bowlerIdx!;
       trainPlayerProfiles([
-        { playerName: room.players[batIdx].name, move: batMove, lastMove: room.mlLastMoves[batIdx] },
-        { playerName: room.players[bowlIdx].name, move: bowlMove, lastMove: room.mlLastMoves[bowlIdx] },
+        { userId: room.players[batIdx].userId, move: batMove, lastMove: room.mlLastMoves[batIdx] },
+        { userId: room.players[bowlIdx].userId, move: bowlMove, lastMove: room.mlLastMoves[bowlIdx] },
       ]);
       room.mlLastMoves[batIdx] = batMove;
       room.mlLastMoves[bowlIdx] = bowlMove;

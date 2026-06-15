@@ -54,6 +54,6 @@ authRouter.get('/api/me', (req: Request, res: Response) => {
   res.json({ id: user.id, username: user.username, stats: user.stats });
 });
 
-authRouter.get('/api/ml/:opponent', requireAuth, (req: Request, res: Response) => {
-  res.json(getPlayerProfile(String(req.params.opponent)));
+authRouter.get('/api/ml/:userId', requireAuth, (req: Request, res: Response) => {
+  res.json(getPlayerProfile(String(req.params.userId)));
 });

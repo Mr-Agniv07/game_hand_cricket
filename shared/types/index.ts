@@ -22,6 +22,8 @@ export interface GameState {
   roomId: string;
   phase: Phase;
   players: string[];
+  /** Registered user id per player slot, or null for guests. Aligns with `players`. */
+  playerIds: (string | null)[];
   overs: number;
   mode: Mode;
   wickets: number;
