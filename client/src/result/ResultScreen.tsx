@@ -26,10 +26,34 @@ export default function ResultScreen({
   const tied = winnerIdx === null;
   const iWon = winnerIdx !== null && winnerIdx === myPlayerIdx;
 
+  // Confetti pieces — only rendered on a win. Each gets a randomized column,
+  // colour, delay and duration via inline style; the fall is a CSS animation.
+  const confettiColors = ['#22c55e', '#f59e0b', '#60a5fa', '#ef4444', '#a855f7', '#fff'];
+
   return (
     <div className="center-screen">
+      {iWon && (
+        <div className={styles.confetti} aria-hidden="true">
+          {Array.from({ length: 28 }).map((_, i) => (
+            <span
+              key={i}
+              className={styles['confetti-piece']}
+              style={{
+                left: `${Math.random() * 100}%`,
+                background: confettiColors[i % confettiColors.length],
+                animationDelay: `${Math.random() * 0.6}s`,
+                animationDuration: `${1.8 + Math.random() * 1.4}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
       <div className={`card ${styles['result-card']}`}>
-        <div className={styles['result-emoji']}>{tied ? '🤝' : iWon ? '🏆' : '😔'}</div>
+        <div
+          className={`${styles['result-emoji']} ${tied ? styles['emoji-tie'] : iWon ? styles['emoji-win'] : styles['emoji-lose']}`}
+        >
+          {tied ? '🤝' : iWon ? '🏆' : '😔'}
+        </div>
         <h2 className={`${styles['result-title']} ${styles[tied ? 'tie' : iWon ? 'win' : 'lose']}`}>
           {tied ? "It's a Tie!" : iWon ? 'You Won!' : 'You Lost!'}
         </h2>

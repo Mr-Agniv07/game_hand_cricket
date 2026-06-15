@@ -3,6 +3,7 @@ import type { AppSocket } from '../socket';
 import styles from './GameScreen.module.css';
 import type { GameState, BallPlayedPayload } from '@cric/types';
 import { HandCricketML } from './autoplayML';
+import { sounds } from '../sound';
 import { apiGet } from '../api';
 import type { MLModelData, MLStats, OppRole } from './autoplayML';
 import MLInsightsPanel from './MLInsightsPanel';
@@ -131,6 +132,7 @@ export default function GameScreen({
 
   function playMove(n: number) {
     if (myMove !== null) return;
+    sounds.pick();
     myMoveRef.current = n;
     setMyMove(n);
     socket.emit('play_move', { number: n });
@@ -143,6 +145,7 @@ export default function GameScreen({
       if (e.key >= '1' && e.key <= '6') n = Number(e.key);
       else if (e.key === 'r' || e.key === 'R') n = Math.ceil(Math.random() * 6);
       if (n === null || myMoveRef.current !== null) return;
+      sounds.pick();
       myMoveRef.current = n;
       setMyMove(n);
       socket.emit('play_move', { number: n });
@@ -161,7 +164,9 @@ export default function GameScreen({
         <div className={styles['innings-tag']}>Innings {currentInnings}</div>
 
         <div className={styles['score-block']}>
-          <span className={styles['score-runs']}>{score}</span>
+          <span key={score} className={styles['score-runs']}>
+            {score}
+          </span>
           <span className={styles['score-sep']}>/</span>
           <span className={styles['score-overs']}>{wicketsLost}W</span>
           <span className={styles['score-sep']}> · </span>
