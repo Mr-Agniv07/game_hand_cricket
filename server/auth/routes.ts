@@ -4,7 +4,7 @@ import { findByUsername, findById, createUser, getPlayerProfile } from '../db.ts
 import { hashPassword, verifyPassword, createToken, verifyToken } from './auth.ts';
 
 export interface AuthRequest extends Request {
-  userId?: string;
+  userId: string;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -46,7 +46,7 @@ authRouter.post('/api/login', (req: Request, res: Response) => {
 
 // Returns the authenticated user's profile and stats (used by the client on load/refresh).
 authRouter.get('/api/me', requireAuth, (req: Request, res: Response) => {
-  const user = findById((req as AuthRequest).userId!);
+  const user = findById((req as AuthRequest).userId);
   if (!user) return res.status(404).json({ error: 'User not found.' });
   res.json({ id: user.id, username: user.username, stats: user.stats });
 });
