@@ -30,6 +30,7 @@ export interface Room {
   pendingMoves: Record<string, number>;
   rematchRequests?: Set<number> | null;
   _graceTimers?: Record<string, NodeJS.Timeout>;
+  mlLastMoves?: Record<string, number>;
   tournamentId?: string;
   tournamentMatchIdx?: number;
 }
