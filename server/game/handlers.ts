@@ -427,7 +427,12 @@ export function registerGameHandlers(io: GameServer): void {
     });
 
     socket.on('disconnect', () => {
-      if (socket.data.userId) onlineUsers.delete(socket.data.userId);
+      // Only clear the online entry if it still points at THIS socket. A fast
+      // reconnect assigns a new socket id and re-sets the entry before the old
+      // socket's disconnect fires; an unguarded delete would clobber the live
+      // mapping and make the user look offline (and unchallengeable).
+      if (socket.data.userId && onlineUsers.get(socket.data.userId) === socket.id)
+        onlineUsers.delete(socket.data.userId);
       for (const [id, ch] of pendingChallenges) {
         if (ch.challengerSocketId === socket.id) {
           clearTimeout(ch.timeout);
