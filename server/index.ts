@@ -11,11 +11,10 @@ import type { SocketData } from './game/types.ts';
 import type { ServerToClientEvents, ClientToServerEvents } from '@cric/types';
 import type { DefaultEventsMap } from 'socket.io';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
 const app = express();
 app.use(cors());
 app.use(express.json());
+const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use(express.static(join(__dirname, '../client/dist')));
 const httpServer = createServer(app);
 

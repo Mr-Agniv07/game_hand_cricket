@@ -1,23 +1,24 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
 import { findByToken, saveToken } from '../db.ts';
 
-const SALT_LEN = 16;
-const KEY_LEN = 32;
-
+// Format: "<keyLen>:<salt>:<key>" — keyLen is stored so verification is
+// independent of the constant value.
 export function hashPassword(password: string): string {
-  const salt = randomBytes(SALT_LEN).toString('hex');
-  const key = scryptSync(password, salt, KEY_LEN).toString('hex');
-  return `${salt}:${key}`;
+  const saltLen = 16;
+  const keyLen = 32;
+  const salt = randomBytes(saltLen).toString('hex');
+  const key = scryptSync(password, salt, keyLen).toString('hex');
+  return `${keyLen}:${salt}:${key}`;
 }
 
 export function verifyPassword(password: string, hash: string): boolean {
   try {
-    const [salt, storedKey] = hash.split(':');
-    if (!salt || !storedKey) return false;
-    const key = scryptSync(password, salt, KEY_LEN);
+    const [keyLenStr, salt, storedKey] = hash.split(':');
+    if (!keyLenStr || !salt || !storedKey) return false;
+    const keyLen = Number(keyLenStr);
+    if (!Number.isInteger(keyLen) || keyLen < 1) return false;
+    const key = scryptSync(password, salt, keyLen);
     const stored = Buffer.from(storedKey, 'hex');
-    // timingSafeEqual throws on length mismatch; bail cleanly on a corrupt hash
-    // so a bad record yields a 401, not an unhandled 500.
     if (stored.length !== key.length) return false;
     return timingSafeEqual(key, stored);
   } catch {
@@ -25,29 +26,27 @@ export function verifyPassword(password: string, hash: string): boolean {
   }
 }
 
-// In-memory cache for fast lookup; db.json is the source of truth
+// cache; db.json is the source of truth
 const sessions = new Map<string, string>(); // token -> userId
 
 export function createToken(userId: string): string {
-  // Revoke any prior token for this user so a fresh login invalidates old
-  // sessions. db.json only stores one token per user anyway, so this keeps the
-  // in-memory cache consistent with what survives a restart.
+  // Revoke any prior token for this user
   for (const [tok, uid] of sessions) {
     if (uid === userId) sessions.delete(tok);
   }
   const token = randomBytes(32).toString('hex');
   sessions.set(token, userId);
-  saveToken(userId, token); // persist so it survives server restarts
+  saveToken(userId, token);
   return token;
 }
 
 export function verifyToken(token: string): string | null {
   const cached = sessions.get(token);
   if (cached !== undefined) return cached;
-  // Server was restarted — fall back to db.json
+
   const user = findByToken(token);
   if (user) {
-    sessions.set(token, user.id); // warm the cache
+    sessions.set(token, user.id);
     return user.id;
   }
   return null;
