@@ -50,6 +50,17 @@ export function cleanName(name: unknown): string {
   return (typeof name === 'string' ? name.trim() : '').slice(0, 20) || 'Player';
 }
 
+/**
+ * Coerce a client-supplied over/wicket count to a sane integer in [1, max].
+ * Without this a crafted client could request, e.g., overs=1e9 and create a
+ * game that never ends. `max` matches the largest value the UI offers (10).
+ */
+export function clampCount(value: unknown, fallback: number, max = 10): number {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return Math.min(n, max);
+}
+
 export function freshInnings(): RoomInnings {
   return { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] };
 }

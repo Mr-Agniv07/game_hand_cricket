@@ -13,6 +13,7 @@ import {
   type Room,
   makeRoomId,
   cleanName,
+  clampCount,
   freshInnings,
   createRoom,
   totalBalls,
@@ -68,7 +69,7 @@ export function registerGameHandlers(io: GameServer): void {
     socket.on('create_room', ({ playerName, overs, mode, wickets }) => {
       const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
-      const room = createRoom(Number(overs) || 1, mode || 'overs', Number(wickets) || 1);
+      const room = createRoom(clampCount(overs, 1), mode || 'overs', clampCount(wickets, 1));
       room.players.push({
         id: socket.id,
         name,
@@ -317,18 +318,18 @@ export function registerGameHandlers(io: GameServer): void {
         challengerId: socket.data.userId,
         challengerSocketId: socket.id,
         toUserId,
-        overs: Number(overs) || 2,
+        overs: clampCount(overs, 2),
         mode: mode || 'overs',
-        wickets: Number(wickets) || 2,
+        wickets: clampCount(wickets, 2),
         timeout,
       });
 
       io.to(toSocketId).emit('challenge_received', {
         challengeId,
         from: { id: socket.data.userId, username: challenger.username },
-        overs: Number(overs) || 2,
+        overs: clampCount(overs, 2),
         mode: mode || 'overs',
-        wickets: Number(wickets) || 2,
+        wickets: clampCount(wickets, 2),
       });
     });
 
