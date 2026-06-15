@@ -29,6 +29,12 @@ export function verifyPassword(password: string, hash: string): boolean {
 const sessions = new Map<string, string>(); // token -> userId
 
 export function createToken(userId: string): string {
+  // Revoke any prior token for this user so a fresh login invalidates old
+  // sessions. db.json only stores one token per user anyway, so this keeps the
+  // in-memory cache consistent with what survives a restart.
+  for (const [tok, uid] of sessions) {
+    if (uid === userId) sessions.delete(tok);
+  }
   const token = randomBytes(32).toString('hex');
   sessions.set(token, userId);
   saveToken(userId, token); // persist so it survives server restarts
