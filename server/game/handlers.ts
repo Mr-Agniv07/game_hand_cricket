@@ -7,7 +7,7 @@ import type {
   RoomCreatedPayload,
 } from '@cric/types';
 import { findById, updateGameStats, trainPlayerProfiles } from '../db.ts';
-import { verifyToken } from '../auth/auth.ts';
+import { verifyTokenGetUserId } from '../auth/auth.ts';
 import {
   type Room,
   makeRoomId,
@@ -51,11 +51,10 @@ export const onlineUsers = new Map<string, string>(); // userId → socketId
 const pendingChallenges = new Map<string, PendingChallenge>();
 const rooms = new Map<string, Room>();
 
-
 export function registerGameHandlers(io: GameServer): void {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
-    socket.data.userId = token ? (verifyToken(token) ?? null) : null;
+    socket.data.userId = token ? (verifyTokenGetUserId(token) ?? null) : null;
     const clientId = socket.handshake.auth?.clientId;
     socket.data.clientId = typeof clientId === 'string' ? clientId : null;
     next();
@@ -202,8 +201,18 @@ export function registerGameHandlers(io: GameServer): void {
       const batIdx = room.batsmanIdx!;
       const bowlIdx = room.bowlerIdx!;
       trainPlayerProfiles([
-        { userId: room.players[batIdx].userId, role: 'bat', move: batMove, lastMove: room.mlLastMoves[batIdx] },
-        { userId: room.players[bowlIdx].userId, role: 'bowl', move: bowlMove, lastMove: room.mlLastMoves[bowlIdx] },
+        {
+          userId: room.players[batIdx].userId,
+          role: 'bat',
+          move: batMove,
+          lastMove: room.mlLastMoves[batIdx],
+        },
+        {
+          userId: room.players[bowlIdx].userId,
+          role: 'bowl',
+          move: bowlMove,
+          lastMove: room.mlLastMoves[bowlIdx],
+        },
       ]);
       room.mlLastMoves[batIdx] = batMove;
       room.mlLastMoves[bowlIdx] = bowlMove;

@@ -1,20 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { findByUsername, findById, createUser, getPlayerProfile } from '../db.ts';
-import { hashPassword, verifyPassword, createToken, verifyToken } from './auth.ts';
-
-export interface AuthRequest extends Request {
-  userId: string;
-}
-
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  const userId = verifyToken(token);
-  if (!userId) return res.status(401).json({ error: 'Invalid token' });
-  (req as AuthRequest).userId = userId;
-  next();
-}
+import { hashPassword, verifyPassword, createToken, verifyTokenGetUserId } from './auth.ts';
 
 export const authRouter = Router();
 
@@ -43,6 +30,19 @@ authRouter.post('/api/login', (req: Request, res: Response) => {
   const token = createToken(user.id);
   res.json({ id: user.id, username: user.username, token, stats: user.stats });
 });
+
+export interface AuthRequest extends Request {
+  userId: string;
+}
+
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  const userId = verifyTokenGetUserId(token);
+  if (!userId) return res.status(401).json({ error: 'Invalid token' });
+  (req as AuthRequest).userId = userId;
+  next();
+}
 
 // Returns the authenticated user's profile and stats (used by the client on load/refresh).
 authRouter.get('/api/me', requireAuth, (req: Request, res: Response) => {

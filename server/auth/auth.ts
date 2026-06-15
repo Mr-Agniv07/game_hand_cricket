@@ -40,7 +40,7 @@ export function createToken(userId: string): string {
   return token;
 }
 
-export function verifyToken(token: string): string | null {
+export function verifyTokenGetUserId(token: string): string | null {
   const cached = sessions.get(token);
   if (cached !== undefined) return cached;
 
