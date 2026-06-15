@@ -29,6 +29,7 @@ import {
   finalizeTournament,
   startTournamentMatch,
   forfeitTournamentMatch,
+  remapTournamentSocketId,
   registerTournamentHandlers,
 } from '../tournament/handlers.ts';
 
@@ -369,12 +370,25 @@ export function registerGameHandlers(io: GameServer): void {
       );
       if (playerIdx === -1) return;
 
+      const oldId = room.players[playerIdx].id;
       // Remap every socket-id-keyed field (players, toss caller/winner,
       // in-flight move) and cancel the disconnect grace timer in one shot.
-      remapSocketId(room, room.players[playerIdx].id, socket.id);
+      remapSocketId(room, oldId, socket.id);
       socket.data.roomId = roomId;
       socket.data.playerName = room.players[playerIdx].name;
       socket.join(roomId);
+
+      // A blip during a tournament match emits rejoin_room (not join_tournament),
+      // so keep the tournament's identity in sync too, else lobby highlighting
+      // and points updates would target the dead socket id.
+      if (room.tournamentId) {
+        const tournament = tournaments.get(room.tournamentId);
+        if (tournament) {
+          remapTournamentSocketId(tournament, oldId, socket.id);
+          socket.join('t:' + tournament.id);
+          io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+        }
+      }
 
       socket.emit('state', publicState(room, roomId));
     });

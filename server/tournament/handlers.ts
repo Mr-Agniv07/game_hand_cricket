@@ -79,6 +79,23 @@ function computeNRR(e: InternalPointsEntry): number {
   return (e.runsScored * 6) / e.ballsFaced - (e.runsConceded * 6) / e.ballsBowled;
 }
 
+/**
+ * A tournament player's identity is their socket.id, stored in both
+ * players[].id and as the pointsTable key. Remap both together when the socket
+ * id changes on reconnect, or lobby highlighting and points updates land on a
+ * dead id. Centralised so the join_tournament and rejoin_room paths agree.
+ */
+export function remapTournamentSocketId(t: Tournament, oldId: string, newId: string): void {
+  if (oldId === newId) return;
+  const player = t.players.find((p) => p.id === oldId);
+  if (player) player.id = newId;
+  const entry = t.pointsTable[oldId];
+  if (entry) {
+    t.pointsTable[newId] = entry;
+    delete t.pointsTable[oldId];
+  }
+}
+
 export function publicTournamentState(t: Tournament): TournamentState {
   return {
     id: t.id,
@@ -348,16 +365,7 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
           : -1;
 
       if (reconnIdx !== -1) {
-        const oldId = tournament.players[reconnIdx].id;
-        tournament.players[reconnIdx].id = socket.id;
-        // pointsTable is keyed by socket id; move the entry so results from
-        // later matches still land on this player (otherwise updateEntry's
-        // `if (!e) return` silently drops every point they earn after a refresh).
-        const entry = tournament.pointsTable[oldId];
-        if (entry) {
-          tournament.pointsTable[socket.id] = entry;
-          delete tournament.pointsTable[oldId];
-        }
+        remapTournamentSocketId(tournament, tournament.players[reconnIdx].id, socket.id);
         socket.join('t:' + tournament.id);
         socket.data.tournamentId = tournament.id;
         // Use tournament_created so the client transitions to tournament_lobby phase
