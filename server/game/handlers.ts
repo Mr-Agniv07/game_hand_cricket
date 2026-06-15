@@ -560,6 +560,37 @@ export function registerGameHandlers(io: GameServer): void {
       if (room.rematchRequests.size >= 2) startRematch(io, roomId, room);
     });
 
+    socket.on('rejoin_room', ({ roomId }) => {
+      const room = rooms.get(roomId);
+      if (!room || !socket.data.userId) return;
+
+      const playerIdx = room.players.findIndex(
+        (p) => p.userId !== null && p.userId === socket.data.userId
+      );
+      if (playerIdx === -1) return;
+
+      const oldId = room.players[playerIdx].id;
+
+      // Cancel the grace timer that was started on disconnect
+      if (room._graceTimers?.[oldId]) {
+        clearTimeout(room._graceTimers[oldId]);
+        delete room._graceTimers[oldId];
+      }
+
+      // Migrate any move the player already submitted this ball
+      if (room.pendingMoves[oldId] !== undefined) {
+        room.pendingMoves[socket.id] = room.pendingMoves[oldId];
+        delete room.pendingMoves[oldId];
+      }
+
+      room.players[playerIdx].id = socket.id;
+      socket.data.roomId = roomId;
+      socket.data.playerName = room.players[playerIdx].name;
+      socket.join(roomId);
+
+      socket.emit('state', publicState(room, roomId));
+    });
+
     socket.on('disconnect', () => {
       if (socket.data.userId) onlineUsers.delete(socket.data.userId);
       for (const [id, ch] of pendingChallenges) {

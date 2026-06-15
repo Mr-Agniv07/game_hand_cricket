@@ -330,9 +330,14 @@ export interface RespondChallengePayload {
   accept: boolean;
 }
 
+export interface RejoinRoomPayload {
+  roomId: string;
+}
+
 export interface ClientToServerEvents {
   create_room: (p: CreateRoomPayload) => void;
   join_room: (p: JoinRoomPayload) => void;
+  rejoin_room: (p: RejoinRoomPayload) => void;
   toss_call: (p: TossCallPayload) => void;
   bat_bowl_choice: (p: BatBowlChoicePayload) => void;
   play_move: (p: PlayMovePayload) => void;

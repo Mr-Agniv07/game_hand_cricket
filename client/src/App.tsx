@@ -51,13 +51,23 @@ export default function App() {
   const [isAutoPlay, setIsAutoPlay] = useState(false);
 
   const bound = useRef(false);
+  const roomIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
 
   useEffect(() => {
     if (bound.current) return;
     bound.current = true;
 
     // ── Bind all socket listeners once ──────────────────────────────────────
-    socket.on('connect', () => setMyId(socket.id ?? null));
+    socket.on('connect', () => {
+      setMyId(socket.id ?? null);
+      if (roomIdRef.current) {
+        socket.emit('rejoin_room', { roomId: roomIdRef.current });
+      }
+    });
 
     socket.on('connect_error', () => {
       localStorage.removeItem(STORED_KEY);
