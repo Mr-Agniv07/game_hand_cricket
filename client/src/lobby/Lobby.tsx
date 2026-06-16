@@ -297,8 +297,10 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                   </button>
                 ))}
               </div>
-              <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0' }}>
-                4-player round-robin · 12 matches · Win=2pts, Tie=1pt, Loss=0pts
+              <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0', lineHeight: 1.4 }}>
+                4 players · round-robin (12 matches) · Win=2pts, Tie=1pt · then the
+                top 2 play a <strong style={{ color: '#fbbf24' }}>FINAL</strong> for the title.
+                Short of players? Empty seats fill with bots.
               </p>
               <button type="submit" className="btn-primary">
                 Create Tournament

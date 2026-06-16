@@ -151,6 +151,18 @@ export default function TournamentLobby({
                 );
               })}
             </div>
+
+            <div className={styles['t-format']}>
+              <div className={styles['t-format-title']}>📋 How it works</div>
+              <ul className={styles['t-format-list']}>
+                <li>4 players, round-robin — everyone plays everyone twice (12 matches).</li>
+                <li>Win = 2 pts, Tie = 1 pt, Loss = 0. Ties on points broken by NRR.</li>
+                <li>
+                  The top 2 then play a one-off <strong>FINAL</strong> — its winner is the
+                  champion.
+                </li>
+              </ul>
+            </div>
           </>
         ) : (
           <div className={styles['t-progress']}>
@@ -279,6 +291,22 @@ export default function TournamentLobby({
                 </div>
               );
             })}
+
+            {/* Always surface the FINAL. Until the league ends and the real
+                finalists are known, show a placeholder of 1st vs 2nd place. */}
+            {!fixtures.some((f) => f.isFinal) && (
+              <div className={`${styles['t-fixture-row']} ${styles.upcoming} ${styles['final-row']}`}>
+                <span className={`${styles['t-match-badge']} ${styles.upcoming}`}>🏆</span>
+                <div className={styles['t-fixture-teams']}>
+                  <span>1st place</span>
+                  <span className={styles['t-vs']}>vs</span>
+                  <span>2nd place</span>
+                </div>
+                <div className={styles['t-fixture-result']}>
+                  <span className={styles['t-upcoming-tag']}>FINAL</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
