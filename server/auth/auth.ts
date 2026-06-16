@@ -13,10 +13,26 @@ export function hashPassword(password: string): string {
 
 export function verifyPassword(password: string, hash: string): boolean {
   try {
-    const [keyLenStr, salt, storedKey] = hash.split(':');
-    if (!keyLenStr || !salt || !storedKey) return false;
-    const keyLen = Number(keyLenStr);
-    if (!Number.isInteger(keyLen) || keyLen < 1) return false;
+    const parts = hash.split(':');
+    let salt: string;
+    let storedKey: string;
+    let keyLen: number;
+
+    if (parts.length === 3) {
+      // Current format: "<keyLen>:<salt>:<key>"
+      [, salt, storedKey] = parts;
+      keyLen = Number(parts[0]);
+    } else if (parts.length === 2) {
+      // Legacy format: "<salt>:<key>" (no keyLen prefix). Derive the key length
+      // from the stored key so accounts created before the format change still
+      // verify instead of being locked out.
+      [salt, storedKey] = parts;
+      keyLen = Buffer.from(storedKey, 'hex').length;
+    } else {
+      return false;
+    }
+
+    if (!salt || !storedKey || !Number.isInteger(keyLen) || keyLen < 1) return false;
     const key = scryptSync(password, salt, keyLen);
     const stored = Buffer.from(storedKey, 'hex');
     if (stored.length !== key.length) return false;
