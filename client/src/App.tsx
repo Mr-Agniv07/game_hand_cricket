@@ -79,6 +79,7 @@ export default function App() {
   const [isTournamentMatch, setIsTournamentMatch] = useState(false);
   const isTournamentMatchRef = useRef(false);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
+  const [showGrandFinale, setShowGrandFinale] = useState(false);
   const [muted, setMuted] = useState(isMuted());
   // Opponent-move feed for ML training. Captured at ball_played from pre-swap
   // refs and never nulled mid-match, so GameScreen trains on every ball
@@ -334,11 +335,17 @@ export default function App() {
       }
     });
 
-    socket.on('tournament_match_starting', ({ roomId: rid, myPlayerIdx: pidx }) => {
+    socket.on('tournament_match_starting', ({ roomId: rid, myPlayerIdx: pidx, isFinal }) => {
       setRoomId(rid);
       setMyPlayerIdx(pidx);
       isTournamentMatchRef.current = true;
       setIsTournamentMatch(true);
+      // The final gets a hype intro before the (normal) toss flow underneath.
+      if (isFinal) {
+        sounds.toss();
+        setShowGrandFinale(true);
+        setTimeout(() => setShowGrandFinale(false), 3000);
+      }
       // phase transitions via incoming toss_start
     });
 
@@ -629,6 +636,16 @@ export default function App() {
       )}
 
       {inningsEnd && <InningsEndOverlay data={inningsEnd} onDismiss={() => setInningsEnd(null)} />}
+
+      {showGrandFinale && (
+        <div className="grand-finale-overlay">
+          <div className="gf-content">
+            <div className="gf-trophy">🏆</div>
+            <div className="gf-title">GRAND FINALE</div>
+            <div className="gf-sub">The top 2 face off for the title</div>
+          </div>
+        </div>
+      )}
 
       {phase === 'loading' && (
         <div className="center-screen">

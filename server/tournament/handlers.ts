@@ -381,6 +381,7 @@ export function startTournamentMatch(
       opponentName: p2.name,
       matchNum: fixture.matchNum,
       myPlayerIdx: 0,
+      isFinal: fixture.isFinal,
     });
   }
   if (p2Socket) {
@@ -391,6 +392,7 @@ export function startTournamentMatch(
       opponentName: p1.name,
       matchNum: fixture.matchNum,
       myPlayerIdx: 1,
+      isFinal: fixture.isFinal,
     });
   }
 

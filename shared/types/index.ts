@@ -249,6 +249,8 @@ export interface TournamentMatchStartingPayload {
   opponentName: string;
   matchNum: number;
   myPlayerIdx: number;
+  /** This is the playoff final — the client shows a GRAND FINALE intro first. */
+  isFinal?: boolean;
 }
 
 export interface TournamentCompletePayload {
