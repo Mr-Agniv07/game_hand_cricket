@@ -79,9 +79,12 @@ export default function App() {
   const [isTournamentMatch, setIsTournamentMatch] = useState(false);
   const isTournamentMatchRef = useRef(false);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
-  // GRAND FINALE intro: 'finalist' = tap-to-start (you're playing), 'spectator'
-  // = brief timed splash (you're watching).
-  const [grandFinale, setGrandFinale] = useState<null | 'finalist' | 'spectator'>(null);
+  // Stage-intro overlay: 'finalist' = tap-to-start GRAND FINALE (you're playing),
+  // 'spectator' = brief timed GRAND FINALE (watching), 'knockouts' = brief timed
+  // KNOCKOUTS bumper when the semis begin.
+  const [grandFinale, setGrandFinale] = useState<null | 'finalist' | 'spectator' | 'knockouts'>(
+    null
+  );
   const [muted, setMuted] = useState(isMuted());
   // Opponent-move feed for ML training. Captured at ball_played from pre-swap
   // refs and never nulled mid-match, so GameScreen trains on every ball
@@ -102,6 +105,8 @@ export default function App() {
   const championCelebrated = useRef(false);
   // Guards the spectator GRAND FINALE splash so it shows once per tournament.
   const grandFinaleShownRef = useRef(false);
+  // Guards the KNOCKOUTS bumper so it shows once per tournament (when semis begin).
+  const knockoutsShownRef = useRef(false);
   // Whether we've actually entered a room this session. Guards the persist effect
   // from clearing the saved room on the INITIAL mount (when roomId starts null) —
   // doing so would wipe localStorage before refresh-recovery gets to read it.
@@ -322,6 +327,7 @@ export default function App() {
       setTournamentState(state);
       championCelebrated.current = false; // fresh tournament
       grandFinaleShownRef.current = false;
+      knockoutsShownRef.current = false;
       setPhase('tournament_lobby');
     });
 
@@ -337,6 +343,14 @@ export default function App() {
         }
       } else {
         setPhase((p) => (p === 'lobby' ? 'tournament_lobby' : p));
+        // KNOCKOUTS bumper for everyone the moment the semis are created
+        // (group stage just ended), before the final's GRAND FINALE intro.
+        if (!knockoutsShownRef.current && state.fixtures.some((f) => f.stage === 'semi')) {
+          knockoutsShownRef.current = true;
+          sounds.toss();
+          setGrandFinale('knockouts');
+          setTimeout(() => setGrandFinale((m) => (m === 'knockouts' ? null : m)), 2800);
+        }
         // Spectators (watching from the lobby) get a brief GRAND FINALE splash
         // when the final goes live. Finalists get the tap-to-start version via
         // tournament_match_starting instead, so skip them here.
@@ -666,12 +680,16 @@ export default function App() {
       {grandFinale && (
         <div className="grand-finale-overlay">
           <div className="gf-content">
-            <div className="gf-trophy">🏆</div>
-            <div className="gf-title">GRAND FINALE</div>
+            <div className="gf-trophy">{grandFinale === 'knockouts' ? '⚔️' : '🏆'}</div>
+            <div className="gf-title">
+              {grandFinale === 'knockouts' ? 'KNOCKOUTS' : 'GRAND FINALE'}
+            </div>
             <div className="gf-sub">
-              {grandFinale === 'finalist'
-                ? 'The top 2 face off for the title'
-                : 'The Final is underway'}
+              {grandFinale === 'knockouts'
+                ? 'Group stage done — semi-finals begin!'
+                : grandFinale === 'finalist'
+                  ? 'The top 2 face off for the title'
+                  : 'The Final is underway'}
             </div>
             {grandFinale === 'finalist' && (
               <button className="gf-start-btn" onClick={startFinal}>

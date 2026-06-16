@@ -101,6 +101,43 @@
   overflow-x: auto;
 }
 
+/* ─── Knockout results ─── */
+.t-ko-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.t-ko-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--surface2);
+  border-radius: 8px;
+  border-left: 3px solid #fbbf24;
+}
+.t-ko-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fbbf24;
+  min-width: 4.5rem;
+}
+.t-ko-teams {
+  flex: 1;
+  font-size: 0.85rem;
+}
+.t-ko-vs {
+  color: var(--muted);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.t-winner {
+  color: var(--accent);
+  font-weight: 800;
+}
+
 .t-table {
   width: 100%;
   border-collapse: collapse;

@@ -110,6 +110,8 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
   );
   const myRank = sortedAll.findIndex((p) => p.id === myId);
 
+  const knockouts = fixtures.filter((f) => f.stage === 'semi' || f.stage === 'final');
+
   let myBadge: { cls: string; text: string } | null = null;
   if (myId === winner?.id) myBadge = { cls: 'rank-0', text: '🏆 Champion!' };
   else if (myId === runnerUp?.id) myBadge = { cls: 'rank-1', text: '🥈 Runner-up' };
@@ -160,6 +162,33 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
           <>
             <div className={styles['t-result-section-title']}>League Standings</div>
             <StandingsTable rows={sortedAll} pt={pointsTable} myId={myId} championId={champion} />
+          </>
+        )}
+
+        {/* Knockout results */}
+        {knockouts.length > 0 && (
+          <>
+            <div className={styles['t-result-section-title']}>Knockouts</div>
+            <div className={styles['t-ko-list']}>
+              {knockouts.map((f) => {
+                const p1 = players[f.player1Idx];
+                const p2 = players[f.player2Idx];
+                const p1Won = f.result === 'p1' || f.result === 'tie'; // tie → higher seed (p1)
+                const p2Won = f.result === 'p2';
+                return (
+                  <div key={f.matchNum} className={styles['t-ko-row']}>
+                    <span className={styles['t-ko-label']}>
+                      {f.stage === 'final' ? '🏆 Final' : f.label}
+                    </span>
+                    <span className={styles['t-ko-teams']}>
+                      <span className={p1Won ? styles['t-winner'] : ''}>{p1?.name ?? '?'}</span>
+                      <span className={styles['t-ko-vs']}> {f.p1Score}–{f.p2Score} </span>
+                      <span className={p2Won ? styles['t-winner'] : ''}>{p2?.name ?? '?'}</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </>
         )}
 

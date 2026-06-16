@@ -281,7 +281,10 @@ export default function TournamentLobby({
                 {is8 ? (
                   <>
                     <li>8 players split randomly into Group A & B (4 each).</li>
-                    <li>Round-robin within each group. Win = 2 pts, Tie = 1 pt; ties broken by NRR.</li>
+                    <li>
+                      Round-robin within each group — every pair plays twice. Win = 2 pts, Tie = 1
+                      pt; ties broken by NRR.
+                    </li>
                     <li>
                       Top 2 of each group reach the <strong>semi-finals</strong>: A1 v B2 and B1 v A2.
                     </li>

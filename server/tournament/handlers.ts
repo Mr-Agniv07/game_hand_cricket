@@ -126,6 +126,12 @@ function singleRoundRobin(indices: number[]): [number, number][] {
   return pairs;
 }
 
+/** Double round-robin: each pair plays twice (home + away). */
+function doubleRoundRobin(indices: number[]): [number, number][] {
+  const single = singleRoundRobin(indices);
+  return [...single, ...single.map(([a, b]): [number, number] => [b, a])];
+}
+
 /** Rank a subset of player indices by points desc, then NRR desc. */
 function rankedGroupIndices(t: Tournament, indices: number[]): number[] {
   return [...indices].sort((a, b) => {
@@ -331,8 +337,8 @@ export function generateFixture(tournament: Tournament): void {
     const groupA = order.slice(0, 4);
     const groupB = order.slice(4, 8);
     tournament.groups = [groupA, groupB];
-    const aPairs = singleRoundRobin(groupA); // 6
-    const bPairs = singleRoundRobin(groupB); // 6
+    const aPairs = doubleRoundRobin(groupA); // 12 (each pair twice)
+    const bPairs = doubleRoundRobin(groupB); // 12
     const fixtures: InternalFixtureMatch[] = [];
     for (let i = 0; i < Math.max(aPairs.length, bPairs.length); i++) {
       if (aPairs[i]) fixtures.push(mkFixture(fixtures.length + 1, aPairs[i][0], aPairs[i][1], 'A'));
