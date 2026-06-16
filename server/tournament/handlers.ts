@@ -408,8 +408,23 @@ export function startTournamentMatch(
 
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
-  // Drive any bot(s) — for bot-vs-bot this plays the whole match automatically.
-  driveBots(io, roomId, room, rooms);
+  // For a FINAL between a human and a bot, hold the bot until the human taps
+  // "Start the Final" (the GRAND FINALE intro), so the bot doesn't play the
+  // toss while the human is still on the splash. A fallback timer starts it
+  // anyway if the human never signals (refresh, disconnect, etc.).
+  const oneBot = isBot(p1) !== isBot(p2); // exactly one finalist is a bot
+  if (fixture.isFinal && oneBot) {
+    room.finalAwaiting = new Set([p1, p2].filter((p) => !isBot(p)).map((p) => p.id));
+    room._finalStartTimer = setTimeout(() => {
+      if (rooms.get(roomId) === room && room.finalAwaiting) {
+        room.finalAwaiting = undefined;
+        driveBots(io, roomId, room, rooms);
+      }
+    }, 8000);
+  } else {
+    // Bot-vs-bot final, human-vs-human, or any regular match: start normally.
+    driveBots(io, roomId, room, rooms);
+  }
 }
 
 // ─── Socket handlers ──────────────────────────────────────────────────────────

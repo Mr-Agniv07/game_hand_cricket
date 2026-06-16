@@ -43,6 +43,10 @@ export interface Room {
   /** The final result, kept so a player who reconnects after the game ended
    *  (e.g. a blip on the last ball) is shown the result instead of a dead screen. */
   lastGameOver?: GameOverPayload;
+  /** Human finalist socket ids we're waiting on to tap "Start the Final" before
+   *  the bot opponent begins; cleared once everyone's ready (or a fallback fires). */
+  finalAwaiting?: Set<string>;
+  _finalStartTimer?: NodeJS.Timeout;
 }
 
 export function makeRoomId(used?: { has(id: string): boolean }): string {

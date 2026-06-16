@@ -352,6 +352,7 @@ export interface ClientToServerEvents {
   bat_bowl_choice: (p: BatBowlChoicePayload) => void;
   play_move: (p: PlayMovePayload) => void;
   declare: () => void;
+  final_ready: () => void;
   send_challenge: (p: SendChallengePayload) => void;
   respond_challenge: (p: RespondChallengePayload) => void;
   request_rematch: () => void;

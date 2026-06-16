@@ -79,7 +79,9 @@ export default function App() {
   const [isTournamentMatch, setIsTournamentMatch] = useState(false);
   const isTournamentMatchRef = useRef(false);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
-  const [showGrandFinale, setShowGrandFinale] = useState(false);
+  // GRAND FINALE intro: 'finalist' = tap-to-start (you're playing), 'spectator'
+  // = brief timed splash (you're watching).
+  const [grandFinale, setGrandFinale] = useState<null | 'finalist' | 'spectator'>(null);
   const [muted, setMuted] = useState(isMuted());
   // Opponent-move feed for ML training. Captured at ball_played from pre-swap
   // refs and never nulled mid-match, so GameScreen trains on every ball
@@ -98,6 +100,8 @@ export default function App() {
   const trainSeqRef = useRef(0);
   // Guards the champion fanfare so it plays at most once per tournament.
   const championCelebrated = useRef(false);
+  // Guards the spectator GRAND FINALE splash so it shows once per tournament.
+  const grandFinaleShownRef = useRef(false);
   // Whether we've actually entered a room this session. Guards the persist effect
   // from clearing the saved room on the INITIAL mount (when roomId starts null) —
   // doing so would wipe localStorage before refresh-recovery gets to read it.
@@ -317,6 +321,7 @@ export default function App() {
     socket.on('tournament_created', (state) => {
       setTournamentState(state);
       championCelebrated.current = false; // fresh tournament
+      grandFinaleShownRef.current = false;
       setPhase('tournament_lobby');
     });
 
@@ -332,6 +337,21 @@ export default function App() {
         }
       } else {
         setPhase((p) => (p === 'lobby' ? 'tournament_lobby' : p));
+        // Spectators (watching from the lobby) get a brief GRAND FINALE splash
+        // when the final goes live. Finalists get the tap-to-start version via
+        // tournament_match_starting instead, so skip them here.
+        const liveFix = state.fixtures[state.currentMatchIndex];
+        if (liveFix?.isFinal && liveFix.status === 'live' && !grandFinaleShownRef.current) {
+          grandFinaleShownRef.current = true;
+          const amFinalist =
+            state.players[liveFix.player1Idx]?.id === socket.id ||
+            state.players[liveFix.player2Idx]?.id === socket.id;
+          if (!amFinalist) {
+            sounds.toss();
+            setGrandFinale('spectator');
+            setTimeout(() => setGrandFinale((m) => (m === 'spectator' ? null : m)), 3000);
+          }
+        }
       }
     });
 
@@ -340,11 +360,12 @@ export default function App() {
       setMyPlayerIdx(pidx);
       isTournamentMatchRef.current = true;
       setIsTournamentMatch(true);
-      // The final gets a hype intro before the (normal) toss flow underneath.
+      // Finalists get a tap-to-start GRAND FINALE intro before the toss; the
+      // server holds a bot opponent until "Start the Final" is tapped.
       if (isFinal) {
         sounds.toss();
-        setShowGrandFinale(true);
-        setTimeout(() => setShowGrandFinale(false), 3000);
+        grandFinaleShownRef.current = true; // we've handled the finale for this tournament
+        setGrandFinale('finalist');
       }
       // phase transitions via incoming toss_start
     });
@@ -512,6 +533,11 @@ export default function App() {
     resetToLobby();
   }
 
+  function startFinal() {
+    socket.emit('final_ready'); // releases a bot opponent to begin the toss
+    setGrandFinale(null);
+  }
+
   function resetToTournamentLobby() {
     resetGameState();
     isTournamentMatchRef.current = false;
@@ -637,12 +663,21 @@ export default function App() {
 
       {inningsEnd && <InningsEndOverlay data={inningsEnd} onDismiss={() => setInningsEnd(null)} />}
 
-      {showGrandFinale && (
+      {grandFinale && (
         <div className="grand-finale-overlay">
           <div className="gf-content">
             <div className="gf-trophy">🏆</div>
             <div className="gf-title">GRAND FINALE</div>
-            <div className="gf-sub">The top 2 face off for the title</div>
+            <div className="gf-sub">
+              {grandFinale === 'finalist'
+                ? 'The top 2 face off for the title'
+                : 'The Final is underway'}
+            </div>
+            {grandFinale === 'finalist' && (
+              <button className="gf-start-btn" onClick={startFinal}>
+                Start the Final →
+              </button>
+            )}
           </div>
         </div>
       )}

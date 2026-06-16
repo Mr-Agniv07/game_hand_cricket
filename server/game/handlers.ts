@@ -164,6 +164,21 @@ export function registerGameHandlers(io: GameServer): void {
       if (room.hasBot) driveBots(io, roomId, room, rooms);
     });
 
+    socket.on('final_ready', () => {
+      const roomId = socket.data.roomId;
+      const room = roomId ? rooms.get(roomId) : undefined;
+      if (!room || !roomId || !room.finalAwaiting) return;
+      room.finalAwaiting.delete(socket.id);
+      if (room.finalAwaiting.size === 0) {
+        room.finalAwaiting = undefined;
+        if (room._finalStartTimer) {
+          clearTimeout(room._finalStartTimer);
+          room._finalStartTimer = undefined;
+        }
+        driveBots(io, roomId, room, rooms);
+      }
+    });
+
     socket.on('declare', () => {
       const roomId = socket.data.roomId;
       const room = roomId ? rooms.get(roomId) : undefined;

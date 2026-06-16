@@ -39,6 +39,27 @@
   text-transform: uppercase;
   color: var(--muted);
 }
+.gf-start-btn {
+  margin-top: 1.4rem;
+  padding: 0.85rem 2rem;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #000;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgba(251, 191, 36, 0.35);
+  transition: transform 0.12s, box-shadow 0.15s;
+}
+.gf-start-btn:hover {
+  transform: scale(1.04);
+  box-shadow: 0 8px 30px rgba(251, 191, 36, 0.5);
+}
+.gf-start-btn:active {
+  transform: scale(0.97);
+}
 @keyframes gfFade {
   from { opacity: 0; }
   to { opacity: 1; }
