@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 .claude/
+
+# Runtime database — holds password hashes + live session tokens.
+# Must never be committed (public repo) and shouldn't be reset by git pulls.
+server/db.json
