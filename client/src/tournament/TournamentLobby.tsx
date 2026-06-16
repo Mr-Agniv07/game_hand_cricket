@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import type { TournamentState, PointsTableEntry, LiveMatchScore } from '@cric/types';
+import type {
+  TournamentState,
+  TournamentPlayer,
+  PointsTableEntry,
+  FixtureMatch,
+  LiveMatchScore,
+} from '@cric/types';
 import styles from './TournamentLobby.module.css';
 
 interface TournamentLobbyProps {
@@ -22,25 +28,128 @@ function nrrColor(nrr: number): string {
 
 const RANK_MEDALS = ['🥇', '🥈', '🥉', '4'];
 
-function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
-  const {
-    batsmanName,
-    bowlerName,
-    score,
-    balls,
-    wicketsLost,
-    target,
-    currentInnings,
-    lastBall,
-  } = liveScore;
+type PT = Record<string, PointsTableEntry>;
 
+function sortByStandings(players: TournamentPlayer[], pt: PT): TournamentPlayer[] {
+  return [...players].sort((a, b) => {
+    const ea = pt[a.id];
+    const eb = pt[b.id];
+    if (!ea || !eb) return 0;
+    if (eb.points !== ea.points) return eb.points - ea.points;
+    return eb.nrr - ea.nrr;
+  });
+}
+
+function StandingsTable({ rows, pt, myId }: { rows: TournamentPlayer[]; pt: PT; myId: string | null }) {
+  return (
+    <div className={styles['t-table-wrap']}>
+      <table className={styles['t-table']}>
+        <thead>
+          <tr>
+            <th className={styles['t-th-rank']}>#</th>
+            <th className={styles['t-th-player']}>Player</th>
+            <th>P</th>
+            <th>W</th>
+            <th>L</th>
+            <th>Pts</th>
+            <th>NRR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p, rank) => {
+            const e = pt[p.id];
+            const isMe = p.id === myId;
+            return (
+              <tr key={p.id} className={isMe ? styles['t-tr-me'] : ''}>
+                <td className={styles['t-td-rank']}>{RANK_MEDALS[rank]}</td>
+                <td className={styles['t-td-player']}>
+                  {p.name}
+                  {isMe ? <span className={styles['t-you']}> (You)</span> : null}
+                </td>
+                <td>{e?.played ?? 0}</td>
+                <td className={styles['t-won']}>{e?.won ?? 0}</td>
+                <td className={styles['t-lost']}>{e?.lost ?? 0}</td>
+                <td className={styles['t-pts']}>{e?.points ?? 0}</td>
+                <td style={{ color: nrrColor(e?.nrr ?? 0) }}>{formatNRR(e?.nrr ?? 0)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FixtureRow({
+  f,
+  players,
+  myId,
+}: {
+  f: FixtureMatch;
+  players: TournamentPlayer[];
+  myId: string | null;
+}) {
+  const fp1 = players[f.player1Idx];
+  const fp2 = players[f.player2Idx];
+  const isMyMatch = myId === fp1?.id || myId === fp2?.id;
+  const knockout = f.stage === 'semi' || f.stage === 'final';
+  const badge = f.stage === 'final' ? '🏆' : f.stage === 'semi' ? 'SF' : `M${f.matchNum}`;
+  return (
+    <div
+      className={`${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}${knockout ? ` ${styles['final-row']}` : ''}`}
+    >
+      <span className={`${styles['t-match-badge']} ${styles[f.status]}`}>{badge}</span>
+      <div className={styles['t-fixture-teams']}>
+        <span className={f.result === 'p1' ? styles['t-winner'] : ''}>{fp1?.name ?? '?'}</span>
+        <span className={styles['t-vs']}>vs</span>
+        <span className={f.result === 'p2' ? styles['t-winner'] : ''}>{fp2?.name ?? '?'}</span>
+      </div>
+      <div className={styles['t-fixture-result']}>
+        {f.status === 'done' ? (
+          <span className={styles['t-score']}>
+            {f.p1Score}–{f.p2Score}
+          </span>
+        ) : f.status === 'live' ? (
+          <span className={styles['t-live-tag']}>
+            <span className={`${styles['t-live-dot']} ${styles.sm}`} />
+            Live
+          </span>
+        ) : (
+          <span className={styles['t-upcoming-tag']}>—</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A placeholder knockout row shown before the real participants are known. */
+function PlaceholderRow({ label, p1, p2 }: { label: string; p1: string; p2: string }) {
+  return (
+    <div className={`${styles['t-fixture-row']} ${styles.upcoming} ${styles['final-row']}`}>
+      <span className={`${styles['t-match-badge']} ${styles.upcoming}`}>
+        {label === 'Final' ? '🏆' : 'SF'}
+      </span>
+      <div className={styles['t-fixture-teams']}>
+        <span>{p1}</span>
+        <span className={styles['t-vs']}>vs</span>
+        <span>{p2}</span>
+      </div>
+      <div className={styles['t-fixture-result']}>
+        <span className={styles['t-upcoming-tag']}>{label === 'Final' ? 'FINAL' : 'SF'}</span>
+      </div>
+    </div>
+  );
+}
+
+function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
+  const { batsmanName, bowlerName, score, balls, wicketsLost, target, currentInnings, lastBall } =
+    liveScore;
   const oversDisplay = `${Math.floor(balls / 6)}.${balls % 6}`;
   const runsNeeded = target !== null ? target - score : null;
 
   return (
     <div className={`${styles['t-section']} ${styles['t-spectator']}`}>
       <div className={styles['t-section-title']}>Live — Innings {currentInnings}</div>
-
       <div className={styles['t-spec-score']}>
         <span className={styles['t-spec-runs']}>{score}</span>
         <span className={styles['t-spec-sep']}>/</span>
@@ -48,18 +157,15 @@ function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
           {wicketsLost}W · {oversDisplay} ov
         </span>
       </div>
-
       {runsNeeded !== null && (
         <div className={styles['t-spec-target']}>
           Target {target} — need <strong>{runsNeeded}</strong> more
         </div>
       )}
-
       <div className={styles['t-spec-players']}>
         <span className={styles['t-spec-bat']}>🏏 {batsmanName}</span>
         <span className={styles['t-spec-bowl']}>🎳 {bowlerName}</span>
       </div>
-
       {lastBall && (
         <div className={`${styles['t-spec-last']} ${lastBall.isOut ? styles.out : styles.run}`}>
           {lastBall.isOut
@@ -77,14 +183,15 @@ export default function TournamentLobby({
   onLeave,
   onStartWithBots,
 }: TournamentLobbyProps) {
-  const { code, players, phase, fixtures, currentMatchIndex, pointsTable } = tournamentState;
+  const { code, size, groups, players, phase, fixtures, currentMatchIndex, pointsTable } =
+    tournamentState;
   const [copied, setCopied] = useState(false);
-  // The host (first entrant) can start early; empty seats fill with bots.
+  const [groupTab, setGroupTab] = useState<0 | 1>(0);
+
+  const is8 = size === 8;
   const isHost = players[0]?.id === myId;
 
   function copyCode() {
-    // clipboard API rejects in insecure contexts (e.g. http://<LAN-IP>); swallow
-    // the rejection so it doesn't surface as an unhandled promise error.
     navigator.clipboard
       ?.writeText(code)
       .then(() => {
@@ -94,20 +201,31 @@ export default function TournamentLobby({
       .catch(() => {});
   }
 
-  const sortedPlayers = [...players].sort((a, b) => {
-    const ea: PointsTableEntry | undefined = pointsTable[a.id];
-    const eb: PointsTableEntry | undefined = pointsTable[b.id];
-    if (!ea || !eb) return 0;
-    if (eb.points !== ea.points) return eb.points - ea.points;
-    return eb.nrr - ea.nrr;
-  });
-
   const liveMatch = phase === 'in_progress' ? fixtures[currentMatchIndex] : null;
   const liveP1 = liveMatch ? players[liveMatch.player1Idx] : null;
   const liveP2 = liveMatch ? players[liveMatch.player2Idx] : null;
   const imPlaying = liveMatch ? myId === liveP1?.id || myId === liveP2?.id : false;
 
-  const doneCount = fixtures.filter((f) => f.status === 'done').length;
+  const groupTotal = fixtures.filter((f) => f.stage === 'group').length || 12;
+  const groupDone = fixtures.filter((f) => f.stage === 'group' && f.status === 'done').length;
+
+  const semis = fixtures.filter((f) => f.stage === 'semi');
+  const finalFix = fixtures.find((f) => f.stage === 'final');
+
+  const progressLabel =
+    liveMatch?.stage === 'final'
+      ? '🏆 Grand Final'
+      : liveMatch?.stage === 'semi'
+        ? (liveMatch.label ?? 'Semi Final')
+        : `Group Stage · ${Math.min(groupDone + 1, groupTotal)} of ${groupTotal}`;
+  const progressPct = Math.min(100, Math.round((groupDone / groupTotal) * 100));
+
+  // Group standings + fixtures for the 8-player view.
+  const groupPlayers = (gi: number): TournamentPlayer[] =>
+    (groups[gi] ?? []).map((idx) => players[idx]).filter(Boolean);
+  const groupSorted = (gi: number) => sortByStandings(groupPlayers(gi), pointsTable);
+  const groupFixtures = (g: 'A' | 'B') =>
+    fixtures.filter((f) => f.stage === 'group' && f.group === g);
 
   return (
     <div className={styles['t-lobby']}>
@@ -123,22 +241,27 @@ export default function TournamentLobby({
                   {copied ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-              <span className={styles['t-code-hint']}>Share with 3 friends to start</span>
+              <span className={styles['t-code-hint']}>
+                Share to fill {size} players (or start with bots)
+              </span>
             </div>
 
             <div className={styles['t-waiting-count']}>
               <span className={styles['t-count-num']}>{players.length}</span>
               <span className={styles['t-count-sep']}>/</span>
-              <span className={styles['t-count-total']}>4</span>
+              <span className={styles['t-count-total']}>{size}</span>
               <span className={styles['t-count-label']}>players joined</span>
             </div>
 
             <div className={styles['t-player-list']}>
-              {Array.from({ length: 4 }).map((_, i) => {
+              {Array.from({ length: size }).map((_, i) => {
                 const p = players[i];
                 const isMe = p?.id === myId;
                 return p ? (
-                  <div key={p.id} className={`${styles['t-player-chip']}${isMe ? ` ${styles.me}` : ''}`}>
+                  <div
+                    key={p.id}
+                    className={`${styles['t-player-chip']}${isMe ? ` ${styles.me}` : ''}`}
+                  >
                     <span className={styles['t-chip-dot']} />
                     <span className={styles['t-chip-name']}>{p.name}</span>
                     {isMe && <span className={styles['t-chip-you']}>You</span>}
@@ -155,32 +278,38 @@ export default function TournamentLobby({
             <div className={styles['t-format']}>
               <div className={styles['t-format-title']}>📋 How it works</div>
               <ul className={styles['t-format-list']}>
-                <li>4 players, round-robin — everyone plays everyone twice (12 matches).</li>
-                <li>Win = 2 pts, Tie = 1 pt, Loss = 0. Ties on points broken by NRR.</li>
-                <li>
-                  The top 2 then play a one-off <strong>FINAL</strong> — its winner is the
-                  champion.
-                </li>
+                {is8 ? (
+                  <>
+                    <li>8 players split randomly into Group A & B (4 each).</li>
+                    <li>Round-robin within each group. Win = 2 pts, Tie = 1 pt; ties broken by NRR.</li>
+                    <li>
+                      Top 2 of each group reach the <strong>semi-finals</strong>: A1 v B2 and B1 v A2.
+                    </li>
+                    <li>
+                      Semi winners meet in the <strong>FINAL</strong> — its winner is the champion.
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li>4 players, round-robin — everyone plays everyone twice (12 matches).</li>
+                    <li>Win = 2 pts, Tie = 1 pt, Loss = 0. Ties on points broken by NRR.</li>
+                    <li>
+                      The top 2 then play a one-off <strong>FINAL</strong> — its winner is the
+                      champion.
+                    </li>
+                  </>
+                )}
               </ul>
             </div>
           </>
         ) : (
           <div className={styles['t-progress']}>
             <div className={styles['t-progress-header']}>
-              <span className={styles['t-progress-label']}>
-                {liveMatch?.isFinal
-                  ? '🏆 Grand Final'
-                  : `Match ${Math.min(doneCount + 1, 12)} of 12`}
-              </span>
-              <span className={styles['t-progress-pct']}>
-                {Math.min(100, Math.round((doneCount / 12) * 100))}%
-              </span>
+              <span className={styles['t-progress-label']}>{progressLabel}</span>
+              <span className={styles['t-progress-pct']}>{progressPct}%</span>
             </div>
             <div className={styles['t-progress-bar']}>
-              <div
-                className={styles['t-progress-fill']}
-                style={{ width: `${Math.min(100, (doneCount / 12) * 100)}%` }}
-              />
+              <div className={styles['t-progress-fill']} style={{ width: `${progressPct}%` }} />
             </div>
           </div>
         )}
@@ -189,131 +318,116 @@ export default function TournamentLobby({
       {/* Live match banner */}
       {liveMatch && liveP1 && liveP2 && (
         <div className={`${styles['t-live-banner']}${imPlaying ? ` ${styles.playing}` : ''}`}>
-          {imPlaying ? (
-            <>
-              <span className={styles['t-live-dot']} />
-              {liveMatch.isFinal ? '🏆 The FINAL is live — check the game above!' : 'Your match is live — check the game above!'}
-            </>
-          ) : (
-            <>
-              <span className={styles['t-live-dot']} />
-              {liveMatch.isFinal ? '🏆 FINAL' : 'Live'} — {liveP1.name} vs {liveP2.name}
-            </>
-          )}
+          <span className={styles['t-live-dot']} />
+          {imPlaying
+            ? liveMatch.stage === 'final'
+              ? '🏆 The FINAL is live — check the game above!'
+              : 'Your match is live — check the game above!'
+            : `${liveMatch.stage === 'final' ? '🏆 FINAL' : liveMatch.stage === 'semi' ? `🏏 ${liveMatch.label}` : 'Live'} — ${liveP1.name} vs ${liveP2.name}`}
         </div>
       )}
 
-      {/* Spectator scoreboard — shown to waiting players when a match is live */}
+      {/* Spectator scoreboard */}
       {phase === 'in_progress' && !imPlaying && tournamentState.liveScore && (
         <SpectatorScore liveScore={tournamentState.liveScore} />
       )}
 
-      {/* Points table */}
-      {phase === 'in_progress' && (
-        <div className={styles['t-section']}>
-          <div className={styles['t-section-title']}>Points Table</div>
-          <div className={styles['t-table-wrap']}>
-            <table className={styles['t-table']}>
-              <thead>
-                <tr>
-                  <th className={styles['t-th-rank']}>#</th>
-                  <th className={styles['t-th-player']}>Player</th>
-                  <th>P</th>
-                  <th>W</th>
-                  <th>L</th>
-                  <th>Pts</th>
-                  <th>NRR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedPlayers.map((p, rank) => {
-                  const e = pointsTable[p.id];
-                  const isMe = p.id === myId;
-                  return (
-                    <tr key={p.id} className={isMe ? styles['t-tr-me'] : ''}>
-                      <td className={styles['t-td-rank']}>{RANK_MEDALS[rank]}</td>
-                      <td className={styles['t-td-player']}>
-                        {p.name}
-                        {isMe ? <span className={styles['t-you']}> (You)</span> : null}
-                      </td>
-                      <td>{e?.played ?? 0}</td>
-                      <td className={styles['t-won']}>{e?.won ?? 0}</td>
-                      <td className={styles['t-lost']}>{e?.lost ?? 0}</td>
-                      <td className={styles['t-pts']}>{e?.points ?? 0}</td>
-                      <td style={{ color: nrrColor(e?.nrr ?? 0) }}>{formatNRR(e?.nrr ?? 0)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* ── 8-player: group tabs + playoffs ── */}
+      {phase === 'in_progress' && is8 && (
+        <>
+          <div className={styles['t-group-tabs']}>
+            <button
+              className={groupTab === 0 ? `${styles['t-group-tab']} ${styles.active}` : styles['t-group-tab']}
+              onClick={() => setGroupTab(0)}
+            >
+              Group A
+            </button>
+            <button
+              className={groupTab === 1 ? `${styles['t-group-tab']} ${styles.active}` : styles['t-group-tab']}
+              onClick={() => setGroupTab(1)}
+            >
+              Group B
+            </button>
           </div>
-        </div>
-      )}
 
-      {/* Fixture list */}
-      {phase === 'in_progress' && (
-        <div className={styles['t-section']}>
-          <div className={styles['t-section-title']}>Fixture</div>
-          <div className={styles['t-fixture']}>
-            {fixtures.map((f) => {
-              const fp1 = players[f.player1Idx];
-              const fp2 = players[f.player2Idx];
-              const isMyMatch = myId === fp1?.id || myId === fp2?.id;
-              const fp1Won = f.result === 'p1';
-              const fp2Won = f.result === 'p2';
-              return (
-                <div
-                  key={f.matchNum}
-                  className={`${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}${f.isFinal ? ` ${styles['final-row']}` : ''}`}
-                >
-                  <span className={`${styles['t-match-badge']} ${styles[f.status]}`}>
-                    {f.isFinal ? '🏆' : `M${f.matchNum}`}
-                  </span>
-                  <div className={styles['t-fixture-teams']}>
-                    <span className={fp1Won ? styles['t-winner'] : ''}>{fp1?.name ?? '?'}</span>
-                    <span className={styles['t-vs']}>vs</span>
-                    <span className={fp2Won ? styles['t-winner'] : ''}>{fp2?.name ?? '?'}</span>
-                  </div>
-                  <div className={styles['t-fixture-result']}>
-                    {f.status === 'done' ? (
-                      <span className={styles['t-score']}>
-                        {f.p1Score}–{f.p2Score}
-                      </span>
-                    ) : f.status === 'live' ? (
-                      <span className={styles['t-live-tag']}>
-                        <span className={`${styles['t-live-dot']} ${styles.sm}`} />
-                        Live
-                      </span>
-                    ) : (
-                      <span className={styles['t-upcoming-tag']}>—</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className={styles['t-section']}>
+            <div className={styles['t-section-title']}>Group {groupTab === 0 ? 'A' : 'B'} — Standings</div>
+            <StandingsTable rows={groupSorted(groupTab)} pt={pointsTable} myId={myId} />
+          </div>
 
-            {/* Always surface the FINAL. Until the league ends and the real
-                finalists are known, show a placeholder of 1st vs 2nd place. */}
-            {!fixtures.some((f) => f.isFinal) && (
-              <div className={`${styles['t-fixture-row']} ${styles.upcoming} ${styles['final-row']}`}>
-                <span className={`${styles['t-match-badge']} ${styles.upcoming}`}>🏆</span>
-                <div className={styles['t-fixture-teams']}>
-                  <span>1st place</span>
-                  <span className={styles['t-vs']}>vs</span>
-                  <span>2nd place</span>
-                </div>
-                <div className={styles['t-fixture-result']}>
-                  <span className={styles['t-upcoming-tag']}>FINAL</span>
-                </div>
+          <div className={styles['t-section']}>
+            <div className={styles['t-section-title']}>Group {groupTab === 0 ? 'A' : 'B'} — Fixtures</div>
+            <div className={styles['t-fixture']}>
+              {groupFixtures(groupTab === 0 ? 'A' : 'B').map((f) => (
+                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} />
+              ))}
+            </div>
+          </div>
+
+          <div className={styles['t-section']}>
+            <div className={styles['t-section-title']}>🏆 Playoffs</div>
+            <div className={styles['t-fixture']}>
+              {semis.length > 0 ? (
+                semis.map((f) => (
+                  <div key={f.matchNum}>
+                    <div className={styles['t-playoff-label']}>{f.label}</div>
+                    <FixtureRow f={f} players={players} myId={myId} />
+                  </div>
+                ))
+              ) : (
+                <>
+                  <div>
+                    <div className={styles['t-playoff-label']}>Semi Final 1</div>
+                    <PlaceholderRow label="SF" p1="Group A #1" p2="Group B #2" />
+                  </div>
+                  <div>
+                    <div className={styles['t-playoff-label']}>Semi Final 2</div>
+                    <PlaceholderRow label="SF" p1="Group B #1" p2="Group A #2" />
+                  </div>
+                </>
+              )}
+              <div>
+                <div className={styles['t-playoff-label']}>Final</div>
+                {finalFix ? (
+                  <FixtureRow f={finalFix} players={players} myId={myId} />
+                ) : (
+                  <PlaceholderRow label="Final" p1="SF1 winner" p2="SF2 winner" />
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
-      {phase === 'waiting' && isHost && players.length < 4 && (
+      {/* ── 4-player: single table + fixtures ── */}
+      {phase === 'in_progress' && !is8 && (
+        <>
+          <div className={styles['t-section']}>
+            <div className={styles['t-section-title']}>Points Table</div>
+            <StandingsTable rows={sortByStandings(players, pointsTable)} pt={pointsTable} myId={myId} />
+          </div>
+
+          <div className={styles['t-section']}>
+            <div className={styles['t-section-title']}>Fixture</div>
+            <div className={styles['t-fixture']}>
+              {fixtures.map((f) => (
+                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} />
+              ))}
+              {!finalFix && (
+                <div>
+                  <div className={styles['t-playoff-label']}>Final</div>
+                  <PlaceholderRow label="Final" p1="1st place" p2="2nd place" />
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {phase === 'waiting' && isHost && players.length < size && (
         <button className={styles['t-bot-fill-btn']} onClick={onStartWithBots}>
-          🤖 Start now — fill {4 - players.length} spot{4 - players.length !== 1 ? 's' : ''} with bots
+          🤖 Start now — fill {size - players.length} spot{size - players.length !== 1 ? 's' : ''} with
+          bots
         </button>
       )}
 

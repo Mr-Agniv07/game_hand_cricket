@@ -29,6 +29,39 @@
   color: #fbbf24;
 }
 
+.t-group-tabs {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 460px;
+}
+.t-group-tab {
+  flex: 1;
+  padding: 0.6rem;
+  background: var(--surface2);
+  border: 1px solid #ffffff14;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.t-group-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+}
+
+.t-playoff-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #fbbf24;
+  margin: 0.4rem 0 0.2rem;
+}
+
 .t-bot-fill-btn {
   width: 100%;
   max-width: 460px;

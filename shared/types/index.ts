@@ -191,6 +191,8 @@ export interface TournamentPlayer {
   name: string;
 }
 
+export type FixtureStage = 'group' | 'semi' | 'final';
+
 export interface FixtureMatch {
   matchNum: number;
   player1Idx: number;
@@ -199,8 +201,14 @@ export interface FixtureMatch {
   result: 'p1' | 'p2' | 'tie' | null;
   p1Score: number;
   p2Score: number;
-  /** The playoff decider between the top 2 league finishers. */
+  /** The playoff decider. */
   isFinal?: boolean;
+  /** Which stage this fixture belongs to. */
+  stage?: FixtureStage;
+  /** Group label for group-stage matches in multi-group (8-player) tournaments. */
+  group?: 'A' | 'B';
+  /** Display label for knockout matches, e.g. "Semi Final 1". */
+  label?: string;
 }
 
 export interface PointsTableEntry {
@@ -234,6 +242,10 @@ export interface TournamentState {
   code: string;
   overs: number;
   wickets: number;
+  /** Number of players: 4 (single group) or 8 (two groups). */
+  size: number;
+  /** Player-index arrays per group; e.g. [[0,2,5,7],[1,3,4,6]] for 8 players. Empty until assigned. */
+  groups: number[][];
   players: TournamentPlayer[];
   phase: TournamentPhase;
   fixtures: FixtureMatch[];
@@ -262,6 +274,8 @@ export interface CreateTournamentPayload {
   playerName: string;
   overs: number;
   wickets: number;
+  /** 4 (single group + final) or 8 (two groups + semis + final). Defaults to 4. */
+  size?: number;
 }
 
 export interface JoinTournamentPayload {

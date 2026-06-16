@@ -287,11 +287,11 @@ export function endInnings(
           const inn1PId = room.players[room.bowlerIdx!].id;
           const inn2PId = room.players[room.batsmanIdx!].id;
 
-          if (fixture.isFinal) {
+          if (fixture.stage === 'final') {
             // The final decides the champion and does NOT count toward the league
-            // table. A tied final goes to the higher league seed (player1).
+            // table. A tied final goes to the higher seed (player1).
             tournament.champion = winnerId ?? tournament.players[fixture.player1Idx].id;
-          } else {
+          } else if (fixture.stage === 'group') {
             // ICC-style NRR: a side that's all out is treated as having faced its
             // FULL over quota, regardless of how few balls it actually used. A side
             // that wasn't all out (overs completed, or a successful chase) counts
@@ -304,6 +304,7 @@ export function endInnings(
             updateEntry(inn1PId, inn1.score, eff1, inn2.score, eff2, !tied && winnerId === inn1PId, tied);
             updateEntry(inn2PId, inn2.score, eff2, inn1.score, eff1, !tied && winnerId === inn2PId, tied);
           }
+          // semi: no points table change; fixture.result (set above) decides who advances.
 
           tournament.liveScore = null;
           io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));

@@ -28,6 +28,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null);
   const [tOvers, setTOvers] = useState(2);
   const [tWickets, setTWickets] = useState(2);
+  const [tSize, setTSize] = useState<4 | 8>(4);
   const [tSubTab, setTSubTab] = useState<'create' | 'join'>('create');
   const [tJoinCode, setTJoinCode] = useState('');
 
@@ -71,6 +72,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
       playerName,
       overs: tOvers,
       wickets: tWickets,
+      size: tSize,
     });
   }
 
@@ -271,6 +273,19 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                   />
                 </>
               )}
+              <label>Players</label>
+              <div className="over-options">
+                {([4, 8] as const).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={tSize === n ? 'over-btn selected' : 'over-btn'}
+                    onClick={() => setTSize(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
               <label>Overs per Match</label>
               <div className="over-options">
                 {OVER_OPTIONS.map((o) => (
@@ -298,8 +313,17 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                 ))}
               </div>
               <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0', lineHeight: 1.4 }}>
-                4 players · round-robin (12 matches) · Win=2pts, Tie=1pt · then the
-                top 2 play a <strong style={{ color: '#fbbf24' }}>FINAL</strong> for the title.
+                {tSize === 8 ? (
+                  <>
+                    8 players · two groups of 4 · top 2 of each group reach the
+                    semi-finals, then the <strong style={{ color: '#fbbf24' }}>FINAL</strong>.
+                  </>
+                ) : (
+                  <>
+                    4 players · round-robin (12 matches) · then the top 2 play a{' '}
+                    <strong style={{ color: '#fbbf24' }}>FINAL</strong> for the title.
+                  </>
+                )}{' '}
                 Short of players? Empty seats fill with bots.
               </p>
               <button type="submit" className="btn-primary">
