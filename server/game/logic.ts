@@ -271,8 +271,18 @@ export function endInnings(
           const tied = winnerId === null;
           const inn1PId = room.players[room.bowlerIdx!].id;
           const inn2PId = room.players[room.batsmanIdx!].id;
-          updateEntry(inn1PId, inn1.score, inn1.balls, inn2.score, inn2.balls, !tied && winnerId === inn1PId, tied);
-          updateEntry(inn2PId, inn2.score, inn2.balls, inn1.score, inn1.balls, !tied && winnerId === inn2PId, tied);
+
+          // ICC-style NRR: a side that's all out is treated as having faced its
+          // FULL over quota, regardless of how few balls it actually used. A side
+          // that wasn't all out (overs completed, or a successful chase) counts
+          // its actual balls. The bowling side is credited the same effective
+          // ball count for the innings it bowled.
+          const quota = totalBalls(room);
+          const eff1 = inn1.isOut ? quota : inn1.balls;
+          const eff2 = inn2.isOut ? quota : inn2.balls;
+
+          updateEntry(inn1PId, inn1.score, eff1, inn2.score, eff2, !tied && winnerId === inn1PId, tied);
+          updateEntry(inn2PId, inn2.score, eff2, inn1.score, eff1, !tied && winnerId === inn2PId, tied);
 
           tournament.liveScore = null;
           io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
