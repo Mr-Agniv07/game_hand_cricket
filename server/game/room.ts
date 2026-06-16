@@ -1,4 +1,4 @@
-import type { GameState, Phase, TossCall } from '@cric/types';
+import type { GameState, Phase, TossCall, GameOverPayload } from '@cric/types';
 
 export interface RoomPlayer {
   id: string;
@@ -40,6 +40,9 @@ export interface Room {
   hasBot?: boolean;
   /** Per-player-index frequency of each number played, for bot adaptation. */
   botMoveCounts?: Record<number, number[]>;
+  /** The final result, kept so a player who reconnects after the game ended
+   *  (e.g. a blip on the last ball) is shown the result instead of a dead screen. */
+  lastGameOver?: GameOverPayload;
 }
 
 export function makeRoomId(used?: { has(id: string): boolean }): string {

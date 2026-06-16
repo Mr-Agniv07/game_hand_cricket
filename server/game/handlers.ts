@@ -322,6 +322,32 @@ export function registerGameHandlers(io: GameServer): void {
       }
 
       socket.emit('state', publicState(room, roomId));
+
+      // Re-sync the reconnecting client to the live screen so a blip can't strand
+      // it on a stale "waiting" view:
+      if (room.phase === 'innings' && room.batsmanIdx !== null && room.bowlerIdx !== null) {
+        // Refresh the in-game screen (phase + batsman/bowler/target).
+        socket.emit('innings_start', {
+          inningsNumber: room.currentInnings + 1,
+          batsmanName: room.players[room.batsmanIdx].name,
+          bowlerName: room.players[room.bowlerIdx].name,
+          target: room.currentInnings === 1 ? room.innings[0].score + 1 : null,
+        });
+        // A reconnect can leave BOTH moves pending with nothing left to trigger
+        // the resolve — finish that ball now. Otherwise make sure the bot is
+        // (re)scheduled so the game can't stall waiting on a lost timer.
+        const bm = room.pendingMoves[batsmanId(room)];
+        const wm = room.pendingMoves[bowlerId(room)];
+        if (bm !== undefined && wm !== undefined) {
+          room.pendingMoves = {};
+          resolveBall(io, roomId, room, rooms, bm, wm);
+        } else if (room.hasBot) {
+          driveBots(io, roomId, room, rooms);
+        }
+      } else if (room.phase === 'result' && room.lastGameOver) {
+        // Missed the finish while away — deliver it so the client leaves the game.
+        socket.emit('game_over', room.lastGameOver);
+      }
     });
 
     socket.on('leave_room', () => {

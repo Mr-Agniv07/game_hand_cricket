@@ -25,6 +25,22 @@ type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEven
 /** Delay before a bot acts, so its toss/choice/moves feel paced rather than instant. */
 const BOT_DELAY_MS = 650;
 
+/**
+ * Schedule a bot action. The body is wrapped in try/catch because an uncaught
+ * throw inside a setTimeout callback crashes the whole Node process (taking
+ * every live game down with it). Catching keeps one bad ball from freezing
+ * everything; the player can refresh to re-trigger via rejoin_room.
+ */
+function botTimer(fn: () => void): void {
+  setTimeout(() => {
+    try {
+      fn();
+    } catch (err) {
+      console.error('[bot] action failed:', err);
+    }
+  }, BOT_DELAY_MS);
+}
+
 export function resolveBall(
   io: GameServer,
   roomId: string,
@@ -300,14 +316,16 @@ export function endInnings(
     }
 
     room.phase = 'result';
-    io.to(roomId).emit('game_over', {
+    const gameOver = {
       winnerId,
       winnerIdx: winnerId === null ? null : room.players.findIndex((p) => p.id === winnerId),
       winnerName,
       resultText,
       scores: playerScores,
       players: room.players.map((p) => p.name),
-    });
+    };
+    room.lastGameOver = gameOver;
+    io.to(roomId).emit('game_over', gameOver);
     io.to(roomId).emit('state', publicState(room, roomId));
   }
 }
@@ -365,14 +383,16 @@ export function forfeitGame(
   ]);
 
   room.phase = 'result';
-  io.to(winner.id).emit('game_over', {
+  const gameOver = {
     winnerId: winner.id,
     winnerIdx,
     winnerName: winner.name,
     resultText: `${loser.name} declared — you win!`,
     scores: playerScores,
     players: room.players.map((p) => p.name),
-  });
+  };
+  room.lastGameOver = gameOver;
+  io.to(winner.id).emit('game_over', gameOver);
   rooms.delete(roomId);
 }
 
@@ -458,11 +478,11 @@ export function driveBots(
   if (room.phase === 'toss_call') {
     const caller = room.players.find((p) => p.id === room.tossCallerId);
     if (caller && isBot(caller)) {
-      setTimeout(() => {
+      botTimer(() => {
         if (roomAlive(rooms, roomId, room) && room.phase === 'toss_call') {
           applyTossCall(io, roomId, room, rooms, Math.random() < 0.5 ? 'heads' : 'tails');
         }
-      }, BOT_DELAY_MS);
+      });
     }
     return;
   }
@@ -470,11 +490,11 @@ export function driveBots(
   if (room.phase === 'bat_bowl') {
     const winner = room.players.find((p) => p.id === room.tossWinnerId);
     if (winner && isBot(winner)) {
-      setTimeout(() => {
+      botTimer(() => {
         if (roomAlive(rooms, roomId, room) && room.phase === 'bat_bowl') {
           applyBatBowlChoice(io, roomId, room, rooms, Math.random() < 0.5 ? 'bat' : 'bowl');
         }
-      }, BOT_DELAY_MS);
+      });
     }
     return;
   }
@@ -495,7 +515,7 @@ function scheduleBotMove(
 ): void {
   const player = room.players[idx];
   if (!isBot(player) || room.pendingMoves[player.id] !== undefined) return;
-  setTimeout(() => {
+  botTimer(() => {
     if (!roomAlive(rooms, roomId, room) || room.phase !== 'innings') return;
     if (room.pendingMoves[player.id] !== undefined) return;
     room.pendingMoves[player.id] = pickBotMove(room, idx);
@@ -510,7 +530,7 @@ function scheduleBotMove(
     if (roomAlive(rooms, roomId, room) && room.phase === 'innings' && room.players.every(isBot)) {
       driveBots(io, roomId, room, rooms);
     }
-  }, BOT_DELAY_MS);
+  });
 }
 
 export function startRematch(
