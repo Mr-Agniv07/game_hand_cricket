@@ -95,6 +95,8 @@ export default function App() {
   const gameStateRef = useRef<GameState | null>(null);
   const myPlayerIdxRef = useRef<number | null>(null);
   const trainSeqRef = useRef(0);
+  // Guards the champion fanfare so it plays at most once per tournament.
+  const championCelebrated = useRef(false);
   // Whether we've actually entered a room this session. Guards the persist effect
   // from clearing the saved room on the INITIAL mount (when roomId starts null) —
   // doing so would wipe localStorage before refresh-recovery gets to read it.
@@ -313,13 +315,23 @@ export default function App() {
 
     socket.on('tournament_created', (state) => {
       setTournamentState(state);
+      championCelebrated.current = false; // fresh tournament
       setPhase('tournament_lobby');
     });
 
     socket.on('tournament_state', (state) => {
       setTournamentState(state);
-      if (state.phase === 'complete') setPhase('tournament_result');
-      else setPhase((p) => (p === 'lobby' ? 'tournament_lobby' : p));
+      if (state.phase === 'complete') {
+        setPhase('tournament_result');
+        // Crown the champion with a fanfare (once). champion is a socket id,
+        // remapped on reconnect, so it matches our live socket.id if we won.
+        if (!championCelebrated.current) {
+          championCelebrated.current = true;
+          if (state.champion && state.champion === socket.id) sounds.champion();
+        }
+      } else {
+        setPhase((p) => (p === 'lobby' ? 'tournament_lobby' : p));
+      }
     });
 
     socket.on('tournament_match_starting', ({ roomId: rid, myPlayerIdx: pidx }) => {

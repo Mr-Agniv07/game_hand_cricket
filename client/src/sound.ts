@@ -127,6 +127,21 @@ export const sounds = {
       { freq: 494, dur: 0.16 },
       { freq: 494, dur: 0.22, delay: 0.18 },
     ]),
+  /** Tournament champion — a grand two-phrase fanfare. */
+  champion: () =>
+    playTones([
+      // Phrase 1: triplet build-up
+      { freq: 523, dur: 0.14, type: 'triangle' },
+      { freq: 523, dur: 0.12, delay: 0.15, type: 'triangle' },
+      { freq: 523, dur: 0.12, delay: 0.27, type: 'triangle' },
+      { freq: 659, dur: 0.34, delay: 0.39, type: 'triangle', vol: 0.2 },
+      // Phrase 2: rise to a held high note
+      { freq: 587, dur: 0.15, delay: 0.82, type: 'triangle' },
+      { freq: 784, dur: 0.18, delay: 0.97, type: 'triangle' },
+      { freq: 1047, dur: 0.55, delay: 1.17, type: 'triangle', vol: 0.22 },
+      // Sparkle on top
+      { freq: 1568, dur: 0.55, delay: 1.22, type: 'sine', vol: 0.12 },
+    ]),
 };
 
 export type SoundName = keyof typeof sounds;
