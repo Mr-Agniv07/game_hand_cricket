@@ -443,6 +443,11 @@
 .t-fixture-row.my-match.done {
   opacity: 1;
 }
+.t-fixture-row.final-row {
+  border-left-color: #fbbf24;
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.12), transparent);
+  opacity: 1;
+}
 
 .t-match-badge {
   font-size: 0.65rem;

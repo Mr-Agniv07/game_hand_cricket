@@ -50,6 +50,15 @@
   color: var(--muted);
 }
 
+.t-result-final-line {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.t-result-final-line strong {
+  color: var(--accent);
+}
+
 /* ─── My rank badge ─── */
 
 .t-my-rank {

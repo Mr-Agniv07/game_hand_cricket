@@ -35,6 +35,7 @@ export interface InternalFixtureMatch {
   p1Score: number;
   p2Score: number;
   roomId: string | null;
+  isFinal?: boolean;
 }
 
 export interface InternalPointsEntry {
@@ -60,6 +61,10 @@ export interface Tournament {
   currentMatchIndex: number;
   pointsTable: Record<string, InternalPointsEntry>;
   liveScore: LiveMatchScore | null;
+  /** True once the playoff final has been appended to fixtures. */
+  finalCreated?: boolean;
+  /** Final winner's player id (set when the final is decided). */
+  champion?: string | null;
 }
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -81,6 +86,63 @@ const FIXTURE_TEMPLATE: [number, number][] = [
 function computeNRR(e: InternalPointsEntry): number {
   if (e.ballsFaced === 0 || e.ballsBowled === 0) return 0;
   return (e.runsScored * 6) / e.ballsFaced - (e.runsConceded * 6) / e.ballsBowled;
+}
+
+/** Player indices ranked by league standing: points desc, then NRR desc. */
+function rankedPlayerIndices(t: Tournament): number[] {
+  return t.players
+    .map((p, idx) => ({ idx, e: t.pointsTable[p.id] }))
+    .sort((a, b) => {
+      if (!a.e || !b.e) return 0;
+      if (b.e.points !== a.e.points) return b.e.points - a.e.points;
+      return computeNRR(b.e) - computeNRR(a.e);
+    })
+    .map((x) => x.idx);
+}
+
+/**
+ * Append the playoff final between the top-2 league finishers. player1 is the
+ * higher seed (rank 1), so a tied final is awarded to the better league side.
+ * The final does NOT count toward the league points table.
+ */
+function setupFinal(io: GameServer, t: Tournament): void {
+  t.finalCreated = true;
+  const [top1, top2] = rankedPlayerIndices(t);
+  t.fixtures.push({
+    matchNum: t.fixtures.length + 1,
+    player1Idx: top1,
+    player2Idx: top2,
+    status: 'upcoming',
+    result: null,
+    p1Score: 0,
+    p2Score: 0,
+    roomId: null,
+    isFinal: true,
+  });
+  io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
+}
+
+/**
+ * Advance the bracket after `completedIdx` finished: play the next scheduled
+ * fixture, else set up the final (once the round-robin is done), else finalize.
+ * Centralised so every completion path (normal end, forfeit, missing player)
+ * agrees on what comes next.
+ */
+export function advanceTournament(
+  io: GameServer,
+  rooms: Map<string, Room>,
+  t: Tournament,
+  completedIdx: number
+): void {
+  const next = completedIdx + 1;
+  if (next < t.fixtures.length) {
+    startTournamentMatch(io, rooms, t, next);
+  } else if (!t.finalCreated) {
+    setupFinal(io, t);
+    startTournamentMatch(io, rooms, t, t.fixtures.length - 1);
+  } else {
+    finalizeTournament(io, t);
+  }
 }
 
 /**
@@ -117,6 +179,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
         result: f.result,
         p1Score: f.p1Score,
         p2Score: f.p2Score,
+        isFinal: f.isFinal ?? false,
       })
     ),
     currentMatchIndex: t.currentMatchIndex,
@@ -127,6 +190,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
       ])
     ),
     liveScore: t.liveScore,
+    champion: t.champion ?? null,
   };
 }
 
@@ -182,6 +246,12 @@ export function pushLiveScore(
 
 export function finalizeTournament(io: GameServer, tournament: Tournament): void {
   tournament.phase = 'complete';
+  // Defensive: if we somehow finalized without a recorded champion, fall back to
+  // the league topper so the result screen always has a winner.
+  if (!tournament.champion) {
+    const topIdx = rankedPlayerIndices(tournament)[0];
+    tournament.champion = tournament.players[topIdx]?.id ?? null;
+  }
   const state = publicTournamentState(tournament);
   io.to('t:' + tournament.id).emit('tournament_state', state);
   io.to('t:' + tournament.id).emit('tournament_complete', {
@@ -216,26 +286,27 @@ export function forfeitTournamentMatch(
   fixture.result = p1Lost ? 'p2' : 'p1';
   const winnerId = p1Lost ? p2Id : p1Id;
 
-  const we = tournament.pointsTable[winnerId];
-  const le = tournament.pointsTable[loserId];
-  if (we) {
-    we.played += 1;
-    we.won += 1;
-    we.points += 2;
-  }
-  if (le) {
-    le.played += 1;
-    le.lost += 1;
+  if (fixture.isFinal) {
+    // A forfeited final: the surviving player is champion; no league points.
+    tournament.champion = winnerId;
+  } else {
+    const we = tournament.pointsTable[winnerId];
+    const le = tournament.pointsTable[loserId];
+    if (we) {
+      we.played += 1;
+      we.won += 1;
+      we.points += 2;
+    }
+    if (le) {
+      le.played += 1;
+      le.lost += 1;
+    }
   }
 
   tournament.liveScore = null;
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
-  setTimeout(() => {
-    const next = matchIndex + 1;
-    if (next >= tournament.fixtures.length) finalizeTournament(io, tournament);
-    else startTournamentMatch(io, rooms, tournament, next);
-  }, advanceDelayMs);
+  setTimeout(() => advanceTournament(io, rooms, tournament, matchIndex), advanceDelayMs);
 }
 
 export function startTournamentMatch(
@@ -268,23 +339,23 @@ export function startTournamentMatch(
     fixture.result = p1Gone ? 'p2' : 'p1';
     const winnerId = p1Gone ? p2.id : p1.id;
     const loserId = p1Gone ? p1.id : p2.id;
-    const we = tournament.pointsTable[winnerId];
-    const le = tournament.pointsTable[loserId];
-    if (we) {
-      we.played += 1;
-      we.won += 1;
-      we.points += 2;
-    }
-    if (le) {
-      le.played += 1;
-      le.lost += 1;
+    if (fixture.isFinal) {
+      tournament.champion = winnerId;
+    } else {
+      const we = tournament.pointsTable[winnerId];
+      const le = tournament.pointsTable[loserId];
+      if (we) {
+        we.played += 1;
+        we.won += 1;
+        we.points += 2;
+      }
+      if (le) {
+        le.played += 1;
+        le.lost += 1;
+      }
     }
     io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
-    setTimeout(() => {
-      const next = matchIndex + 1;
-      if (next >= tournament.fixtures.length) finalizeTournament(io, tournament);
-      else startTournamentMatch(io, rooms, tournament, next);
-    }, 1000);
+    setTimeout(() => advanceTournament(io, rooms, tournament, matchIndex), 1000);
     return;
   }
 

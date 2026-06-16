@@ -199,6 +199,8 @@ export interface FixtureMatch {
   result: 'p1' | 'p2' | 'tie' | null;
   p1Score: number;
   p2Score: number;
+  /** The playoff decider between the top 2 league finishers. */
+  isFinal?: boolean;
 }
 
 export interface PointsTableEntry {
@@ -238,6 +240,8 @@ export interface TournamentState {
   currentMatchIndex: number;
   pointsTable: Record<string, PointsTableEntry>;
   liveScore: LiveMatchScore | null;
+  /** Final winner's player id once the final is decided; null until then. */
+  champion?: string | null;
 }
 
 export interface TournamentMatchStartingPayload {

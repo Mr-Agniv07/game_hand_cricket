@@ -155,11 +155,20 @@ export default function TournamentLobby({
         ) : (
           <div className={styles['t-progress']}>
             <div className={styles['t-progress-header']}>
-              <span className={styles['t-progress-label']}>Match {Math.min(doneCount + 1, 12)} of 12</span>
-              <span className={styles['t-progress-pct']}>{Math.round((doneCount / 12) * 100)}%</span>
+              <span className={styles['t-progress-label']}>
+                {liveMatch?.isFinal
+                  ? '🏆 Grand Final'
+                  : `Match ${Math.min(doneCount + 1, 12)} of 12`}
+              </span>
+              <span className={styles['t-progress-pct']}>
+                {Math.min(100, Math.round((doneCount / 12) * 100))}%
+              </span>
             </div>
             <div className={styles['t-progress-bar']}>
-              <div className={styles['t-progress-fill']} style={{ width: `${(doneCount / 12) * 100}%` }} />
+              <div
+                className={styles['t-progress-fill']}
+                style={{ width: `${Math.min(100, (doneCount / 12) * 100)}%` }}
+              />
             </div>
           </div>
         )}
@@ -171,12 +180,12 @@ export default function TournamentLobby({
           {imPlaying ? (
             <>
               <span className={styles['t-live-dot']} />
-              Your match is live — check the game above!
+              {liveMatch.isFinal ? '🏆 The FINAL is live — check the game above!' : 'Your match is live — check the game above!'}
             </>
           ) : (
             <>
               <span className={styles['t-live-dot']} />
-              Live — {liveP1.name} vs {liveP2.name}
+              {liveMatch.isFinal ? '🏆 FINAL' : 'Live'} — {liveP1.name} vs {liveP2.name}
             </>
           )}
         </div>
@@ -243,9 +252,11 @@ export default function TournamentLobby({
               return (
                 <div
                   key={f.matchNum}
-                  className={`${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}`}
+                  className={`${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}${f.isFinal ? ` ${styles['final-row']}` : ''}`}
                 >
-                  <span className={`${styles['t-match-badge']} ${styles[f.status]}`}>M{f.matchNum}</span>
+                  <span className={`${styles['t-match-badge']} ${styles[f.status]}`}>
+                    {f.isFinal ? '🏆' : `M${f.matchNum}`}
+                  </span>
                   <div className={styles['t-fixture-teams']}>
                     <span className={fp1Won ? styles['t-winner'] : ''}>{fp1?.name ?? '?'}</span>
                     <span className={styles['t-vs']}>vs</span>

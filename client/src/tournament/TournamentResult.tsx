@@ -26,7 +26,7 @@ export default function TournamentResult({
   myId,
   onLeave,
 }: TournamentResultProps) {
-  const { players, pointsTable } = tournamentState;
+  const { players, pointsTable, fixtures, champion } = tournamentState;
 
   const sorted = [...players].sort((a, b) => {
     const ea: PointsTableEntry | undefined = pointsTable[a.id];
@@ -36,8 +36,18 @@ export default function TournamentResult({
     return eb.nrr - ea.nrr;
   });
 
-  const winner = sorted[0];
+  // Champion is the FINAL winner (may not be the league topper). Fall back to the
+  // league leader if no final was recorded.
+  const winner = players.find((p) => p.id === champion) ?? sorted[0];
   const iWon = winner?.id === myId;
+
+  // Runner-up = the other finalist (loser of the final).
+  const finalFixture = fixtures.find((f) => f.isFinal);
+  const finalists = finalFixture
+    ? [players[finalFixture.player1Idx], players[finalFixture.player2Idx]]
+    : [];
+  const runnerUp = finalists.find((p) => p && p.id !== winner?.id) ?? null;
+
   const myRank = sorted.findIndex((p) => p.id === myId);
 
   return (
@@ -48,17 +58,26 @@ export default function TournamentResult({
           <div className={styles['t-result-trophy']}>{iWon ? '🏆' : '🏏'}</div>
           <div className={styles['t-result-winner-name']}>{winner?.name ?? '?'}</div>
           <div className={styles['t-result-winner-sub']}>Tournament Champion</div>
+          {runnerUp && (
+            <div className={styles['t-result-final-line']}>
+              🏆 Won the Final vs <strong>{runnerUp.name}</strong>
+            </div>
+          )}
         </div>
 
         {/* My result badge */}
-        {myRank >= 0 && (
+        {myId === winner?.id ? (
+          <div className={`${styles['t-my-rank']} ${styles['rank-0']}`}>🏆 Champion!</div>
+        ) : myId === runnerUp?.id ? (
+          <div className={`${styles['t-my-rank']} ${styles['rank-1']}`}>🥈 Runner-up</div>
+        ) : myRank >= 0 ? (
           <div className={`${styles['t-my-rank']} ${styles[`rank-${myRank}`]}`}>
             {RANK_MEDALS[myRank]} {RANK_LABELS[myRank]}
           </div>
-        )}
+        ) : null}
 
-        {/* Final standings */}
-        <div className={styles['t-result-section-title']}>Final Standings</div>
+        {/* League standings */}
+        <div className={styles['t-result-section-title']}>League Standings</div>
         <div className={styles['t-result-table-wrap']}>
           <table className={styles['t-table']}>
             <thead>
@@ -76,14 +95,15 @@ export default function TournamentResult({
               {sorted.map((p, rank) => {
                 const e = pointsTable[p.id];
                 const isMe = p.id === myId;
-                const isWinner = rank === 0;
+                const isChampion = p.id === winner?.id;
                 return (
                   <tr
                     key={p.id}
-                    className={`${isMe ? styles['t-tr-me'] : ''} ${isWinner ? styles['t-tr-winner'] : ''}`}
+                    className={`${isMe ? styles['t-tr-me'] : ''} ${isChampion ? styles['t-tr-winner'] : ''}`}
                   >
                     <td className={styles['t-td-rank']}>{RANK_MEDALS[rank]}</td>
                     <td className={styles['t-td-player']}>
+                      {isChampion ? '🏆 ' : ''}
                       {p.name}
                       {isMe ? <span className={styles['t-you']}> (You)</span> : null}
                     </td>

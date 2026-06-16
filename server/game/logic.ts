@@ -16,8 +16,7 @@ import {
   tournaments,
   publicTournamentState,
   pushLiveScore,
-  finalizeTournament,
-  startTournamentMatch,
+  advanceTournament,
 } from '../tournament/handlers.ts';
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -288,17 +287,23 @@ export function endInnings(
           const inn1PId = room.players[room.bowlerIdx!].id;
           const inn2PId = room.players[room.batsmanIdx!].id;
 
-          // ICC-style NRR: a side that's all out is treated as having faced its
-          // FULL over quota, regardless of how few balls it actually used. A side
-          // that wasn't all out (overs completed, or a successful chase) counts
-          // its actual balls. The bowling side is credited the same effective
-          // ball count for the innings it bowled.
-          const quota = totalBalls(room);
-          const eff1 = inn1.isOut ? quota : inn1.balls;
-          const eff2 = inn2.isOut ? quota : inn2.balls;
+          if (fixture.isFinal) {
+            // The final decides the champion and does NOT count toward the league
+            // table. A tied final goes to the higher league seed (player1).
+            tournament.champion = winnerId ?? tournament.players[fixture.player1Idx].id;
+          } else {
+            // ICC-style NRR: a side that's all out is treated as having faced its
+            // FULL over quota, regardless of how few balls it actually used. A side
+            // that wasn't all out (overs completed, or a successful chase) counts
+            // its actual balls. The bowling side is credited the same effective
+            // ball count for the innings it bowled.
+            const quota = totalBalls(room);
+            const eff1 = inn1.isOut ? quota : inn1.balls;
+            const eff2 = inn2.isOut ? quota : inn2.balls;
 
-          updateEntry(inn1PId, inn1.score, eff1, inn2.score, eff2, !tied && winnerId === inn1PId, tied);
-          updateEntry(inn2PId, inn2.score, eff2, inn1.score, eff1, !tied && winnerId === inn2PId, tied);
+            updateEntry(inn1PId, inn1.score, eff1, inn2.score, eff2, !tied && winnerId === inn1PId, tied);
+            updateEntry(inn2PId, inn2.score, eff2, inn1.score, eff1, !tied && winnerId === inn2PId, tied);
+          }
 
           tournament.liveScore = null;
           io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
@@ -307,9 +312,7 @@ export function endInnings(
             // The match is over; drop its room so finished tournament rooms
             // don't pile up in the map for the tournament's lifetime.
             rooms.delete(roomId);
-            const next = matchIdx + 1;
-            if (next >= tournament.fixtures.length) finalizeTournament(io, tournament);
-            else startTournamentMatch(io, rooms, tournament, next);
+            advanceTournament(io, rooms, tournament, matchIdx);
           }, 5000);
         }
       }
