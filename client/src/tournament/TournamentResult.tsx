@@ -72,7 +72,9 @@ export default function TournamentResult({
           <div className={`${styles['t-my-rank']} ${styles['rank-1']}`}>🥈 Runner-up</div>
         ) : myRank >= 0 ? (
           <div className={`${styles['t-my-rank']} ${styles[`rank-${myRank}`]}`}>
-            {RANK_MEDALS[myRank]} {RANK_LABELS[myRank]}
+            {/* Only prefix a real medal (top 3); 4th's "medal" is the digit 4,
+                which would read "4 4th Place". */}
+            {myRank < 3 ? `${RANK_MEDALS[myRank]} ${RANK_LABELS[myRank]}` : RANK_LABELS[myRank]}
           </div>
         ) : null}
 
