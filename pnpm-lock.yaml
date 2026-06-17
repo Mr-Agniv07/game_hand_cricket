@@ -12,6 +12,25 @@ importers:
         specifier: ^3.8.4
         version: 3.8.4
 
+  cli:
+    dependencies:
+      '@cric/types':
+        specifier: workspace:*
+        version: link:../shared/types
+      socket.io-client:
+        specifier: ^4.8.3
+        version: 4.8.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.2
+      tsx:
+        specifier: ^4.19.4
+        version: 4.22.4
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.3
+
   client:
     dependencies:
       '@cric/types':
