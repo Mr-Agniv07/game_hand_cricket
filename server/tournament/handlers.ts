@@ -8,6 +8,7 @@ import type {
   FixtureMatch,
   PointsTableEntry,
   LiveMatchScore,
+  MatchScorecard,
 } from '@cric/types';
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
 import { makeBotId, randomBotName, isBot } from '../game/bot.ts';
@@ -40,6 +41,7 @@ export interface InternalFixtureMatch {
   group?: 'A' | 'B';
   label?: string;
   superOver?: boolean;
+  scorecard?: MatchScorecard;
 }
 
 export interface InternalPointsEntry {
@@ -299,6 +301,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
         group: f.group,
         label: f.label,
         superOver: f.superOver,
+        scorecard: f.scorecard,
       })
     ),
     currentMatchIndex: t.currentMatchIndex,

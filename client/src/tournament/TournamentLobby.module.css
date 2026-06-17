@@ -510,6 +510,12 @@
   background: linear-gradient(90deg, rgba(251, 191, 36, 0.12), transparent);
   opacity: 1;
 }
+.t-fixture-row.clickable {
+  cursor: pointer;
+}
+.t-fixture-row.clickable:hover {
+  background: #ffffff0c;
+}
 
 .t-match-badge {
   font-size: 0.65rem;

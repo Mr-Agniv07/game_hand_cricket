@@ -10,12 +10,21 @@ export interface RoomPlayer {
   isBot?: boolean;
 }
 
+export interface BallLog {
+  batMove: number;
+  bowlMove: number;
+  scored: number;
+  isOut: boolean;
+}
+
 export interface RoomInnings {
   score: number;
   balls: number;
   isOut: boolean;
   wicketsLost: number;
   moves: number[];
+  /** Ball-by-ball record for building the scorecard. */
+  log: BallLog[];
 }
 
 export interface Room {
@@ -76,7 +85,7 @@ export function clampCount(value: unknown, fallback: number, max = 10): number {
 }
 
 export function freshInnings(): RoomInnings {
-  return { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [] };
+  return { score: 0, balls: 0, isOut: false, wicketsLost: 0, moves: [], log: [] };
 }
 
 export function createRoom(overs: number, wickets: number): Room {

@@ -1,5 +1,12 @@
 import type { Server, DefaultEventsMap } from 'socket.io';
-import type { ServerToClientEvents, ClientToServerEvents, InningsEndReason, TossCall } from '@cric/types';
+import type {
+  ServerToClientEvents,
+  ClientToServerEvents,
+  InningsEndReason,
+  TossCall,
+  InningsScorecard,
+  MatchScorecard,
+} from '@cric/types';
 import { updateGameStats, trainPlayerProfiles } from '../db.ts';
 import {
   type Room,
@@ -20,6 +27,62 @@ import {
 } from '../tournament/handlers.ts';
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+
+/** Build one innings' scorecard from its ball-by-ball log. */
+function buildInningsCard(inn: RoomInnings, batter: string, bowler: string): InningsScorecard {
+  let fours = 0;
+  let fives = 0;
+  let sixes = 0;
+  let running = 0;
+  let wkts = 0;
+  const fallOfWickets: InningsScorecard['fallOfWickets'] = [];
+  inn.log.forEach((b, i) => {
+    if (b.isOut) {
+      wkts += 1;
+      fallOfWickets.push({ wicket: wkts, score: running, ball: i + 1 });
+    } else {
+      running += b.scored;
+      if (b.scored === 4) fours += 1;
+      else if (b.scored === 5) fives += 1;
+      else if (b.scored === 6) sixes += 1;
+    }
+  });
+  const perOver: number[] = [];
+  for (let o = 0; o * 6 < inn.log.length; o++) {
+    let r = 0;
+    for (let j = o * 6; j < Math.min((o + 1) * 6, inn.log.length); j++) {
+      if (!inn.log[j].isOut) r += inn.log[j].scored;
+    }
+    perOver.push(r);
+  }
+  return {
+    batter,
+    bowler,
+    runs: inn.score,
+    balls: inn.balls,
+    wickets: inn.wicketsLost,
+    fours,
+    fives,
+    sixes,
+    fallOfWickets,
+    perOver,
+  };
+}
+
+/**
+ * Build the match scorecard. At game over, room.bowlerIdx batted innings 1 and
+ * room.batsmanIdx batted innings 2 (roles swapped at the innings break).
+ */
+function buildScorecard(room: Room): MatchScorecard {
+  const inn1Batter = room.players[room.bowlerIdx!].name;
+  const inn2Batter = room.players[room.batsmanIdx!].name;
+  return {
+    innings: [
+      buildInningsCard(room.innings[0], inn1Batter, inn2Batter),
+      buildInningsCard(room.innings[1], inn2Batter, inn1Batter),
+    ],
+  };
+}
 
 /** Delay before a bot acts, so its toss/choice/moves feel paced rather than instant. */
 const BOT_DELAY_MS = 650;
@@ -86,6 +149,8 @@ export function resolveBall(
   if (room.hasBot) recordMoveCounts(room, batIdx, batMove, bowlIdx, bowlMove);
 
   inn.balls += 1;
+  // Record the ball for the scorecard (a match = a wicket, else batsman scores).
+  inn.log.push({ batMove, bowlMove, scored: batMove === bowlMove ? 0 : batMove, isOut: batMove === bowlMove });
 
   if (batMove === bowlMove) {
     inn.wicketsLost += 1;
@@ -226,6 +291,8 @@ export function endInnings(
     const finalResultText =
       viaSuperOver && winnerName ? `${winnerName} won the Super Over!` : resultText;
 
+    const scorecard = buildScorecard(room);
+
     // Align scores to player array order, not innings order (roles swapped at innings break)
     const playerScores: [number, number] = [0, 0];
     playerScores[room.bowlerIdx!] = inn1.score;
@@ -275,6 +342,7 @@ export function endInnings(
           }
           fixture.result = winnerId === null ? 'tie' : winnerId === p1Id ? 'p1' : 'p2';
           if (viaSuperOver) fixture.superOver = true;
+          fixture.scorecard = scorecard;
 
           const updateEntry = (
             pid: string,
@@ -347,6 +415,7 @@ export function endInnings(
       resultText: finalResultText,
       scores: playerScores,
       players: room.players.map((p) => p.name),
+      scorecard,
     };
     room.lastGameOver = gameOver;
     io.to(roomId).emit('game_over', gameOver);

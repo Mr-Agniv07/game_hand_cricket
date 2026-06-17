@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { GameOverPayload } from '@cric/types';
 import type { RematchState } from '../types';
 import styles from './ResultScreen.module.css';
+import Scorecard from './Scorecard';
 
 interface ResultScreenProps {
   gameOver: GameOverPayload;
@@ -21,10 +23,11 @@ export default function ResultScreen({
   isTournamentMatch = false,
   onBackToTournament,
 }: ResultScreenProps) {
-  const { winnerIdx, resultText, scores, players } = gameOver;
+  const { winnerIdx, resultText, scores, players, scorecard } = gameOver;
   // Compare by player index (stable across reconnects), not socket id.
   const tied = winnerIdx === null;
   const iWon = winnerIdx !== null && winnerIdx === myPlayerIdx;
+  const [showCard, setShowCard] = useState(false);
 
   // Confetti pieces — only rendered on a win. Each gets a randomized column,
   // colour, delay and duration via inline style; the fall is a CSS animation.
@@ -72,6 +75,12 @@ export default function ResultScreen({
           ))}
         </div>
 
+        {scorecard && (
+          <button className="btn-lobby" onClick={() => setShowCard(true)}>
+            📋 Full Scorecard
+          </button>
+        )}
+
         {isTournamentMatch ? (
           <div className={styles['result-actions']}>
             <div className="tournament-next-notice">Next match starting in ~5 seconds…</div>
@@ -101,6 +110,10 @@ export default function ResultScreen({
           </>
         )}
       </div>
+
+      {showCard && scorecard && (
+        <Scorecard scorecard={scorecard} onClose={() => setShowCard(false)} />
+      )}
     </div>
   );
 }

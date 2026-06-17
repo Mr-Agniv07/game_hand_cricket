@@ -132,6 +132,32 @@ export interface InningsEndPayload {
   reason: InningsEndReason;
 }
 
+// ─── Scorecard ───────────────────────────────────────────────────────────────
+
+export interface FallOfWicket {
+  wicket: number;
+  score: number;
+  ball: number;
+}
+
+export interface InningsScorecard {
+  batter: string;
+  bowler: string;
+  runs: number;
+  balls: number;
+  wickets: number;
+  fours: number;
+  fives: number;
+  sixes: number;
+  fallOfWickets: FallOfWicket[];
+  /** Runs scored in each over (index 0 = over 1). */
+  perOver: number[];
+}
+
+export interface MatchScorecard {
+  innings: InningsScorecard[];
+}
+
 export interface GameOverPayload {
   winnerId: string | null;
   /** Winner's index in `players`/`scores`, or null on a tie. Stable across reconnects. */
@@ -140,6 +166,7 @@ export interface GameOverPayload {
   resultText: string;
   scores: number[];
   players: string[];
+  scorecard?: MatchScorecard;
 }
 
 export interface ChallengeReceivedPayload {
@@ -213,6 +240,8 @@ export interface FixtureMatch {
   label?: string;
   /** True if a tied knockout was decided by a Super Over. */
   superOver?: boolean;
+  /** Per-match scorecard, available once the match is done. */
+  scorecard?: MatchScorecard;
 }
 
 export interface PointsTableEntry {

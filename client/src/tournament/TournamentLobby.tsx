@@ -5,8 +5,10 @@ import type {
   PointsTableEntry,
   FixtureMatch,
   LiveMatchScore,
+  MatchScorecard,
 } from '@cric/types';
 import styles from './TournamentLobby.module.css';
+import Scorecard from '../result/Scorecard';
 
 interface TournamentLobbyProps {
   tournamentState: TournamentState;
@@ -84,19 +86,24 @@ function FixtureRow({
   f,
   players,
   myId,
+  onOpenCard,
 }: {
   f: FixtureMatch;
   players: TournamentPlayer[];
   myId: string | null;
+  onOpenCard?: (sc: MatchScorecard) => void;
 }) {
   const fp1 = players[f.player1Idx];
   const fp2 = players[f.player2Idx];
   const isMyMatch = myId === fp1?.id || myId === fp2?.id;
   const knockout = f.stage === 'semi' || f.stage === 'final';
   const badge = f.stage === 'final' ? '🏆' : f.stage === 'semi' ? 'SF' : `M${f.matchNum}`;
+  const clickable = f.status === 'done' && !!f.scorecard;
   return (
     <div
-      className={`${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}${knockout ? ` ${styles['final-row']}` : ''}`}
+      className={`${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}${knockout ? ` ${styles['final-row']}` : ''}${clickable ? ` ${styles.clickable}` : ''}`}
+      onClick={clickable && f.scorecard ? () => onOpenCard?.(f.scorecard!) : undefined}
+      title={clickable ? 'View scorecard' : undefined}
     >
       <span className={`${styles['t-match-badge']} ${styles[f.status]}`}>{badge}</span>
       <div className={styles['t-fixture-teams']}>
@@ -108,6 +115,8 @@ function FixtureRow({
         {f.status === 'done' ? (
           <span className={styles['t-score']}>
             {f.p1Score}–{f.p2Score}
+            {f.superOver ? ' (SO)' : ''}
+            {clickable ? ' 📋' : ''}
           </span>
         ) : f.status === 'live' ? (
           <span className={styles['t-live-tag']}>
@@ -187,6 +196,7 @@ export default function TournamentLobby({
     tournamentState;
   const [copied, setCopied] = useState(false);
   const [groupTab, setGroupTab] = useState<0 | 1>(0);
+  const [card, setCard] = useState<MatchScorecard | null>(null);
 
   const is8 = size === 8;
   const isHost = players[0]?.id === myId;
@@ -362,7 +372,7 @@ export default function TournamentLobby({
             <div className={styles['t-section-title']}>Group {groupTab === 0 ? 'A' : 'B'} — Fixtures</div>
             <div className={styles['t-fixture']}>
               {groupFixtures(groupTab === 0 ? 'A' : 'B').map((f) => (
-                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} />
+                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} onOpenCard={setCard} />
               ))}
             </div>
           </div>
@@ -374,7 +384,7 @@ export default function TournamentLobby({
                 semis.map((f) => (
                   <div key={f.matchNum}>
                     <div className={styles['t-playoff-label']}>{f.label}</div>
-                    <FixtureRow f={f} players={players} myId={myId} />
+                    <FixtureRow f={f} players={players} myId={myId} onOpenCard={setCard} />
                   </div>
                 ))
               ) : (
@@ -392,7 +402,7 @@ export default function TournamentLobby({
               <div>
                 <div className={styles['t-playoff-label']}>Final</div>
                 {finalFix ? (
-                  <FixtureRow f={finalFix} players={players} myId={myId} />
+                  <FixtureRow f={finalFix} players={players} myId={myId} onOpenCard={setCard} />
                 ) : (
                   <PlaceholderRow label="Final" p1="SF1 winner" p2="SF2 winner" />
                 )}
@@ -414,7 +424,7 @@ export default function TournamentLobby({
             <div className={styles['t-section-title']}>Fixture</div>
             <div className={styles['t-fixture']}>
               {fixtures.map((f) => (
-                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} />
+                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} onOpenCard={setCard} />
               ))}
               {!finalFix && (
                 <div>
@@ -439,6 +449,8 @@ export default function TournamentLobby({
           Leave Tournament
         </button>
       )}
+
+      {card && <Scorecard scorecard={card} onClose={() => setCard(null)} />}
     </div>
   );
 }
