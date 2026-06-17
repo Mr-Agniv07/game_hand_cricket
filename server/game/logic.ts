@@ -207,6 +207,25 @@ export function endInnings(
     const inn2 = room.innings[1];
     const { winnerId, winnerName, resultText } = determineResult(room, reason, inn1, inn2);
 
+    // Knockout tiebreaker: a tied semi/final goes to a 1-over Super Over,
+    // repeated until someone wins — fairer than awarding it on group seeding.
+    if (
+      winnerId === null &&
+      room.tournamentId !== undefined &&
+      room.tournamentMatchIdx !== undefined
+    ) {
+      const t = tournaments.get(room.tournamentId);
+      const fx = t?.fixtures[room.tournamentMatchIdx];
+      if (fx && (fx.stage === 'semi' || fx.stage === 'final')) {
+        startSuperOver(io, roomId, room, rooms);
+        return;
+      }
+    }
+
+    const viaSuperOver = (room.superOver ?? 0) > 0;
+    const finalResultText =
+      viaSuperOver && winnerName ? `${winnerName} won the Super Over!` : resultText;
+
     // Align scores to player array order, not innings order (roles swapped at innings break)
     const playerScores: [number, number] = [0, 0];
     playerScores[room.bowlerIdx!] = inn1.score;
@@ -255,6 +274,7 @@ export function endInnings(
             fixture.p2Score = inn1.score;
           }
           fixture.result = winnerId === null ? 'tie' : winnerId === p1Id ? 'p1' : 'p2';
+          if (viaSuperOver) fixture.superOver = true;
 
           const updateEntry = (
             pid: string,
@@ -324,7 +344,7 @@ export function endInnings(
       winnerId,
       winnerIdx: winnerId === null ? null : room.players.findIndex((p) => p.id === winnerId),
       winnerName,
-      resultText,
+      resultText: finalResultText,
       scores: playerScores,
       players: room.players.map((p) => p.name),
     };
@@ -535,6 +555,43 @@ function scheduleBotMove(
       driveBots(io, roomId, room, rooms);
     }
   });
+}
+
+/**
+ * A tied knockout goes to a 1-over Super Over in the same room. Resets to a
+ * fresh single-over innings (keeping the wicket quota), keeps the current
+ * batting order (which alternates each attempt as roles swap), and plays on.
+ * Repeats automatically until a winner emerges.
+ */
+function startSuperOver(
+  io: GameServer,
+  roomId: string,
+  room: Room,
+  rooms: Map<string, Room>
+): void {
+  room.superOver = (room.superOver ?? 0) + 1;
+  room.overs = 1; // a super over is one over
+  room.innings = [freshInnings(), freshInnings()];
+  room.currentInnings = 0;
+  room.pendingMoves = {};
+  room.mlLastMoves = {};
+  room.botMoveCounts = {};
+  room.phase = 'innings';
+
+  if (room.tournamentId) {
+    const t = tournaments.get(room.tournamentId);
+    if (t) t.liveScore = null;
+  }
+
+  io.to(roomId).emit('super_over', { attempt: room.superOver });
+  io.to(roomId).emit('innings_start', {
+    inningsNumber: 1,
+    batsmanName: room.players[room.batsmanIdx!].name,
+    bowlerName: room.players[room.bowlerIdx!].name,
+    target: null,
+  });
+  io.to(roomId).emit('state', publicState(room, roomId));
+  if (room.hasBot) driveBots(io, roomId, room, rooms);
 }
 
 export function startRematch(

@@ -53,6 +53,7 @@ export default function GameScreen({
   const totalBalls = overs * 6;
   const currentInnings = (gameState?.currentInnings ?? 0) + 1;
   const target = gameState?.target ?? null;
+  const superOver = gameState?.superOver ?? 0;
 
   const wickets = gameState?.wickets ?? 1;
   const wicketsLost = gameState?.wicketsLost ?? 0;
@@ -161,7 +162,10 @@ export default function GameScreen({
   return (
     <div className={styles['game-screen']}>
       <div className={styles['scoreboard']}>
-        <div className={styles['innings-tag']}>Innings {currentInnings}</div>
+        <div className={styles['innings-tag']}>
+          {superOver > 0 ? `🔥 SUPER OVER${superOver > 1 ? ` ${superOver}` : ''} · ` : ''}
+          Innings {currentInnings}
+        </div>
 
         <div className={styles['score-block']}>
           <span key={score} className={styles['score-runs']}>

@@ -35,6 +35,8 @@ export interface GameState {
   tossCallerId: string | null;
   tossWinnerId: string | null;
   innings: InningsSummary[];
+  /** >0 when this is a knockout Super Over (the Nth attempt); 0/undefined otherwise. */
+  superOver?: number;
 }
 
 // ─── Auth / user ────────────────────────────────────────────────────────────
@@ -209,6 +211,8 @@ export interface FixtureMatch {
   group?: 'A' | 'B';
   /** Display label for knockout matches, e.g. "Semi Final 1". */
   label?: string;
+  /** True if a tied knockout was decided by a Super Over. */
+  superOver?: boolean;
 }
 
 export interface PointsTableEntry {
@@ -295,6 +299,7 @@ export interface ServerToClientEvents {
   move_received: (p: MoveReceivedPayload) => void;
   innings_end: (p: InningsEndPayload) => void;
   game_over: (p: GameOverPayload) => void;
+  super_over: (p: { attempt: number }) => void;
   challenge_received: (p: ChallengeReceivedPayload) => void;
   challenge_room_start: (p: ChallengeRoomStartPayload) => void;
   challenge_expired: (p: ChallengeExpiredPayload) => void;

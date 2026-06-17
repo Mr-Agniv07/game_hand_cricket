@@ -82,9 +82,9 @@ export default function App() {
   // Stage-intro overlay: 'finalist' = tap-to-start GRAND FINALE (you're playing),
   // 'spectator' = brief timed GRAND FINALE (watching), 'knockouts' = brief timed
   // KNOCKOUTS bumper when the semis begin.
-  const [grandFinale, setGrandFinale] = useState<null | 'finalist' | 'spectator' | 'knockouts'>(
-    null
-  );
+  const [grandFinale, setGrandFinale] = useState<
+    null | 'finalist' | 'spectator' | 'knockouts' | 'superover'
+  >(null);
   const [muted, setMuted] = useState(isMuted());
   // Opponent-move feed for ML training. Captured at ball_played from pre-swap
   // refs and never nulled mid-match, so GameScreen trains on every ball
@@ -277,6 +277,13 @@ export default function App() {
           seq: ++trainSeqRef.current,
         });
       }
+    });
+
+    socket.on('super_over', () => {
+      // A tied knockout — play on in a 1-over decider. innings_start follows.
+      sounds.toss();
+      setGrandFinale('superover');
+      setTimeout(() => setGrandFinale((m) => (m === 'superover' ? null : m)), 2500);
     });
 
     socket.on('innings_end', (data) => {
@@ -680,16 +687,24 @@ export default function App() {
       {grandFinale && (
         <div className="grand-finale-overlay">
           <div className="gf-content">
-            <div className="gf-trophy">{grandFinale === 'knockouts' ? '⚔️' : '🏆'}</div>
+            <div className="gf-trophy">
+              {grandFinale === 'knockouts' ? '⚔️' : grandFinale === 'superover' ? '🔥' : '🏆'}
+            </div>
             <div className="gf-title">
-              {grandFinale === 'knockouts' ? 'KNOCKOUTS' : 'GRAND FINALE'}
+              {grandFinale === 'knockouts'
+                ? 'KNOCKOUTS'
+                : grandFinale === 'superover'
+                  ? 'SUPER OVER'
+                  : 'GRAND FINALE'}
             </div>
             <div className="gf-sub">
               {grandFinale === 'knockouts'
                 ? 'Group stage done — semi-finals begin!'
-                : grandFinale === 'finalist'
-                  ? 'The top 2 face off for the title'
-                  : 'The Final is underway'}
+                : grandFinale === 'superover'
+                  ? 'Scores level — one over decides it!'
+                  : grandFinale === 'finalist'
+                    ? 'The top 2 face off for the title'
+                    : 'The Final is underway'}
             </div>
             {grandFinale === 'finalist' && (
               <button className="gf-start-btn" onClick={startFinal}>

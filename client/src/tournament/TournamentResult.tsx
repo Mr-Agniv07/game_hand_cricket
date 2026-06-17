@@ -182,7 +182,11 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
                     </span>
                     <span className={styles['t-ko-teams']}>
                       <span className={p1Won ? styles['t-winner'] : ''}>{p1?.name ?? '?'}</span>
-                      <span className={styles['t-ko-vs']}> {f.p1Score}–{f.p2Score} </span>
+                      <span className={styles['t-ko-vs']}>
+                        {' '}
+                        {f.p1Score}–{f.p2Score}
+                        {f.superOver ? ' (SO)' : ''}{' '}
+                      </span>
                       <span className={p2Won ? styles['t-winner'] : ''}>{p2?.name ?? '?'}</span>
                     </span>
                   </div>

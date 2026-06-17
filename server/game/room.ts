@@ -47,6 +47,8 @@ export interface Room {
    *  the bot opponent begins; cleared once everyone's ready (or a fallback fires). */
   finalAwaiting?: Set<string>;
   _finalStartTimer?: NodeJS.Timeout;
+  /** Knockout Super Over attempt counter (0/undefined = main match). */
+  superOver?: number;
 }
 
 export function makeRoomId(used?: { has(id: string): boolean }): string {
@@ -154,5 +156,6 @@ export function publicState(room: Room, roomId: string): GameState {
       isOut: i.isOut,
       wicketsLost: i.wicketsLost,
     })),
+    superOver: room.superOver ?? 0,
   };
 }

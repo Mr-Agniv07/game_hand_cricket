@@ -39,6 +39,7 @@ export interface InternalFixtureMatch {
   stage: 'group' | 'semi' | 'final';
   group?: 'A' | 'B';
   label?: string;
+  superOver?: boolean;
 }
 
 export interface InternalPointsEntry {
@@ -297,6 +298,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
         stage: f.stage,
         group: f.group,
         label: f.label,
+        superOver: f.superOver,
       })
     ),
     currentMatchIndex: t.currentMatchIndex,
