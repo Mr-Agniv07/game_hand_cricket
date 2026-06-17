@@ -1,0 +1,43 @@
+name: Release CLI binaries
+
+on:
+  push:
+    tags:
+      - 'cli-v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build standalone binaries
+        working-directory: cli
+        run: |
+          mkdir -p dist
+          bun build --compile --target=bun-darwin-arm64 ./index.ts --outfile dist/cricflick-cli-macos-arm64
+          bun build --compile --target=bun-darwin-x64 ./index.ts --outfile dist/cricflick-cli-macos-x64
+          bun build --compile --target=bun-linux-x64 ./index.ts --outfile dist/cricflick-cli-linux-x64
+          bun build --compile --target=bun-windows-x64 ./index.ts --outfile dist/cricflick-cli-windows-x64.exe
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cli/dist/cricflick-cli-macos-arm64
+            cli/dist/cricflick-cli-macos-x64
+            cli/dist/cricflick-cli-linux-x64
+            cli/dist/cricflick-cli-windows-x64.exe
+          generate_release_notes: true
