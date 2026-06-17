@@ -6,9 +6,19 @@ connects to the production server by default, so there's nothing to configure.
 
 ## Install
 
-Download the binary for your platform from the
-[latest release](https://github.com/Mr-Agniv07/game_hand_cricket/releases/latest),
-then run it.
+**macOS / Linux — one-liner**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Mr-Agniv07/game_hand_cricket/master/cli/install.sh | bash
+```
+
+Downloads the right binary for your machine, makes it executable, clears macOS's
+quarantine flag, and starts the game. Run the same command again any time to play —
+it always fetches the latest build. (Windows isn't covered by this one-liner — see
+below.)
+
+**Manual install**, if you'd rather not pipe a script into bash, or for a platform the
+one-liner doesn't cover:
 
 **macOS (Apple Silicon)**
 ```sh
