@@ -3,3 +3,5 @@ packages:
   - client
   - cli
   - shared/*
+allowBuilds:
+  esbuild: true
