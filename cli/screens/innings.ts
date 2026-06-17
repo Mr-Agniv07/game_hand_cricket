@@ -53,5 +53,28 @@ export async function inningsScreen(): Promise<void> {
     while (state.ballSeq === seqBefore && state.phase === 'innings') {
       await waitForTick();
     }
+
+    // The ball that just resolved may have ended the innings — the server
+    // sends ball_played, innings_end, innings_start (for the next innings)
+    // and state back-to-back as separate socket messages, which can take a
+    // few ticks to all land. ballSeq changing only proves the first of those
+    // arrived; looping straight back here would print a "ghost" prompt using
+    // the now-stale pre-transition role/score, and an answer to it gets
+    // submitted as the new innings' first move with the *old* role's number
+    // (same back-to-back-events hazard CLAUDE.md documents for the web
+    // client). The server's own end-of-innings rule (wicket quota or over
+    // quota reached) is known client-side, so detect it deterministically
+    // and wait for the real transition — a fresh innings_start (which nulls
+    // lastBall) or game_over (which changes phase) — instead of guessing how
+    // long to wait.
+    const justPlayed = state.lastBall;
+    const oversFaced = justPlayed && gs ? justPlayed.balls >= gs.overs * 6 : false;
+    const allOut =
+      justPlayed?.isOut && gs ? (justPlayed.wicketsLost ?? 0) >= gs.wickets : false;
+    if (state.phase === 'innings' && (oversFaced || allOut)) {
+      while (state.phase === 'innings' && state.lastBall === justPlayed) {
+        await waitForTick();
+      }
+    }
   }
 }
