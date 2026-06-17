@@ -20,6 +20,11 @@ export async function resultScreen(): Promise<void> {
   }
 
   const choice = await menu('Match over', options);
+  // The tournament can complete (phase -> 'tournament_result') while this prompt
+  // is still pending, e.g. after the final's game_over — don't act on a stale
+  // choice and clobber that transition (mirrors the stale-timer guards in the
+  // web client's App.tsx).
+  if (state.phase !== 'result') return;
   if (choice === '1') {
     await resetToLobby();
   } else if (choice === '2') {
