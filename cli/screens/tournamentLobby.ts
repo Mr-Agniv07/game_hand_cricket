@@ -2,7 +2,7 @@
 import type { TournamentState } from '@cric/types';
 import { ask, menu } from '../prompt.ts';
 import { socket } from '../socket.ts';
-import { resetToLobby, state, waitForTick } from '../state.ts';
+import { resetToLobby, state, waitForTick, waitWhilePhase } from '../state.ts';
 
 function printTournament(t: TournamentState): void {
   console.log(`\nTournament ${t.code} — ${t.players.length}/${t.size} players, phase: ${t.phase}`);
@@ -44,14 +44,15 @@ export async function tournamentLobbyScreen(): Promise<void> {
     await ask('Press Enter to start the final...');
     state.awaitingFinalReady = false;
     socket.emit('final_ready');
-    await waitForTick();
+    // The server can resolve the toss (and flip phase) before this line runs —
+    // re-check live state rather than blocking on a 'tick' that may have
+    // already fired with nobody listening (a bare waitForTick() here can miss
+    // it and hang forever).
+    await waitWhilePhase('tournament_lobby');
     return;
   }
 
-  if (!state.tournamentState) {
-    await waitForTick();
-    return;
-  }
+  while (!state.tournamentState) await waitForTick();
   printTournament(state.tournamentState);
 
   const choice = await menu('Tournament lobby', [
@@ -61,9 +62,11 @@ export async function tournamentLobbyScreen(): Promise<void> {
   ]);
   if (choice === '1') {
     socket.emit('start_tournament_with_bots');
-    await waitForTick();
+    await waitWhilePhase('tournament_lobby');
   } else if (choice === '2') {
-    await waitForTick();
+    // Same reasoning as above: the match we're waiting on may already have
+    // started while this menu prompt was pending.
+    await waitWhilePhase('tournament_lobby');
   } else {
     await resetToLobby();
   }

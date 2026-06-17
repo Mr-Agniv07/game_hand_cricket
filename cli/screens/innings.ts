@@ -10,10 +10,17 @@ export async function inningsScreen(): Promise<void> {
   while (state.phase === 'innings') {
     const gs = state.gameState;
     if (gs) {
+      // Role comes from inningsInfo (set fresh by the innings_start that put us
+      // here), not gs.batsmanIdx/bowlerIdx — the server emits innings_start
+      // *before* the state snapshot carrying the updated indices (see
+      // applyBatBowlChoice/endInnings in server/game/logic.ts), so on the very
+      // first ball of an innings gs.batsmanIdx/bowlerIdx can still be stale
+      // (null, on a fresh match) while inningsInfo is already correct.
+      const myName = state.myPlayerIdx !== null ? gs.players[state.myPlayerIdx] : undefined;
       const role =
-        state.myPlayerIdx === gs.batsmanIdx
+        myName && state.inningsInfo?.batsmanName === myName
           ? 'batting'
-          : state.myPlayerIdx === gs.bowlerIdx
+          : myName && state.inningsInfo?.bowlerName === myName
             ? 'bowling'
             : 'spectating';
       // lastBall is nulled at innings_start, so when present it's always the

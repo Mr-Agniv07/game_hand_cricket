@@ -180,6 +180,12 @@ export function bindSocketListeners(): void {
   if (bound) return;
   bound = true;
 
+  if (process.env.CLI_DEBUG_EVENTS) {
+    socket.onAny((event, ...args) => {
+      console.error(`[debug-event] ${event} ${JSON.stringify(args)}`);
+    });
+  }
+
   socket.on('connect', () => {
     state.myId = socket.id ?? null;
     const room = getActiveRoom();
