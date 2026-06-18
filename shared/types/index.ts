@@ -50,7 +50,7 @@ export interface UserStats {
   highScore: number;
   /** Total wickets taken while bowling (across all matches). */
   wicketsTaken: number;
-  /** Total boundaries hit while batting (fours + sixes). */
+  /** Total boundaries hit while batting (fours + fives + sixes). */
   boundaries: number;
   /** Total balls bowled — denominator for economy. */
   ballsBowled: number;

@@ -307,7 +307,7 @@ export function endInnings(
     const bowledInn = (pi: number) => (pi === room.bowlerIdx ? inns[1] : inns[0]);
     const boundariesOf = (pi: number) => {
       const b = battedInn(pi);
-      return b ? b.fours + b.sixes : 0;
+      return b ? b.fours + b.fives + b.sixes : 0;
     };
     const wktsOf = (pi: number) => bowledInn(pi)?.wickets ?? 0;
     const concededOf = (pi: number) => bowledInn(pi)?.runs ?? 0;

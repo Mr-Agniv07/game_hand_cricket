@@ -223,7 +223,7 @@ export interface GameStatsResult {
   wickets: number;
   /** Wickets this player took while bowling this match. */
   wicketsTaken?: number;
-  /** Boundaries (4s + 6s) this player hit while batting this match. */
+  /** Boundaries (4s + 5s + 6s) this player hit while batting this match. */
   boundaries?: number;
   /** Balls this player bowled this match. */
   ballsBowled?: number;
