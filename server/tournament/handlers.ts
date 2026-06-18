@@ -163,32 +163,45 @@ function rankedPlayerIndices(t: Tournament): number[] {
  * sixes). Aggregated by batter name (unique within a tournament in practice).
  */
 function computeAwards(t: Tournament): TournamentAwards {
-  const agg = new Map<string, { runs: number; sixes: number }>();
+  const agg = new Map<string, { runs: number; sixes: number; wickets: number }>();
+  const get = (name: string) => {
+    let a = agg.get(name);
+    if (!a) {
+      a = { runs: 0, sixes: 0, wickets: 0 };
+      agg.set(name, a);
+    }
+    return a;
+  };
   for (const f of t.fixtures) {
     if (!f.scorecard) continue;
     for (const inn of f.scorecard.innings) {
-      const a = agg.get(inn.batter) ?? { runs: 0, sixes: 0 };
-      a.runs += inn.runs;
-      a.sixes += inn.sixes;
-      agg.set(inn.batter, a);
+      const bat = get(inn.batter);
+      bat.runs += inn.runs;
+      bat.sixes += inn.sixes;
+      // The bowler of an innings takes the wickets that fell in it.
+      get(inn.bowler).wickets += inn.wickets;
     }
   }
   let orangeCap: TournamentAwards['orangeCap'] = null;
   let mostSixes: TournamentAwards['mostSixes'] = null;
+  let purpleCap: TournamentAwards['purpleCap'] = null;
   let playerOfTournament: TournamentAwards['playerOfTournament'] = null;
   let bestImpact = -1;
   for (const [name, a] of agg) {
     if (!orangeCap || a.runs > orangeCap.runs) orangeCap = { name, runs: a.runs };
     if (!mostSixes || a.sixes > mostSixes.sixes) mostSixes = { name, sixes: a.sixes };
-    const impact = a.runs + 8 * a.sixes;
+    if (!purpleCap || a.wickets > purpleCap.wickets) purpleCap = { name, wickets: a.wickets };
+    // Impact rewards an all-round game: runs, big-hitting, and wickets.
+    const impact = a.runs + 8 * a.sixes + 20 * a.wickets;
     if (impact > bestImpact) {
       bestImpact = impact;
-      playerOfTournament = { name, runs: a.runs, sixes: a.sixes };
+      playerOfTournament = { name, runs: a.runs, sixes: a.sixes, wickets: a.wickets };
     }
   }
   return {
     orangeCap,
     mostSixes: mostSixes && mostSixes.sixes > 0 ? mostSixes : null,
+    purpleCap: purpleCap && purpleCap.wickets > 0 ? purpleCap : null,
     playerOfTournament,
   };
 }

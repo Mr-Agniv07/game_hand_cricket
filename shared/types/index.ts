@@ -275,8 +275,10 @@ export interface TournamentAwards {
   orangeCap: { name: string; runs: number } | null;
   /** Most sixes across the tournament (null if nobody hit one). */
   mostSixes: { name: string; sixes: number } | null;
-  /** Best overall batting impact (runs, weighted for sixes). */
-  playerOfTournament: { name: string; runs: number; sixes: number } | null;
+  /** Most wickets taken across the tournament (null if nobody took one). */
+  purpleCap: { name: string; wickets: number } | null;
+  /** Best overall impact (runs + sixes + wickets). */
+  playerOfTournament: { name: string; runs: number; sixes: number; wickets: number } | null;
 }
 
 export interface TournamentState {
