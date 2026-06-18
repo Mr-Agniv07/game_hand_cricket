@@ -298,6 +298,21 @@ export function endInnings(
     playerScores[room.bowlerIdx!] = inn1.score;
     playerScores[room.batsmanIdx!] = inn2.score;
 
+    // Per-player career stats from the scorecard. At game over, room.bowlerIdx
+    // batted in innings 1 (scorecard.innings[0]) and room.batsmanIdx batted in
+    // innings 2 (innings[1]); the bowler of each innings is the other player.
+    // So a player BATS in one innings and BOWLS in the other.
+    const inns = scorecard.innings;
+    const battedInn = (pi: number) => (pi === room.bowlerIdx ? inns[0] : inns[1]);
+    const bowledInn = (pi: number) => (pi === room.bowlerIdx ? inns[1] : inns[0]);
+    const boundariesOf = (pi: number) => {
+      const b = battedInn(pi);
+      return b ? b.fours + b.sixes : 0;
+    };
+    const wktsOf = (pi: number) => bowledInn(pi)?.wickets ?? 0;
+    const concededOf = (pi: number) => bowledInn(pi)?.runs ?? 0;
+    const ballsBowledOf = (pi: number) => bowledInn(pi)?.balls ?? 0;
+
     updateGameStats([
       {
         userId: room.players[0].userId,
@@ -308,6 +323,10 @@ export function endInnings(
         opponentScore: playerScores[1],
         overs: room.overs,
         wickets: room.wickets,
+        wicketsTaken: wktsOf(0),
+        boundaries: boundariesOf(0),
+        ballsBowled: ballsBowledOf(0),
+        runsConceded: concededOf(0),
       },
       {
         userId: room.players[1].userId,
@@ -318,6 +337,10 @@ export function endInnings(
         opponentScore: playerScores[0],
         overs: room.overs,
         wickets: room.wickets,
+        wicketsTaken: wktsOf(1),
+        boundaries: boundariesOf(1),
+        ballsBowled: ballsBowledOf(1),
+        runsConceded: concededOf(1),
       },
     ]);
 

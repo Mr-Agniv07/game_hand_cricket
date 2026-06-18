@@ -27,6 +27,13 @@
   box-shadow: 0 0 12px rgba(34, 197, 94, 0.18);
 }
 
+.lobby-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
 .meet-bots-link {
   align-self: center;
   background: none;

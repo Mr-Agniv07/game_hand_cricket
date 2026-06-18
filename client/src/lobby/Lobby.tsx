@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { apiGet } from '../api';
 import styles from './Lobby.module.css';
 import MeetBots from './MeetBots';
+import GlobalStandings from './GlobalStandings';
 import type { MatchHistoryEntry } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
@@ -33,6 +34,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [tSubTab, setTSubTab] = useState<'create' | 'join'>('create');
   const [tJoinCode, setTJoinCode] = useState('');
   const [showBots, setShowBots] = useState(false);
+  const [showStandings, setShowStandings] = useState(false);
 
   const loggedIn = !!user;
 
@@ -147,9 +149,22 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
         )}
       </div>
 
-      <button type="button" className={styles['meet-bots-link']} onClick={() => setShowBots(true)}>
-        🤖 Meet our Bots
-      </button>
+      <div className={styles['lobby-links']}>
+        <button
+          type="button"
+          className={styles['meet-bots-link']}
+          onClick={() => setShowStandings(true)}
+        >
+          🌍 Global Standings
+        </button>
+        <button
+          type="button"
+          className={styles['meet-bots-link']}
+          onClick={() => setShowBots(true)}
+        >
+          🤖 Meet our Bots
+        </button>
+      </div>
 
       {tab === 'create' && (
         <form className="card form" onSubmit={handleCreate}>
@@ -421,6 +436,9 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
       )}
 
       {showBots && <MeetBots onClose={() => setShowBots(false)} />}
+      {showStandings && (
+        <GlobalStandings myId={user?.id ?? null} onClose={() => setShowStandings(false)} />
+      )}
     </div>
   );
 }

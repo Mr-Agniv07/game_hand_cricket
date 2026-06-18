@@ -48,6 +48,21 @@ export interface UserStats {
   ties: number;
   runsScored: number;
   highScore: number;
+  /** Total wickets taken while bowling (across all matches). */
+  wicketsTaken: number;
+  /** Total boundaries hit while batting (fours + sixes). */
+  boundaries: number;
+  /** Total balls bowled — denominator for economy. */
+  ballsBowled: number;
+  /** Total runs conceded while bowling — numerator for economy. */
+  runsConceded: number;
+}
+
+/** One row of the global leaderboard. Derived metrics (ratio, economy) are computed client-side. */
+export interface LeaderboardEntry {
+  id: string;
+  username: string;
+  stats: UserStats;
 }
 
 export interface AuthResponse {

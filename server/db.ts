@@ -2,7 +2,13 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
-import type { UserStats, MatchHistoryEntry, PublicUser, Friend } from '@cric/types';
+import type {
+  UserStats,
+  MatchHistoryEntry,
+  PublicUser,
+  Friend,
+  LeaderboardEntry,
+} from '@cric/types';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = join(__dir, 'db.json');
@@ -33,6 +39,32 @@ function emptyRoleModel(): RoleModelData {
 }
 
 
+/** A fresh, zeroed stats record. */
+export function emptyStats(): UserStats {
+  return {
+    gamesPlayed: 0,
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    runsScored: 0,
+    highScore: 0,
+    wicketsTaken: 0,
+    boundaries: 0,
+    ballsBowled: 0,
+    runsConceded: 0,
+  };
+}
+
+/**
+ * Backfill any stats fields missing from older db.json records (the leaderboard
+ * fields were added later), so every served UserStats is complete. Mutates in
+ * place and returns the same object.
+ */
+function normalizeStats(s: Partial<UserStats> | undefined): UserStats {
+  const full = { ...emptyStats(), ...(s ?? {}) };
+  return full;
+}
+
 /** Full user record as persisted in db.json (never sent to clients verbatim). */
 export interface DbUser {
   id: string;
@@ -62,6 +94,8 @@ function load(): Database {
   }
   try {
     cache = JSON.parse(readFileSync(DB_PATH, 'utf8')) as Database;
+    // Backfill stats fields added in later versions so every record is complete.
+    for (const u of cache.users) u.stats = normalizeStats(u.stats);
     return cache;
   } catch {
     cache = { users: [] };
@@ -119,7 +153,7 @@ export function createUser(username: string, passwordHash: string): DbUser | nul
     username,
     passwordHash,
     token: null,
-    stats: { gamesPlayed: 0, wins: 0, losses: 0, ties: 0, runsScored: 0, highScore: 0 },
+    stats: emptyStats(),
     matchHistory: [],
     createdAt: new Date().toISOString(),
   };
@@ -187,6 +221,14 @@ export interface GameStatsResult {
   opponentScore: number;
   overs: number;
   wickets: number;
+  /** Wickets this player took while bowling this match. */
+  wicketsTaken?: number;
+  /** Boundaries (4s + 6s) this player hit while batting this match. */
+  boundaries?: number;
+  /** Balls this player bowled this match. */
+  ballsBowled?: number;
+  /** Runs this player conceded while bowling this match. */
+  runsConceded?: number;
 }
 
 // Load once, update both players, save once — avoids double-write race on Windows/OneDrive
@@ -201,16 +243,25 @@ export function updateGameStats(results: GameStatsResult[]): void {
     opponentScore,
     overs,
     wickets,
+    wicketsTaken = 0,
+    boundaries = 0,
+    ballsBowled = 0,
+    runsConceded = 0,
   } of results) {
     if (!userId) continue;
     const user = db.users.find((u) => u.id === userId);
     if (!user) continue;
+    user.stats = normalizeStats(user.stats); // safety for partially-migrated records
     user.stats.gamesPlayed += 1;
     if (tie) user.stats.ties += 1;
     else if (win) user.stats.wins += 1;
     else user.stats.losses += 1;
     user.stats.runsScored += runsScored;
     if (runsScored > user.stats.highScore) user.stats.highScore = runsScored;
+    user.stats.wicketsTaken += wicketsTaken;
+    user.stats.boundaries += boundaries;
+    user.stats.ballsBowled += ballsBowled;
+    user.stats.runsConceded += runsConceded;
     if (!user.matchHistory) user.matchHistory = [];
     user.matchHistory.push({
       opponent: opponentName || 'Unknown',
@@ -230,6 +281,18 @@ export function getMatchHistory(userId: string): MatchHistoryEntry[] {
   const db = load();
   const user = db.users.find((u) => u.id === userId);
   return user?.matchHistory ?? [];
+}
+
+/**
+ * Every registered player who has played at least one game, with full stats.
+ * The client computes the per-category rankings (runs, wickets, ratio, etc.)
+ * from a single fetch. Bots are never DB users, so they never appear here.
+ */
+export function getLeaderboard(): LeaderboardEntry[] {
+  const db = load();
+  return db.users
+    .filter((u) => u.stats.gamesPlayed > 0)
+    .map((u) => ({ id: u.id, username: u.username, stats: normalizeStats(u.stats) }));
 }
 
 // Profiles are keyed by registered user id (stable + unspoofable), not display
