@@ -73,16 +73,6 @@
 }
 .player-name {
   font-weight: 600;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-.bot-style {
-  font-size: 0.62rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 .player-name.bat {
   color: var(--bat);

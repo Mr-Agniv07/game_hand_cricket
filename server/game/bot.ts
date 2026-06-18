@@ -81,19 +81,22 @@ function situationalAggression(room: Room, isBowling: boolean): number {
   return isBowling ? 0.55 : 0.6;
 }
 
-export function randomBotStyle(): string {
-  return STYLE_LABELS[Math.floor(Math.random() * STYLE_LABELS.length)];
+/**
+ * Each bot name maps to ONE fixed personality, derived from a hash of the name.
+ * Deterministic (a given bot always plays the same way, so players can learn it)
+ * but opaque — the assignment isn't written down anywhere, so it stays a
+ * surprise to discover through play.
+ */
+function styleForName(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return STYLE_LABELS[h % STYLE_LABELS.length];
 }
 
-/** Build a fresh bot RoomPlayer with a unique-ish name and a random personality. */
+/** Build a fresh bot RoomPlayer; its personality is fixed by its name. */
 export function makeBotPlayer(takenNames: string[]): RoomPlayer {
-  return {
-    id: makeBotId(),
-    name: randomBotName(takenNames),
-    userId: null,
-    isBot: true,
-    botStyle: randomBotStyle(),
-  };
+  const name = randomBotName(takenNames);
+  return { id: makeBotId(), name, userId: null, isBot: true, botStyle: styleForName(name) };
 }
 
 // ─── Move strategy ───────────────────────────────────────────────────────────

@@ -169,6 +169,5 @@ export function publicState(room: Room, roomId: string): GameState {
       wicketsLost: i.wicketsLost,
     })),
     superOver: room.superOver ?? 0,
-    botStyles: room.players.map((p) => p.botStyle ?? null),
   };
 }

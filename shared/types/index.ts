@@ -37,8 +37,6 @@ export interface GameState {
   innings: InningsSummary[];
   /** >0 when this is a knockout Super Over (the Nth attempt); 0/undefined otherwise. */
   superOver?: number;
-  /** Bot personality label per player slot (null for humans). Aligns with `players`. */
-  botStyles?: (string | null)[];
 }
 
 // ─── Auth / user ────────────────────────────────────────────────────────────

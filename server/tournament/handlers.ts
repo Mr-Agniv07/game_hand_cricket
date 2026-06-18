@@ -12,7 +12,7 @@ import type {
   TournamentAwards,
 } from '@cric/types';
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
-import { makeBotId, randomBotName, randomBotStyle, isBot } from '../game/bot.ts';
+import { makeBotPlayer, isBot } from '../game/bot.ts';
 import { driveBots } from '../game/logic.ts';
 import type { SocketData } from '../game/types.ts';
 
@@ -732,16 +732,10 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       if (!tournament || tournament.phase !== 'waiting') return;
       if (tournament.players.length < 1 || tournament.players.length >= tournament.size) return;
 
-      // Fill the remaining seats with uniquely-named bots.
+      // Fill the remaining seats with uniquely-named bots (personality fixed by name).
       while (tournament.players.length < tournament.size) {
         const taken = tournament.players.map((p) => p.name);
-        tournament.players.push({
-          id: makeBotId(),
-          name: randomBotName(taken),
-          userId: null,
-          isBot: true,
-          botStyle: randomBotStyle(),
-        });
+        tournament.players.push(makeBotPlayer(taken));
       }
 
       generateFixture(tournament);
