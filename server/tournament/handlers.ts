@@ -12,7 +12,7 @@ import type {
   TournamentAwards,
 } from '@cric/types';
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
-import { makeBotId, randomBotName, isBot } from '../game/bot.ts';
+import { makeBotId, randomBotName, randomBotStyle, isBot } from '../game/bot.ts';
 import { driveBots } from '../game/logic.ts';
 import type { SocketData } from '../game/types.ts';
 
@@ -26,6 +26,8 @@ export interface TournamentPlayerEntry {
   clientId?: string | null;
   /** Computer-controlled entrant — fills empty slots and auto-plays its matches. */
   isBot?: boolean;
+  /** Bot personality label (carried into the match room). */
+  botStyle?: string;
 }
 
 export interface InternalFixtureMatch {
@@ -570,8 +572,8 @@ export function startTournamentMatch(
   // Carry clientId through so a guest (no userId) whose socket id changes on a
   // blip can still be matched by rejoin_room; without it their reconnect fails
   // and the grace timer forfeits the match.
-  room.players.push({ id: p1.id, name: p1.name, userId: p1.userId, clientId: p1.clientId, isBot: p1.isBot });
-  room.players.push({ id: p2.id, name: p2.name, userId: p2.userId, clientId: p2.clientId, isBot: p2.isBot });
+  room.players.push({ id: p1.id, name: p1.name, userId: p1.userId, clientId: p1.clientId, isBot: p1.isBot, botStyle: p1.botStyle });
+  room.players.push({ id: p2.id, name: p2.name, userId: p2.userId, clientId: p2.clientId, isBot: p2.isBot, botStyle: p2.botStyle });
   room.hasBot = isBot(p1) || isBot(p2);
   room.tournamentId = tournament.code;
   room.tournamentMatchIdx = matchIndex;
@@ -738,6 +740,7 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
           name: randomBotName(taken),
           userId: null,
           isBot: true,
+          botStyle: randomBotStyle(),
         });
       }
 

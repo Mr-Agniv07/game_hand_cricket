@@ -8,6 +8,9 @@ export interface RoomPlayer {
   clientId?: string | null;
   /** A computer-controlled player — the server drives its toss/choice/moves. */
   isBot?: boolean;
+  /** A bot's personality label (e.g. "Aggressive"); biases its play on top of the
+   *  shared adaptive brain. Stored as the label so publicState can pass it through. */
+  botStyle?: string;
 }
 
 export interface BallLog {
@@ -166,5 +169,6 @@ export function publicState(room: Room, roomId: string): GameState {
       wicketsLost: i.wicketsLost,
     })),
     superOver: room.superOver ?? 0,
+    botStyles: room.players.map((p) => p.botStyle ?? null),
   };
 }

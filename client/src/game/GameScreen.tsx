@@ -54,6 +54,7 @@ export default function GameScreen({
   const currentInnings = (gameState?.currentInnings ?? 0) + 1;
   const target = gameState?.target ?? null;
   const superOver = gameState?.superOver ?? 0;
+  const botStyles = gameState?.botStyles ?? [];
 
   const wickets = gameState?.wickets ?? 1;
   const wicketsLost = gameState?.wicketsLost ?? 0;
@@ -196,9 +197,15 @@ export default function GameScreen({
         )}
 
         <div className={styles['players-row']}>
-          <span className={`${styles['player-name']} ${styles.bat}`}>🏏 {players[batsmanIdx]}</span>
+          <span className={`${styles['player-name']} ${styles.bat}`}>
+            🏏 {players[batsmanIdx]}
+            {botStyles[batsmanIdx] && <span className={styles['bot-style']}>🤖 {botStyles[batsmanIdx]}</span>}
+          </span>
           <span className={styles['vs']}>vs</span>
-          <span className={`${styles['player-name']} ${styles.bowl}`}>🎳 {players[bowlerIdx]}</span>
+          <span className={`${styles['player-name']} ${styles.bowl}`}>
+            🎳 {players[bowlerIdx]}
+            {botStyles[bowlerIdx] && <span className={styles['bot-style']}>🤖 {botStyles[bowlerIdx]}</span>}
+          </span>
         </div>
       </div>
 
