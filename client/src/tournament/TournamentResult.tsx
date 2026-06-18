@@ -1,5 +1,6 @@
 import type { TournamentState, TournamentPlayer, PointsTableEntry } from '@cric/types';
 import styles from './TournamentResult.module.css';
+import { fixtureSummary } from './fixtureSummary';
 
 interface TournamentResultProps {
   tournamentState: TournamentState;
@@ -88,7 +89,8 @@ function StandingsTable({
 }
 
 export default function TournamentResult({ tournamentState, myId, onLeave }: TournamentResultProps) {
-  const { size, groups, players, pointsTable, fixtures, champion, awards } = tournamentState;
+  const { size, groups, players, pointsTable, fixtures, champion, awards, overs, wickets } =
+    tournamentState;
   const is8 = size === 8;
 
   const sortedAll = sortByStandings(players, pointsTable);
@@ -218,20 +220,30 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
                 const p2 = players[f.player2Idx];
                 const p1Won = f.result === 'p1' || f.result === 'tie'; // tie → higher seed (p1)
                 const p2Won = f.result === 'p2';
+                const { s1, s2, result } = fixtureSummary(f, players, overs, wickets);
                 return (
-                  <div key={f.matchNum} className={styles['t-ko-row']}>
-                    <span className={styles['t-ko-label']}>
-                      {f.stage === 'final' ? '🏆 Final' : f.label}
-                    </span>
-                    <span className={styles['t-ko-teams']}>
-                      <span className={p1Won ? styles['t-winner'] : ''}>{p1?.name ?? '?'}</span>
-                      <span className={styles['t-ko-vs']}>
-                        {' '}
-                        {f.p1Score}–{f.p2Score}
-                        {f.superOver ? ' (SO)' : ''}{' '}
+                  <div key={f.matchNum} className={styles['t-ko-card']}>
+                    <div className={styles['t-ko-top']}>
+                      <span className={styles['t-ko-label']}>
+                        {f.stage === 'final' ? '🏆 Final' : f.label}
                       </span>
-                      <span className={p2Won ? styles['t-winner'] : ''}>{p2?.name ?? '?'}</span>
-                    </span>
+                      <span className={`${styles['t-ko-team']} ${p1Won ? styles['t-winner'] : ''}`}>
+                        {p1?.name ?? '?'}
+                      </span>
+                      <span className={styles['t-ko-vs']}>vs</span>
+                      <span
+                        className={`${styles['t-ko-team']} ${styles['t-ko-right']} ${
+                          p2Won ? styles['t-winner'] : ''
+                        }`}
+                      >
+                        {p2?.name ?? '?'}
+                      </span>
+                    </div>
+                    <div className={styles['t-ko-scores']}>
+                      <span>{s1}</span>
+                      <span className={styles['t-ko-right']}>{s2}</span>
+                    </div>
+                    {result && <div className={styles['t-ko-result']}>{result}</div>}
                   </div>
                 );
               })}

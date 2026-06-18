@@ -6,10 +6,10 @@ import type {
   FixtureMatch,
   LiveMatchScore,
   MatchScorecard,
-  InningsScorecard,
 } from '@cric/types';
 import styles from './TournamentLobby.module.css';
 import Scorecard from '../result/Scorecard';
+import { fixtureSummary } from './fixtureSummary';
 
 interface TournamentLobbyProps {
   tournamentState: TournamentState;
@@ -83,8 +83,6 @@ function StandingsTable({ rows, pt, myId }: { rows: TournamentPlayer[]; pt: PT; 
   );
 }
 
-const oversStr = (balls: number) => `${Math.floor(balls / 6)}.${balls % 6}`;
-
 function FixtureRow({
   f,
   players,
@@ -111,31 +109,7 @@ function FixtureRow({
 
   // ── Finished match: expanded two-line layout with full per-team scores ──
   if (f.status === 'done' && f.scorecard) {
-    const inns = f.scorecard.innings;
-    const byName = (name?: string) => inns.find((i) => i.batter === name);
-    const i1 = byName(fp1?.name);
-    const i2 = byName(fp2?.name);
-    const line = (inn?: InningsScorecard) =>
-      inn ? `${inn.runs}/${inn.wickets} (${oversStr(inn.balls)}/${overs})` : '—';
-
-    let result: string;
-    if (f.result === 'tie') {
-      result = 'Match tied';
-    } else {
-      const winner = f.result === 'p1' ? fp1 : fp2;
-      if (f.superOver) {
-        result = `${winner?.name ?? '?'} won the Super Over`;
-      } else if (winner?.name === inns[0]?.batter) {
-        // Winner batted first → defended a total → won by runs.
-        const margin = (inns[0]?.runs ?? 0) - (inns[1]?.runs ?? 0);
-        result = `${winner?.name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
-      } else {
-        // Winner batted second → chased → won by wickets in hand.
-        const left = wickets - (byName(winner?.name)?.wickets ?? 0);
-        result = `${winner?.name} won by ${left} wicket${left !== 1 ? 's' : ''}`;
-      }
-    }
-
+    const { s1, s2, result } = fixtureSummary(f, players, overs, wickets);
     return (
       <div className={`${cls} ${styles.expanded}`} onClick={open} title={clickable ? 'View scorecard' : undefined}>
         <div className={styles['fx-top']}>
@@ -150,8 +124,8 @@ function FixtureRow({
           {clickable && <span className={styles['fx-card']}>📋</span>}
         </div>
         <div className={styles['fx-scores']}>
-          <span>{line(i1)}</span>
-          <span className={styles['fx-right']}>{line(i2)}</span>
+          <span>{s1}</span>
+          <span className={styles['fx-right']}>{s2}</span>
         </div>
         <div className={styles['fx-result']}>{result}</div>
       </div>
