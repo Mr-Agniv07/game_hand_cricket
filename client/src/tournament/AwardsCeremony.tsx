@@ -13,18 +13,26 @@ export interface CeremonyAward {
 }
 
 /**
- * Which of the tournament awards the player called `myName` won, in order of
+ * Which of the tournament awards belong to the local player, in order of
  * prestige (Player of the Tournament first). Returns [] if they won none — the
  * caller uses that to skip the ceremony entirely.
+ *
+ * `myNames` is the set of names that could identify the viewer: their tournament
+ * display name AND (for logged-in users) their username. We match on any of them
+ * because the socket-id → player lookup can go stale after a reconnect, whereas
+ * the username is stable — so an idle, eliminated spectator still gets their
+ * moment when the final ends.
  */
 export function wonAwardsFor(
   awards: TournamentAwards | null | undefined,
-  myName: string | null | undefined
+  myNames: Array<string | null | undefined>
 ): CeremonyAward[] {
-  if (!awards || !myName) return [];
+  const names = myNames.filter((n): n is string => !!n);
+  if (!awards || names.length === 0) return [];
+  const mine = (name: string | undefined) => !!name && names.includes(name);
   const out: CeremonyAward[] = [];
-  if (awards.playerOfTournament?.name === myName) {
-    const p = awards.playerOfTournament;
+  if (mine(awards.playerOfTournament?.name)) {
+    const p = awards.playerOfTournament!;
     out.push({
       key: 'potm',
       icon: '⭐',
@@ -33,31 +41,31 @@ export function wonAwardsFor(
       stat: `${p.runs} runs · ${p.wickets} wkts · ${p.sixes} sixes`,
     });
   }
-  if (awards.orangeCap?.name === myName) {
+  if (mine(awards.orangeCap?.name)) {
     out.push({
       key: 'orange',
       icon: '🟠',
       title: 'Orange Cap',
       blurb: 'Most runs scored across the tournament',
-      stat: `${awards.orangeCap.runs} runs`,
+      stat: `${awards.orangeCap!.runs} runs`,
     });
   }
-  if (awards.purpleCap?.name === myName) {
+  if (mine(awards.purpleCap?.name)) {
     out.push({
       key: 'purple',
       icon: '🟣',
       title: 'Purple Cap',
       blurb: 'Most wickets taken across the tournament',
-      stat: `${awards.purpleCap.wickets} wickets`,
+      stat: `${awards.purpleCap!.wickets} wickets`,
     });
   }
-  if (awards.mostSixes?.name === myName) {
+  if (mine(awards.mostSixes?.name)) {
     out.push({
       key: 'sixes',
       icon: '6️⃣',
       title: 'Most Sixes',
       blurb: 'Cleared the ropes more than anyone else',
-      stat: `${awards.mostSixes.sixes} sixes`,
+      stat: `${awards.mostSixes!.sixes} sixes`,
     });
   }
   return out;

@@ -343,13 +343,20 @@ export default function App() {
 
     socket.on('tournament_created', (state) => {
       setTournamentState(state);
-      championCelebrated.current = false; // fresh tournament
-      awardsHandledRef.current = false;
-      grandFinaleShownRef.current = false;
-      knockoutsShownRef.current = false;
-      setMyAwards([]);
-      setIsFinalMatch(false);
-      setPhase('tournament_lobby');
+      // tournament_created is also re-emitted on reconnect (join_tournament). Only
+      // reset the per-tournament guards for a genuinely fresh tournament, so a
+      // reconnect into a finished one still runs the awards ceremony / summary.
+      if (state.phase === 'waiting') {
+        championCelebrated.current = false;
+        awardsHandledRef.current = false;
+        grandFinaleShownRef.current = false;
+        knockoutsShownRef.current = false;
+        setMyAwards([]);
+        setIsFinalMatch(false);
+      }
+      // Never yank a player back to the lobby from the post-tournament screens;
+      // the follow-up tournament_state(complete) drives those.
+      setPhase((p) => (p === 'tournament_result' || p === 'tournament_awards' ? p : 'tournament_lobby'));
     });
 
     socket.on('tournament_state', (state) => {
@@ -366,7 +373,10 @@ export default function App() {
         if (!awardsHandledRef.current) {
           awardsHandledRef.current = true;
           const myName = state.players.find((p) => p.id === socket.id)?.name;
-          const won = wonAwardsFor(state.awards, myName);
+          // Match by display name OR username: socket.id can go stale after a
+          // reconnect (common for an idle spectator during the final), but the
+          // logged-in username is stable.
+          const won = wonAwardsFor(state.awards, [myName, userRef.current?.username]);
           if (won.length > 0) {
             setMyAwards(won);
             setPhase('tournament_awards');
