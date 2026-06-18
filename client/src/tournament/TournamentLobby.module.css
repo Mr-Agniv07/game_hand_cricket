@@ -517,6 +517,54 @@
   background: #ffffff0c;
 }
 
+/* ─── Finished fixture: expanded layout ─── */
+.t-fixture-row.expanded {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+.fx-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.fx-team {
+  flex: 1;
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fx-right {
+  text-align: right;
+}
+.fx-card {
+  font-size: 0.85rem;
+  opacity: 0.65;
+}
+.fx-scores {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.fx-scores > span {
+  flex: 1;
+}
+.fx-result {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--accent);
+  padding-top: 0.1rem;
+  border-top: 1px solid #ffffff10;
+}
+
 .t-match-badge {
   font-size: 0.65rem;
   font-weight: 800;

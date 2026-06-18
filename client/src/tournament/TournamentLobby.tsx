@@ -6,6 +6,7 @@ import type {
   FixtureMatch,
   LiveMatchScore,
   MatchScorecard,
+  InningsScorecard,
 } from '@cric/types';
 import styles from './TournamentLobby.module.css';
 import Scorecard from '../result/Scorecard';
@@ -82,15 +83,21 @@ function StandingsTable({ rows, pt, myId }: { rows: TournamentPlayer[]; pt: PT; 
   );
 }
 
+const oversStr = (balls: number) => `${Math.floor(balls / 6)}.${balls % 6}`;
+
 function FixtureRow({
   f,
   players,
   myId,
+  overs,
+  wickets,
   onOpenCard,
 }: {
   f: FixtureMatch;
   players: TournamentPlayer[];
   myId: string | null;
+  overs: number;
+  wickets: number;
   onOpenCard?: (sc: MatchScorecard) => void;
 }) {
   const fp1 = players[f.player1Idx];
@@ -99,26 +106,69 @@ function FixtureRow({
   const knockout = f.stage === 'semi' || f.stage === 'final';
   const badge = f.stage === 'final' ? '🏆' : f.stage === 'semi' ? 'SF' : `M${f.matchNum}`;
   const clickable = f.status === 'done' && !!f.scorecard;
+  const cls = `${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}${knockout ? ` ${styles['final-row']}` : ''}${clickable ? ` ${styles.clickable}` : ''}`;
+  const open = clickable && f.scorecard ? () => onOpenCard?.(f.scorecard!) : undefined;
+
+  // ── Finished match: expanded two-line layout with full per-team scores ──
+  if (f.status === 'done' && f.scorecard) {
+    const inns = f.scorecard.innings;
+    const byName = (name?: string) => inns.find((i) => i.batter === name);
+    const i1 = byName(fp1?.name);
+    const i2 = byName(fp2?.name);
+    const line = (inn?: InningsScorecard) =>
+      inn ? `${inn.runs}/${inn.wickets} (${oversStr(inn.balls)}/${overs})` : '—';
+
+    let result: string;
+    if (f.result === 'tie') {
+      result = 'Match tied';
+    } else {
+      const winner = f.result === 'p1' ? fp1 : fp2;
+      if (f.superOver) {
+        result = `${winner?.name ?? '?'} won the Super Over`;
+      } else if (winner?.name === inns[0]?.batter) {
+        // Winner batted first → defended a total → won by runs.
+        const margin = (inns[0]?.runs ?? 0) - (inns[1]?.runs ?? 0);
+        result = `${winner?.name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
+      } else {
+        // Winner batted second → chased → won by wickets in hand.
+        const left = wickets - (byName(winner?.name)?.wickets ?? 0);
+        result = `${winner?.name} won by ${left} wicket${left !== 1 ? 's' : ''}`;
+      }
+    }
+
+    return (
+      <div className={`${cls} ${styles.expanded}`} onClick={open} title={clickable ? 'View scorecard' : undefined}>
+        <div className={styles['fx-top']}>
+          <span className={`${styles['t-match-badge']} ${styles[f.status]}`}>{badge}</span>
+          <span className={`${styles['fx-team']} ${f.result === 'p1' ? styles['t-winner'] : ''}`}>
+            {fp1?.name ?? '?'}
+          </span>
+          <span className={styles['t-vs']}>vs</span>
+          <span className={`${styles['fx-team']} ${styles['fx-right']} ${f.result === 'p2' ? styles['t-winner'] : ''}`}>
+            {fp2?.name ?? '?'}
+          </span>
+          {clickable && <span className={styles['fx-card']}>📋</span>}
+        </div>
+        <div className={styles['fx-scores']}>
+          <span>{line(i1)}</span>
+          <span className={styles['fx-right']}>{line(i2)}</span>
+        </div>
+        <div className={styles['fx-result']}>{result}</div>
+      </div>
+    );
+  }
+
+  // ── Live / upcoming: compact single line ──
   return (
-    <div
-      className={`${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}${knockout ? ` ${styles['final-row']}` : ''}${clickable ? ` ${styles.clickable}` : ''}`}
-      onClick={clickable && f.scorecard ? () => onOpenCard?.(f.scorecard!) : undefined}
-      title={clickable ? 'View scorecard' : undefined}
-    >
+    <div className={cls} onClick={open} title={clickable ? 'View scorecard' : undefined}>
       <span className={`${styles['t-match-badge']} ${styles[f.status]}`}>{badge}</span>
       <div className={styles['t-fixture-teams']}>
-        <span className={f.result === 'p1' ? styles['t-winner'] : ''}>{fp1?.name ?? '?'}</span>
+        <span>{fp1?.name ?? '?'}</span>
         <span className={styles['t-vs']}>vs</span>
-        <span className={f.result === 'p2' ? styles['t-winner'] : ''}>{fp2?.name ?? '?'}</span>
+        <span>{fp2?.name ?? '?'}</span>
       </div>
       <div className={styles['t-fixture-result']}>
-        {f.status === 'done' ? (
-          <span className={styles['t-score']}>
-            {f.p1Score}–{f.p2Score}
-            {f.superOver ? ' (SO)' : ''}
-            {clickable ? ' 📋' : ''}
-          </span>
-        ) : f.status === 'live' ? (
+        {f.status === 'live' ? (
           <span className={styles['t-live-tag']}>
             <span className={`${styles['t-live-dot']} ${styles.sm}`} />
             Live
@@ -192,7 +242,7 @@ export default function TournamentLobby({
   onLeave,
   onStartWithBots,
 }: TournamentLobbyProps) {
-  const { code, size, groups, players, phase, fixtures, currentMatchIndex, pointsTable } =
+  const { code, size, groups, players, phase, fixtures, currentMatchIndex, pointsTable, overs, wickets } =
     tournamentState;
   const [copied, setCopied] = useState(false);
   const [groupTab, setGroupTab] = useState<0 | 1>(0);
@@ -372,7 +422,7 @@ export default function TournamentLobby({
             <div className={styles['t-section-title']}>Group {groupTab === 0 ? 'A' : 'B'} — Fixtures</div>
             <div className={styles['t-fixture']}>
               {groupFixtures(groupTab === 0 ? 'A' : 'B').map((f) => (
-                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} onOpenCard={setCard} />
+                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
               ))}
             </div>
           </div>
@@ -384,7 +434,7 @@ export default function TournamentLobby({
                 semis.map((f) => (
                   <div key={f.matchNum}>
                     <div className={styles['t-playoff-label']}>{f.label}</div>
-                    <FixtureRow f={f} players={players} myId={myId} onOpenCard={setCard} />
+                    <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
                   </div>
                 ))
               ) : (
@@ -402,7 +452,7 @@ export default function TournamentLobby({
               <div>
                 <div className={styles['t-playoff-label']}>Final</div>
                 {finalFix ? (
-                  <FixtureRow f={finalFix} players={players} myId={myId} onOpenCard={setCard} />
+                  <FixtureRow f={finalFix} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
                 ) : (
                   <PlaceholderRow label="Final" p1="SF1 winner" p2="SF2 winner" />
                 )}
@@ -424,7 +474,7 @@ export default function TournamentLobby({
             <div className={styles['t-section-title']}>Fixture</div>
             <div className={styles['t-fixture']}>
               {fixtures.map((f) => (
-                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} onOpenCard={setCard} />
+                <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
               ))}
               {!finalFix && (
                 <div>
