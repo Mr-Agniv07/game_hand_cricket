@@ -88,7 +88,7 @@ function StandingsTable({
 }
 
 export default function TournamentResult({ tournamentState, myId, onLeave }: TournamentResultProps) {
-  const { size, groups, players, pointsTable, fixtures, champion } = tournamentState;
+  const { size, groups, players, pointsTable, fixtures, champion, awards } = tournamentState;
   const is8 = size === 8;
 
   const sortedAll = sortByStandings(players, pointsTable);
@@ -138,6 +138,41 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
         {/* My result badge */}
         {myBadge && (
           <div className={`${styles['t-my-rank']} ${styles[myBadge.cls]}`}>{myBadge.text}</div>
+        )}
+
+        {/* Awards */}
+        {awards && (awards.orangeCap || awards.playerOfTournament) && (
+          <>
+            <div className={styles['t-result-section-title']}>Awards</div>
+            <div className={styles['t-awards']}>
+              {awards.playerOfTournament && (
+                <div className={styles['t-award']}>
+                  <span className={styles['t-award-icon']}>⭐</span>
+                  <span className={styles['t-award-label']}>Player of the Tournament</span>
+                  <span className={styles['t-award-name']}>{awards.playerOfTournament.name}</span>
+                  <span className={styles['t-award-val']}>
+                    {awards.playerOfTournament.runs} runs · {awards.playerOfTournament.sixes} sixes
+                  </span>
+                </div>
+              )}
+              {awards.orangeCap && (
+                <div className={styles['t-award']}>
+                  <span className={styles['t-award-icon']}>🟠</span>
+                  <span className={styles['t-award-label']}>Orange Cap</span>
+                  <span className={styles['t-award-name']}>{awards.orangeCap.name}</span>
+                  <span className={styles['t-award-val']}>{awards.orangeCap.runs} runs</span>
+                </div>
+              )}
+              {awards.mostSixes && (
+                <div className={styles['t-award']}>
+                  <span className={styles['t-award-icon']}>6️⃣</span>
+                  <span className={styles['t-award-label']}>Most Sixes</span>
+                  <span className={styles['t-award-name']}>{awards.mostSixes.name}</span>
+                  <span className={styles['t-award-val']}>{awards.mostSixes.sixes} sixes</span>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Standings */}

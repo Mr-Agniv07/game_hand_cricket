@@ -270,6 +270,15 @@ export interface LiveMatchScore {
   lastBall: { scored: number; isOut: boolean; batsmanMove: number; bowlerMove: number } | null;
 }
 
+export interface TournamentAwards {
+  /** Most total runs across the tournament. */
+  orangeCap: { name: string; runs: number } | null;
+  /** Most sixes across the tournament (null if nobody hit one). */
+  mostSixes: { name: string; sixes: number } | null;
+  /** Best overall batting impact (runs, weighted for sixes). */
+  playerOfTournament: { name: string; runs: number; sixes: number } | null;
+}
+
 export interface TournamentState {
   id: string;
   code: string;
@@ -287,6 +296,8 @@ export interface TournamentState {
   liveScore: LiveMatchScore | null;
   /** Final winner's player id once the final is decided; null until then. */
   champion?: string | null;
+  /** Batting awards, computed when the tournament completes. */
+  awards?: TournamentAwards | null;
 }
 
 export interface TournamentMatchStartingPayload {

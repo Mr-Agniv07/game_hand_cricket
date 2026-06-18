@@ -9,6 +9,7 @@ import type {
   PointsTableEntry,
   LiveMatchScore,
   MatchScorecard,
+  TournamentAwards,
 } from '@cric/types';
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
 import { makeBotId, randomBotName, isBot } from '../game/bot.ts';
@@ -77,6 +78,8 @@ export interface Tournament {
   finalCreated?: boolean;
   /** Final winner's player id (set when the final is decided). */
   champion?: string | null;
+  /** Batting awards, computed at finalize. */
+  awards?: TournamentAwards | null;
 }
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -152,6 +155,42 @@ function rankedPlayerIndices(t: Tournament): number[] {
     t,
     t.players.map((_, i) => i)
   );
+}
+
+/**
+ * Aggregate every finished fixture's scorecard into batting awards: most runs
+ * (Orange Cap), most sixes, and Player of the Tournament (runs weighted for
+ * sixes). Aggregated by batter name (unique within a tournament in practice).
+ */
+function computeAwards(t: Tournament): TournamentAwards {
+  const agg = new Map<string, { runs: number; sixes: number }>();
+  for (const f of t.fixtures) {
+    if (!f.scorecard) continue;
+    for (const inn of f.scorecard.innings) {
+      const a = agg.get(inn.batter) ?? { runs: 0, sixes: 0 };
+      a.runs += inn.runs;
+      a.sixes += inn.sixes;
+      agg.set(inn.batter, a);
+    }
+  }
+  let orangeCap: TournamentAwards['orangeCap'] = null;
+  let mostSixes: TournamentAwards['mostSixes'] = null;
+  let playerOfTournament: TournamentAwards['playerOfTournament'] = null;
+  let bestImpact = -1;
+  for (const [name, a] of agg) {
+    if (!orangeCap || a.runs > orangeCap.runs) orangeCap = { name, runs: a.runs };
+    if (!mostSixes || a.sixes > mostSixes.sixes) mostSixes = { name, sixes: a.sixes };
+    const impact = a.runs + 8 * a.sixes;
+    if (impact > bestImpact) {
+      bestImpact = impact;
+      playerOfTournament = { name, runs: a.runs, sixes: a.sixes };
+    }
+  }
+  return {
+    orangeCap,
+    mostSixes: mostSixes && mostSixes.sixes > 0 ? mostSixes : null,
+    playerOfTournament,
+  };
 }
 
 /** The advancing player index of a finished knockout fixture (tie → higher seed = player1). */
@@ -313,6 +352,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
     ),
     liveScore: t.liveScore,
     champion: t.champion ?? null,
+    awards: t.awards ?? null,
   };
 }
 
@@ -403,6 +443,7 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
     const topIdx = rankedPlayerIndices(tournament)[0];
     tournament.champion = tournament.players[topIdx]?.id ?? null;
   }
+  tournament.awards = computeAwards(tournament);
   const state = publicTournamentState(tournament);
   io.to('t:' + tournament.id).emit('tournament_state', state);
   io.to('t:' + tournament.id).emit('tournament_complete', {

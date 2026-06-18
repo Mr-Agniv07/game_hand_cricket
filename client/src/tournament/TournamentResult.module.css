@@ -101,6 +101,47 @@
   overflow-x: auto;
 }
 
+/* ─── Awards ─── */
+.t-awards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.t-award {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  border-left: 3px solid #fbbf24;
+}
+.t-award-icon {
+  grid-row: span 2;
+  font-size: 1.5rem;
+}
+.t-award-label {
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.t-award-name {
+  grid-column: 2;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.t-award-val {
+  grid-column: 3;
+  grid-row: span 2;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: right;
+}
+
 /* ─── Knockout results ─── */
 .t-ko-list {
   display: flex;
