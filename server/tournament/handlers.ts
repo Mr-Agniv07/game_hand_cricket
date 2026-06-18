@@ -329,6 +329,10 @@ export function remapTournamentSocketId(t: Tournament, oldId: string, newId: str
     t.pointsTable[newId] = entry;
     delete t.pointsTable[oldId];
   }
+  // The champion is also a socket id; if we don't remap it too, the result
+  // screen can't match it to any player after reconnect and falls back to the
+  // league topper — silently crowning the wrong player (often a bot).
+  if (t.champion === oldId) t.champion = newId;
 }
 
 export function publicTournamentState(t: Tournament): TournamentState {

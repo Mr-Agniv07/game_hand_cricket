@@ -95,12 +95,21 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
 
   const sortedAll = sortByStandings(players, pointsTable);
 
-  // Champion is the FINAL winner (may not be the league/group topper).
-  const winner = players.find((p) => p.id === champion) ?? sortedAll[0];
-  const iWon = winner?.id === myId;
-
   // Runner-up = the other finalist.
   const finalFixture = fixtures.find((f) => f.stage === 'final' || f.isFinal);
+
+  // Champion is the FINAL winner (may not be the league/group topper). Prefer
+  // the champion id, but it's a socket id that can go stale on reconnect, so
+  // fall back to the final fixture's result (index-based, always correct)
+  // before ever falling back to the league topper.
+  const finalWinner =
+    finalFixture && finalFixture.result
+      ? players[
+          finalFixture.result === 'p2' ? finalFixture.player2Idx : finalFixture.player1Idx
+        ]
+      : undefined;
+  const winner = players.find((p) => p.id === champion) ?? finalWinner ?? sortedAll[0];
+  const iWon = winner?.id === myId;
   const finalists = finalFixture
     ? [players[finalFixture.player1Idx], players[finalFixture.player2Idx]]
     : [];
