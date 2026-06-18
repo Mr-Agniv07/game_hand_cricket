@@ -11,6 +11,7 @@ interface ResultScreenProps {
   onRematch: () => void;
   rematchState: RematchState;
   isTournamentMatch?: boolean;
+  isFinalMatch?: boolean;
   onBackToTournament?: () => void;
 }
 
@@ -21,6 +22,7 @@ export default function ResultScreen({
   onRematch,
   rematchState,
   isTournamentMatch = false,
+  isFinalMatch = false,
   onBackToTournament,
 }: ResultScreenProps) {
   const { winnerIdx, resultText, scores, players, scorecard } = gameOver;
@@ -83,11 +85,20 @@ export default function ResultScreen({
 
         {isTournamentMatch ? (
           <div className={styles['result-actions']}>
-            <div className="tournament-next-notice">Next match starting in ~5 seconds…</div>
-            {onBackToTournament && (
-              <button className="btn-lobby" onClick={onBackToTournament}>
-                Back to Tournament
-              </button>
+            {isFinalMatch ? (
+              // The final is over — no "next match"; the awards/summary follow.
+              <div className="tournament-next-notice">
+                🏆 That's a wrap on the tournament! Tallying the awards…
+              </div>
+            ) : (
+              <>
+                <div className="tournament-next-notice">Next match starting in ~5 seconds…</div>
+                {onBackToTournament && (
+                  <button className="btn-lobby" onClick={onBackToTournament}>
+                    Back to Tournament
+                  </button>
+                )}
+              </>
             )}
           </div>
         ) : (

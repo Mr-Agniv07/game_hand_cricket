@@ -14,6 +14,7 @@ export type AppPhase =
   | 'auth'
   | 'lobby'
   | 'tournament_lobby'
+  | 'tournament_awards'
   | 'tournament_result'
   | 'waiting'
   | 'toss_call'

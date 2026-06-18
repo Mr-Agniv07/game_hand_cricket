@@ -11,6 +11,8 @@ import ResultScreen from './result/ResultScreen';
 import InningsEndOverlay from './game/InningsEndOverlay';
 import TournamentLobby from './tournament/TournamentLobby';
 import TournamentResult from './tournament/TournamentResult';
+import AwardsCeremony, { wonAwardsFor } from './tournament/AwardsCeremony';
+import type { CeremonyAward } from './tournament/AwardsCeremony';
 import type {
   GameState,
   TossStartPayload,
@@ -78,6 +80,12 @@ export default function App() {
   const [tournamentState, setTournamentState] = useState<TournamentState | null>(null);
   const [isTournamentMatch, setIsTournamentMatch] = useState(false);
   const isTournamentMatchRef = useRef(false);
+  // True only while the current tournament match is the FINAL — used to suppress
+  // the "next match starting…" notice on the result screen after the final.
+  const [isFinalMatch, setIsFinalMatch] = useState(false);
+  // Awards the local player won, shown in the ceremony between the final and the
+  // tournament summary. Empty when they won none (ceremony is skipped).
+  const [myAwards, setMyAwards] = useState<CeremonyAward[]>([]);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
   // Stage-intro overlay: 'finalist' = tap-to-start GRAND FINALE (you're playing),
   // 'spectator' = brief timed GRAND FINALE (watching), 'knockouts' = brief timed
@@ -103,6 +111,9 @@ export default function App() {
   const trainSeqRef = useRef(0);
   // Guards the champion fanfare so it plays at most once per tournament.
   const championCelebrated = useRef(false);
+  // Guards the awards ceremony so completing (incl. reconnect re-emits) routes
+  // through it only once per tournament.
+  const awardsHandledRef = useRef(false);
   // Guards the spectator GRAND FINALE splash so it shows once per tournament.
   const grandFinaleShownRef = useRef(false);
   // Guards the KNOCKOUTS bumper so it shows once per tournament (when semis begin).
@@ -333,20 +344,37 @@ export default function App() {
     socket.on('tournament_created', (state) => {
       setTournamentState(state);
       championCelebrated.current = false; // fresh tournament
+      awardsHandledRef.current = false;
       grandFinaleShownRef.current = false;
       knockoutsShownRef.current = false;
+      setMyAwards([]);
+      setIsFinalMatch(false);
       setPhase('tournament_lobby');
     });
 
     socket.on('tournament_state', (state) => {
       setTournamentState(state);
       if (state.phase === 'complete') {
-        setPhase('tournament_result');
         // Crown the champion with a fanfare (once). champion is a socket id,
         // remapped on reconnect, so it matches our live socket.id if we won.
         if (!championCelebrated.current) {
           championCelebrated.current = true;
           if (state.champion && state.champion === socket.id) sounds.champion();
+        }
+        // Celebrate any awards the local player won BEFORE the summary card.
+        // Re-emits (reconnects) skip the ceremony and land on the summary.
+        if (!awardsHandledRef.current) {
+          awardsHandledRef.current = true;
+          const myName = state.players.find((p) => p.id === socket.id)?.name;
+          const won = wonAwardsFor(state.awards, myName);
+          if (won.length > 0) {
+            setMyAwards(won);
+            setPhase('tournament_awards');
+          } else {
+            setPhase('tournament_result');
+          }
+        } else {
+          setPhase('tournament_result');
         }
       } else {
         setPhase((p) => (p === 'lobby' ? 'tournament_lobby' : p));
@@ -381,6 +409,7 @@ export default function App() {
       setMyPlayerIdx(pidx);
       isTournamentMatchRef.current = true;
       setIsTournamentMatch(true);
+      setIsFinalMatch(!!isFinal);
       // Finalists get a tap-to-start GRAND FINALE intro before the toss; the
       // server holds a bot opponent until "Start the Final" is tapped.
       if (isFinal) {
@@ -392,7 +421,9 @@ export default function App() {
     });
 
     socket.on('tournament_complete', () => {
-      setPhase('tournament_result');
+      // tournament_state(complete) already routed us to the awards ceremony or
+      // straight to the summary; don't yank an in-progress ceremony to the summary.
+      setPhase((p) => (p === 'tournament_awards' ? p : 'tournament_result'));
     });
 
     const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
@@ -532,6 +563,8 @@ export default function App() {
     resetGameState();
     isTournamentMatchRef.current = false;
     setIsTournamentMatch(false);
+    setIsFinalMatch(false);
+    setMyAwards([]);
     setTournamentState(null);
   }
 
@@ -779,8 +812,13 @@ export default function App() {
           onRematch={handleRematch}
           rematchState={rematchState}
           isTournamentMatch={isTournamentMatch}
+          isFinalMatch={isFinalMatch}
           onBackToTournament={resetToTournamentLobby}
         />
+      )}
+
+      {phase === 'tournament_awards' && (
+        <AwardsCeremony awards={myAwards} onDone={() => setPhase('tournament_result')} />
       )}
 
       {phase === 'tournament_lobby' && tournamentState && (
