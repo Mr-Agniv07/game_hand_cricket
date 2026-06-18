@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { apiGet } from '../api';
 import styles from './Lobby.module.css';
+import MeetBots from './MeetBots';
 import type { MatchHistoryEntry } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
@@ -31,6 +32,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [tSize, setTSize] = useState<4 | 8>(4);
   const [tSubTab, setTSubTab] = useState<'create' | 'join'>('create');
   const [tJoinCode, setTJoinCode] = useState('');
+  const [showBots, setShowBots] = useState(false);
 
   const loggedIn = !!user;
 
@@ -144,6 +146,10 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           </button>
         )}
       </div>
+
+      <button type="button" className={styles['meet-bots-link']} onClick={() => setShowBots(true)}>
+        🤖 Meet our Bots
+      </button>
 
       {tab === 'create' && (
         <form className="card form" onSubmit={handleCreate}>
@@ -413,6 +419,8 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           )}
         </div>
       )}
+
+      {showBots && <MeetBots onClose={() => setShowBots(false)} />}
     </div>
   );
 }

@@ -27,6 +27,23 @@
   box-shadow: 0 0 12px rgba(34, 197, 94, 0.18);
 }
 
+.meet-bots-link {
+  align-self: center;
+  background: none;
+  border: 1px solid #ffffff20;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.4rem 0.95rem;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.meet-bots-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .mode-title {
   font-size: 1.05rem;
   font-weight: 800;
