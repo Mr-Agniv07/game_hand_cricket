@@ -8,6 +8,10 @@ import type {
   PublicUser,
   Friend,
   LeaderboardEntry,
+  UserAchievements,
+  GlobalRecords,
+  OversRecords,
+  GameRecord,
 } from '@cric/types';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -65,6 +69,22 @@ function normalizeStats(s: Partial<UserStats> | undefined): UserStats {
   return full;
 }
 
+/** A fresh, zeroed achievements record. */
+export function emptyAchievements(): UserAchievements {
+  return {
+    tournamentsPlayed: 0,
+    tournamentsWon: 0,
+    orangeCaps: 0,
+    purpleCaps: 0,
+    mostSixesAwards: 0,
+    playerOfTournament: 0,
+  };
+}
+
+function normalizeAchievements(a: Partial<UserAchievements> | undefined): UserAchievements {
+  return { ...emptyAchievements(), ...(a ?? {}) };
+}
+
 /** Full user record as persisted in db.json (never sent to clients verbatim). */
 export interface DbUser {
   id: string;
@@ -72,6 +92,7 @@ export interface DbUser {
   passwordHash: string;
   token: string | null;
   stats: UserStats;
+  achievements?: UserAchievements;
   matchHistory: MatchHistoryEntry[];
   friends?: string[];
   mlModels?: Record<string, MLModelData>;
@@ -81,6 +102,8 @@ export interface DbUser {
 interface Database {
   users: DbUser[];
   mlProfiles?: Record<string, MLModelData>;
+  /** Global records bucketed by overs count; see GlobalRecords. */
+  records?: GlobalRecords;
 }
 
 let cache: Database | null = null;
@@ -94,8 +117,11 @@ function load(): Database {
   }
   try {
     cache = JSON.parse(readFileSync(DB_PATH, 'utf8')) as Database;
-    // Backfill stats fields added in later versions so every record is complete.
-    for (const u of cache.users) u.stats = normalizeStats(u.stats);
+    // Backfill fields added in later versions so every record is complete.
+    for (const u of cache.users) {
+      u.stats = normalizeStats(u.stats);
+      u.achievements = normalizeAchievements(u.achievements);
+    }
     return cache;
   } catch {
     cache = { users: [] };
@@ -154,6 +180,7 @@ export function createUser(username: string, passwordHash: string): DbUser | nul
     passwordHash,
     token: null,
     stats: emptyStats(),
+    achievements: emptyAchievements(),
     matchHistory: [],
     createdAt: new Date().toISOString(),
   };
@@ -293,6 +320,92 @@ export function getLeaderboard(): LeaderboardEntry[] {
   return db.users
     .filter((u) => u.stats.gamesPlayed > 0)
     .map((u) => ({ id: u.id, username: u.username, stats: normalizeStats(u.stats) }));
+}
+
+// ─── Achievements (per-user career honours) ──────────────────────────────────
+
+export function getAchievements(userId: string): UserAchievements {
+  const db = load();
+  const user = db.users.find((u) => u.id === userId);
+  return normalizeAchievements(user?.achievements);
+}
+
+/**
+ * Bump career honours for registered players. Called once when a tournament
+ * finalizes; bot/guest entries (no userId) are ignored by the caller. Loads,
+ * applies every increment, saves once.
+ */
+export function incrementAchievements(
+  incs: Array<{ userId: string; key: keyof UserAchievements }>
+): void {
+  if (incs.length === 0) return;
+  const db = load();
+  for (const { userId, key } of incs) {
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) continue;
+    user.achievements = normalizeAchievements(user.achievements);
+    user.achievements[key] += 1;
+  }
+  save(db);
+}
+
+// ─── Global records (tournament matches only, bucketed by overs) ──────────────
+
+export function getGlobalRecords(): GlobalRecords {
+  const db = load();
+  return db.records ?? { byOvers: {} };
+}
+
+/** A finished tournament innings, distilled to the values records care about. */
+export interface InningsRecordInput {
+  overs: number;
+  wickets: number;
+  total: number;
+  /** Innings actually completed (all out or overs done) — gate for "lowest total". */
+  completed: boolean;
+  /** Ball on which 50/100 was reached, or null if never. */
+  ballsTo50: number | null;
+  ballsTo100: number | null;
+  holderName: string;
+  holderId: string | null;
+}
+
+/**
+ * Fold tournament innings into the global record book. Highest total and the
+ * "fastest to" records take any innings; lowest total only counts completed
+ * innings (so a curtailed chase can't set a silly low). Saves once.
+ */
+export function recordInnings(inputs: InningsRecordInput[]): void {
+  if (inputs.length === 0) return;
+  const db = load();
+  if (!db.records) db.records = { byOvers: {} };
+  const book = db.records.byOvers;
+
+  for (const inn of inputs) {
+    const key = String(inn.overs);
+    const bucket: OversRecords =
+      book[key] ?? { fastest50: null, fastest100: null, highestTotal: null, lowestTotal: null };
+    const mk = (value: number): GameRecord => ({
+      value,
+      holderName: inn.holderName,
+      holderId: inn.holderId,
+      overs: inn.overs,
+      wickets: inn.wickets,
+      date: new Date().toISOString(),
+    });
+
+    if (!bucket.highestTotal || inn.total > bucket.highestTotal.value)
+      bucket.highestTotal = mk(inn.total);
+    if (inn.completed && (!bucket.lowestTotal || inn.total < bucket.lowestTotal.value))
+      bucket.lowestTotal = mk(inn.total);
+    if (inn.ballsTo50 !== null && (!bucket.fastest50 || inn.ballsTo50 < bucket.fastest50.value))
+      bucket.fastest50 = mk(inn.ballsTo50);
+    if (inn.ballsTo100 !== null && (!bucket.fastest100 || inn.ballsTo100 < bucket.fastest100.value))
+      bucket.fastest100 = mk(inn.ballsTo100);
+
+    book[key] = bucket;
+  }
+  save(db);
 }
 
 // Profiles are keyed by registered user id (stable + unspoofable), not display

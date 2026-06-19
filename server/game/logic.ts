@@ -7,7 +7,7 @@ import type {
   InningsScorecard,
   MatchScorecard,
 } from '@cric/types';
-import { updateGameStats, trainPlayerProfiles } from '../db.ts';
+import { updateGameStats, trainPlayerProfiles, recordInnings } from '../db.ts';
 import {
   type Room,
   type RoomInnings,
@@ -82,6 +82,16 @@ function buildScorecard(room: Room): MatchScorecard {
       buildInningsCard(room.innings[1], inn2Batter, inn1Batter),
     ],
   };
+}
+
+/** The (1-based) ball on which the innings first reached `target` runs, or null. */
+function milestoneBall(inn: RoomInnings, target: number): number | null {
+  let running = 0;
+  for (let i = 0; i < inn.log.length; i++) {
+    if (!inn.log[i].isOut) running += inn.log[i].scored;
+    if (running >= target) return i + 1;
+  }
+  return null;
 }
 
 /** Delay before a bot acts, so its toss/choice/moves feel paced rather than instant. */
@@ -366,6 +376,25 @@ export function endInnings(
           fixture.result = winnerId === null ? 'tie' : winnerId === p1Id ? 'p1' : 'p2';
           if (viaSuperOver) fixture.superOver = true;
           fixture.scorecard = scorecard;
+
+          // Feed the global record book — tournament matches only, and never the
+          // 1-over Super Over innings (they'd pollute totals for the overs bucket).
+          if (!viaSuperOver) {
+            const quota = totalBalls(room);
+            const inn1Batter = room.players[room.bowlerIdx!];
+            const inn2Batter = room.players[room.batsmanIdx!];
+            const toInput = (innData: RoomInnings, batter: (typeof room.players)[number]) => ({
+              overs: room.overs,
+              wickets: room.wickets,
+              total: innData.score,
+              completed: innData.isOut || innData.balls >= quota,
+              ballsTo50: milestoneBall(innData, 50),
+              ballsTo100: milestoneBall(innData, 100),
+              holderName: batter.name,
+              holderId: batter.userId,
+            });
+            recordInnings([toInput(inn1, inn1Batter), toInput(inn2, inn2Batter)]);
+          }
 
           const updateEntry = (
             pid: string,

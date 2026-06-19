@@ -15,6 +15,8 @@ import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room }
 import { makeBotPlayer, isBot } from '../game/bot.ts';
 import { driveBots } from '../game/logic.ts';
 import type { SocketData } from '../game/types.ts';
+import { incrementAchievements } from '../db.ts';
+import type { UserAchievements } from '@cric/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -454,7 +456,37 @@ export function pushLiveScore(
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 }
 
+/**
+ * Credit career honours to the registered players in a finished tournament:
+ * champion, the three caps, Most Sixes and Player of the Tournament, plus a
+ * "played" tick for everyone. Awards are keyed by name, so map them back to a
+ * player to find the userId; bots/guests (no userId) are skipped.
+ */
+function recordTournamentAchievements(t: Tournament): void {
+  const incs: Array<{ userId: string; key: keyof UserAchievements }> = [];
+  const add = (userId: string | null | undefined, key: keyof UserAchievements) => {
+    if (userId) incs.push({ userId, key });
+  };
+  const byName = (name?: string | null) =>
+    name ? t.players.find((p) => p.name === name) : undefined;
+
+  add(t.players.find((p) => p.id === t.champion)?.userId, 'tournamentsWon');
+  const a = t.awards;
+  if (a) {
+    add(byName(a.orangeCap?.name)?.userId, 'orangeCaps');
+    add(byName(a.purpleCap?.name)?.userId, 'purpleCaps');
+    add(byName(a.mostSixes?.name)?.userId, 'mostSixesAwards');
+    add(byName(a.playerOfTournament?.name)?.userId, 'playerOfTournament');
+  }
+  for (const p of t.players) add(p.userId, 'tournamentsPlayed');
+
+  incrementAchievements(incs);
+}
+
 export function finalizeTournament(io: GameServer, tournament: Tournament): void {
+  // Guard against a double finalize (e.g. a forfeited final racing the normal
+  // path) — without it, achievements would be counted twice.
+  if (tournament.phase === 'complete') return;
   tournament.phase = 'complete';
   // Defensive: if we somehow finalized without a recorded champion, fall back to
   // the league topper so the result screen always has a winner.
@@ -463,6 +495,7 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
     tournament.champion = tournament.players[topIdx]?.id ?? null;
   }
   tournament.awards = computeAwards(tournament);
+  recordTournamentAchievements(tournament);
   const state = publicTournamentState(tournament);
   io.to('t:' + tournament.id).emit('tournament_state', state);
   io.to('t:' + tournament.id).emit('tournament_complete', {

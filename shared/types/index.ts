@@ -65,6 +65,44 @@ export interface LeaderboardEntry {
   stats: UserStats;
 }
 
+/**
+ * Career honours a player has accumulated — the personal "hall of fame".
+ * All are tournament-derived (the only matches that count toward records/badges).
+ */
+export interface UserAchievements {
+  tournamentsPlayed: number;
+  tournamentsWon: number;
+  orangeCaps: number;
+  purpleCaps: number;
+  mostSixesAwards: number;
+  playerOfTournament: number;
+}
+
+/** A single global record holder (e.g. the highest total in 2-over games). */
+export interface GameRecord {
+  /** Balls for fastest-50/100; runs for highest/lowest total. */
+  value: number;
+  holderName: string;
+  /** Registered user's id, or null for a bot/guest holder (won't show on a personal page). */
+  holderId: string | null;
+  overs: number;
+  wickets: number;
+  date: string;
+}
+
+/** The four records tracked within one overs bucket. */
+export interface OversRecords {
+  fastest50: GameRecord | null;
+  fastest100: GameRecord | null;
+  highestTotal: GameRecord | null;
+  lowestTotal: GameRecord | null;
+}
+
+/** Global records, bucketed by overs count ("1" | "2" | "3" | "5" | "10"). */
+export interface GlobalRecords {
+  byOvers: Record<string, OversRecords>;
+}
+
 export interface AuthResponse {
   id: string;
   username: string;

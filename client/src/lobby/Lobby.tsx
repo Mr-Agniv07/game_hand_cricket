@@ -4,6 +4,7 @@ import { apiGet } from '../api';
 import styles from './Lobby.module.css';
 import MeetBots from './MeetBots';
 import GlobalStandings from './GlobalStandings';
+import HallOfFame from './HallOfFame';
 import type { MatchHistoryEntry } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
@@ -35,6 +36,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [tJoinCode, setTJoinCode] = useState('');
   const [showBots, setShowBots] = useState(false);
   const [showStandings, setShowStandings] = useState(false);
+  const [showHallOfFame, setShowHallOfFame] = useState(false);
 
   const loggedIn = !!user;
 
@@ -156,6 +158,13 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           onClick={() => setShowStandings(true)}
         >
           🌍 Global Standings
+        </button>
+        <button
+          type="button"
+          className={styles['meet-bots-link']}
+          onClick={() => setShowHallOfFame(true)}
+        >
+          🏛️ Hall of Fame
         </button>
         <button
           type="button"
@@ -439,6 +448,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
       {showStandings && (
         <GlobalStandings myId={user?.id ?? null} onClose={() => setShowStandings(false)} />
       )}
+      {showHallOfFame && <HallOfFame user={user} onClose={() => setShowHallOfFame(false)} />}
     </div>
   );
 }

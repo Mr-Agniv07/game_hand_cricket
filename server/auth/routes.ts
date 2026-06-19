@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { findByUsername, findById, createUser, getPlayerProfile } from '../db.ts';
+import { findByUsername, findById, createUser, getPlayerProfile, getAchievements } from '../db.ts';
 import { hashPassword, verifyPassword, createToken, verifyTokenGetUserId } from './auth.ts';
 
 export const authRouter = Router();
@@ -48,7 +48,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 authRouter.get('/api/me', requireAuth, (req: Request, res: Response) => {
   const user = findById((req as AuthRequest).userId);
   if (!user) return res.status(404).json({ error: 'User not found.' });
-  res.json({ id: user.id, username: user.username, stats: user.stats });
+  res.json({
+    id: user.id,
+    username: user.username,
+    stats: user.stats,
+    achievements: getAchievements(user.id),
+  });
 });
 
 // Returns a player's move-tendency model for autoplay.
