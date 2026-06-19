@@ -15,7 +15,9 @@ import type {
 } from '@cric/types';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const DB_PATH = join(__dir, 'db.json');
+// Defaults to server/db.json; DB_PATH env lets tests point at a throwaway file
+// so they never touch the real database.
+const DB_PATH = process.env.DB_PATH || join(__dir, 'db.json');
 
 /** One role's move model: Laplace-smoothed frequency + first-order transitions. */
 export interface RoleModelData {
