@@ -150,6 +150,23 @@
 .history-row.tie {
   border-left-color: var(--warn);
 }
+.history-clickable {
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    transform 0.1s;
+}
+.history-clickable:hover {
+  background: var(--surface3, #2a2f3a);
+}
+.history-clickable:active {
+  transform: scale(0.99);
+}
+.history-card-tag {
+  margin-left: 0.5rem;
+  color: var(--accent);
+  font-weight: 700;
+}
 .history-badge {
   width: 26px;
   height: 26px;

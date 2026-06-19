@@ -136,6 +136,8 @@ export interface MatchHistoryEntry {
   overs: number;
   wickets: number;
   date: string;
+  /** Full match scorecard, attached for matches recorded after this was added. */
+  scorecard?: MatchScorecard;
 }
 
 // ─── Server → client event payloads ─────────────────────────────────────────

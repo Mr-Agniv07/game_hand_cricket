@@ -59,6 +59,7 @@ model MatchHistory {
   overs    Int
   wickets  Int
   date     DateTime @default(now())
+  scorecard Json? // full MatchScorecard (both innings); null for legacy rows
 
   @@index([userId])
 }

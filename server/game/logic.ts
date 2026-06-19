@@ -371,6 +371,7 @@ export function endInnings(
         boundaries: boundariesOf(0),
         ballsBowled: ballsBowledOf(0),
         runsConceded: concededOf(0),
+        scorecard,
       },
       {
         userId: room.players[1].userId,
@@ -385,6 +386,7 @@ export function endInnings(
         boundaries: boundariesOf(1),
         ballsBowled: ballsBowledOf(1),
         runsConceded: concededOf(1),
+        scorecard,
       },
     ]);
 

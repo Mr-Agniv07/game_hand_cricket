@@ -5,7 +5,8 @@ import styles from './Lobby.module.css';
 import MeetBots from './MeetBots';
 import GlobalStandings from './GlobalStandings';
 import HallOfFame from './HallOfFame';
-import type { MatchHistoryEntry } from '@cric/types';
+import Scorecard from '../result/Scorecard';
+import type { MatchHistoryEntry, MatchScorecard } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
 
@@ -37,6 +38,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [showBots, setShowBots] = useState(false);
   const [showStandings, setShowStandings] = useState(false);
   const [showHallOfFame, setShowHallOfFame] = useState(false);
+  const [openScorecard, setOpenScorecard] = useState<MatchScorecard | null>(null);
 
   const loggedIn = !!user;
 
@@ -413,32 +415,45 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
             </p>
           ) : (
             <div className={styles['history-list']}>
-              {history.map((m, i) => (
-                <div key={i} className={`${styles['history-row']} ${styles[m.result]}`}>
-                  <span className={`${styles['history-badge']} ${styles[m.result]}`}>
-                    {m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'T'}
-                  </span>
-                  <div className={styles['history-info']}>
-                    <span className={styles['history-opp']}>vs {m.opponent}</span>
-                    <span className={styles['history-meta']}>
-                      {m.overs !== undefined && m.wickets !== undefined
-                        ? `${m.overs} ov · ${m.wickets} wkt`
-                        : null}
+              {history.map((m, i) => {
+                const hasCard = !!m.scorecard;
+                return (
+                  <div
+                    key={i}
+                    className={`${styles['history-row']} ${styles[m.result]}${
+                      hasCard ? ` ${styles['history-clickable']}` : ''
+                    }`}
+                    onClick={hasCard ? () => setOpenScorecard(m.scorecard!) : undefined}
+                    role={hasCard ? 'button' : undefined}
+                    tabIndex={hasCard ? 0 : undefined}
+                    title={hasCard ? 'View scorecard' : undefined}
+                  >
+                    <span className={`${styles['history-badge']} ${styles[m.result]}`}>
+                      {m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'T'}
                     </span>
+                    <div className={styles['history-info']}>
+                      <span className={styles['history-opp']}>vs {m.opponent}</span>
+                      <span className={styles['history-meta']}>
+                        {m.overs !== undefined && m.wickets !== undefined
+                          ? `${m.overs} ov · ${m.wickets} wkt`
+                          : null}
+                        {hasCard && <span className={styles['history-card-tag']}>📋 Scorecard</span>}
+                      </span>
+                    </div>
+                    <div className={styles['history-right']}>
+                      <span className={styles['history-score']}>
+                        {m.myScore} – {m.oppScore}
+                      </span>
+                      <span className={styles['history-date']}>
+                        {new Date(m.date).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </span>
+                    </div>
                   </div>
-                  <div className={styles['history-right']}>
-                    <span className={styles['history-score']}>
-                      {m.myScore} – {m.oppScore}
-                    </span>
-                    <span className={styles['history-date']}>
-                      {new Date(m.date).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -449,6 +464,9 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
         <GlobalStandings myId={user?.id ?? null} onClose={() => setShowStandings(false)} />
       )}
       {showHallOfFame && <HallOfFame user={user} onClose={() => setShowHallOfFame(false)} />}
+      {openScorecard && (
+        <Scorecard scorecard={openScorecard} onClose={() => setOpenScorecard(null)} />
+      )}
     </div>
   );
 }

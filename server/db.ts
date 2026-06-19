@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import type {
   UserStats,
   MatchHistoryEntry,
+  MatchScorecard,
   PublicUser,
   Friend,
   LeaderboardEntry,
@@ -11,6 +12,7 @@ import type {
   OversRecords,
   GameRecord,
 } from '@cric/types';
+import type { Prisma } from '@prisma/client';
 
 // ─── Persistence model ────────────────────────────────────────────────────────
 //
@@ -180,6 +182,7 @@ function rowToDbUser(u: {
     overs: number;
     wickets: number;
     date: Date;
+    scorecard: Prisma.JsonValue | null;
   }>;
   friendships?: Array<{ friendId: string }>;
 }): DbUser {
@@ -220,6 +223,7 @@ function rowToDbUser(u: {
         overs: m.overs,
         wickets: m.wickets,
         date: m.date.toISOString(),
+        ...(m.scorecard ? { scorecard: m.scorecard as unknown as MatchScorecard } : {}),
       }))
       .reverse(),
     friends: (u.friendships ?? []).map((f) => f.friendId),
@@ -412,6 +416,8 @@ export interface GameStatsResult {
   ballsBowled?: number;
   /** Runs this player conceded while bowling this match. */
   runsConceded?: number;
+  /** Full match scorecard to attach to this player's history entry. */
+  scorecard?: MatchScorecard;
 }
 
 export function updateGameStats(results: GameStatsResult[]): void {
@@ -429,6 +435,7 @@ export function updateGameStats(results: GameStatsResult[]): void {
     boundaries = 0,
     ballsBowled = 0,
     runsConceded = 0,
+    scorecard,
   } of results) {
     if (!userId) continue;
     const user = db.users.find((u) => u.id === userId);
@@ -453,6 +460,7 @@ export function updateGameStats(results: GameStatsResult[]): void {
       overs: overs || 1,
       wickets: wickets || 1,
       date: new Date().toISOString(),
+      ...(scorecard ? { scorecard } : {}),
     };
     if (!user.matchHistory) user.matchHistory = [];
     user.matchHistory.push(entry);
@@ -490,6 +498,7 @@ export function updateGameStats(results: GameStatsResult[]): void {
           overs: entry.overs,
           wickets: entry.wickets,
           date: new Date(entry.date),
+          scorecard: scorecard ? (scorecard as unknown as Prisma.InputJsonValue) : undefined,
         },
       }),
       'updateGameStats:history'
