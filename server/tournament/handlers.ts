@@ -502,6 +502,11 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
     players: state.players,
     pointsTable: state.pointsTable,
   });
+  // Reap the finished tournament after a grace window long enough for the result
+  // screen and any refresh-driven reconnects to still read it. Without this,
+  // completed tournaments pile up in the map forever and their stale host
+  // socket.id shadows lookups when that player starts a new tournament.
+  setTimeout(() => tournaments.delete(tournament.code), 5 * 60_000);
 }
 
 /**
@@ -677,6 +682,14 @@ export function startTournamentMatch(
 export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Room>): void {
   io.on('connection', (socket) => {
     socket.on('create_tournament', ({ playerName, overs, wickets, size }) => {
+      // Reap a waiting lobby this socket abandoned (created one, went back, then
+      // created another). Left behind, it lingers in the map with the same host
+      // socket.id and shadows lookups for the new tournament. Only drop a solo
+      // lobby — never one others have already joined.
+      for (const [oldCode, t] of tournaments) {
+        if (t.phase === 'waiting' && t.players.length === 1 && t.players[0]?.id === socket.id)
+          tournaments.delete(oldCode);
+      }
       const code = makeRoomId(tournaments);
       const tournamentId = randomUUID();
       const tournament: Tournament = {
@@ -764,9 +777,13 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
     });
 
     socket.on('start_tournament_with_bots', () => {
-      // Find the tournament this socket is hosting.
-      const tournament = [...tournaments.values()].find((t) => t.players[0]?.id === socket.id);
+      // Target the tournament THIS socket is currently in (set on create/join),
+      // not a scan by players[0].id: a just-finished tournament lingers in the
+      // map with the same host socket.id and would shadow the new one, leaving
+      // the lobby stuck (only a refresh — which changes socket.id — recovered it).
+      const tournament = [...tournaments.values()].find((t) => t.id === socket.data.tournamentId);
       if (!tournament || tournament.phase !== 'waiting') return;
+      if (tournament.players[0]?.id !== socket.id) return; // only the host may start
       if (tournament.players.length < 1 || tournament.players.length >= tournament.size) return;
 
       // Fill the remaining seats with uniquely-named bots (personality fixed by name).
