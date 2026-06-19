@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
@@ -131,30 +131,58 @@ function load(): Database {
   }
 }
 
+/**
+ * Persist the database as atomically as a sync FS allows: serialize once, write
+ * a sibling temp file, then rename it over db.json. The rename is near-atomic and
+ * — crucially on a OneDrive/Dropbox-synced folder — far less likely to collide
+ * with the sync engine's intermittent lock on the live file than truncating and
+ * rewriting it in place. Falls back to a direct write, and (unlike before) LOGS
+ * a clear error instead of silently swallowing it, so a persistence failure is
+ * never invisible (records/stats/achievements silently not saving was exactly
+ * that bug). Returns whether the bytes reached disk.
+ */
+function writeDbFile(data: Database): boolean {
+  const json = JSON.stringify(data, null, 2);
+  const tmp = `${DB_PATH}.tmp`;
+  try {
+    writeFileSync(tmp, json, 'utf8');
+    renameSync(tmp, DB_PATH);
+    return true;
+  } catch (err) {
+    // Temp/rename blocked (e.g. sync engine holding the target) — try writing
+    // the live file directly before giving up.
+    try {
+      writeFileSync(DB_PATH, json, 'utf8');
+      return true;
+    } catch (err2) {
+      console.error(
+        `[db] FAILED to persist ${DB_PATH}: ${(err2 as Error).message}. ` +
+          `Data is kept in memory and will retry on the next save. ` +
+          `If this repeats, the folder is likely locked by a sync client (OneDrive/Dropbox) — ` +
+          `move the project off the synced path.`
+      );
+      return false;
+    }
+  }
+}
+
 function save(data: Database): void {
   if (mlSaveTimer) {
     clearTimeout(mlSaveTimer);
     mlSaveTimer = null;
   }
-  try {
-    writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
-  } catch {
-    // Filesystem write failed (e.g., read-only FS, file lock); data stays in memory.
-  }
+  writeDbFile(data);
 }
 
 // Deferred write for the hot per-ball path. Any synchronous save() call
 // (auth, stats) will also flush the pending ML data since they share the
-// same in-memory object.
+// same in-memory object. On a failed write we reschedule so transient sync-lock
+// blips don't permanently strand the pending data.
 function saveSoon(): void {
   if (mlSaveTimer) clearTimeout(mlSaveTimer);
   mlSaveTimer = setTimeout(() => {
     mlSaveTimer = null;
-    try {
-      if (cache) writeFileSync(DB_PATH, JSON.stringify(cache, null, 2), 'utf8');
-    } catch {
-      // Filesystem write failed; ML data stays in memory for this session.
-    }
+    if (cache && !writeDbFile(cache)) saveSoon();
   }, 2000);
 }
 
