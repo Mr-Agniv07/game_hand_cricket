@@ -7,7 +7,7 @@ import type {
   InningsScorecard,
   MatchScorecard,
 } from '@cric/types';
-import { updateGameStats, trainPlayerProfiles, recordInnings } from '../db.ts';
+import { updateGameStats, recordBalls, recordInnings } from '../db.ts';
 import {
   type Room,
   type RoomInnings,
@@ -131,25 +131,59 @@ export function resolveBall(
     return;
   }
 
-  // Train global player profiles on every ball of every game.
-  // Track each player's previous move by their array index, not name —
-  // two players sharing a display name would otherwise clobber each
+  // Log every ball's decision + situation (humans AND bots) and train the global
+  // player profiles. Track each player's previous move by their array index, not
+  // name — two players sharing a display name would otherwise clobber each
   // other's Markov "last move" within the room.
   room.mlLastMoves ??= {};
   const batIdx = room.batsmanIdx!;
   const bowlIdx = room.bowlerIdx!;
-  trainPlayerProfiles([
+  const batsman = room.players[batIdx];
+  const bowler = room.players[bowlIdx];
+  const isWicket = batMove === bowlMove;
+  const ballRuns = isWicket ? 0 : batMove;
+  const inningsNo = room.currentInnings + 1;
+  const firstInnings = room.currentInnings === 0;
+  recordBalls([
     {
-      userId: room.players[batIdx].userId,
+      roomId,
+      userId: batsman.userId ?? null,
+      playerName: batsman.name,
+      isBot: isBot(batsman),
+      botStyle: batsman.botStyle ?? null,
       role: 'bat',
       move: batMove,
-      lastMove: room.mlLastMoves[batIdx],
+      prevMove: room.mlLastMoves[batIdx] ?? null,
+      ballIndex: inn.balls, // not yet incremented → 0-based index of this ball
+      innings: inningsNo,
+      battingFirst: firstInnings, // batsman of innings 1 batted first
+      chasing: !firstInnings, // batsman of innings 2 is chasing
+      overs: room.overs,
+      wickets: room.wickets,
+      isTournament: !!room.tournamentId,
+      opponentMove: bowlMove,
+      scored: ballRuns,
+      isOut: isWicket,
     },
     {
-      userId: room.players[bowlIdx].userId,
+      roomId,
+      userId: bowler.userId ?? null,
+      playerName: bowler.name,
+      isBot: isBot(bowler),
+      botStyle: bowler.botStyle ?? null,
       role: 'bowl',
       move: bowlMove,
-      lastMove: room.mlLastMoves[bowlIdx],
+      prevMove: room.mlLastMoves[bowlIdx] ?? null,
+      ballIndex: inn.balls,
+      innings: inningsNo,
+      battingFirst: !firstInnings, // bowler of innings 1 bats second
+      chasing: firstInnings,
+      overs: room.overs,
+      wickets: room.wickets,
+      isTournament: !!room.tournamentId,
+      opponentMove: batMove,
+      scored: ballRuns,
+      isOut: isWicket,
     },
   ]);
   room.mlLastMoves[batIdx] = batMove;

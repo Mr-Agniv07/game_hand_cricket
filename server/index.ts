@@ -9,6 +9,7 @@ import { friendsRouter } from './friends/routes.ts';
 import { leaderboardRouter } from './leaderboard/routes.ts';
 import { recordsRouter } from './records/routes.ts';
 import { registerGameHandlers } from './game/handlers.ts';
+import { initDb } from './db.ts';
 import type { SocketData } from './game/types.ts';
 import type { ServerToClientEvents, ClientToServerEvents } from '@cric/types';
 import type { DefaultEventsMap } from 'socket.io';
@@ -36,4 +37,11 @@ app.get('/{*path}', (_req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Load the database into memory before accepting connections; refuse to start if
+// the DB is unreachable (better a clear boot failure than silently empty state).
+initDb()
+  .then(() => httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`)))
+  .catch((err) => {
+    console.error('[db] failed to initialize — is DATABASE_URL set and reachable?\n', err);
+    process.exit(1);
+  });

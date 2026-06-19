@@ -1,0 +1,122 @@
+// Cric Flick database schema (PostgreSQL).
+//
+// The server keeps an authoritative in-memory cache (see db.ts) and writes
+// through to these tables, so the rest of the codebase stays synchronous. Data
+// is fully relational/tabular here — browse it with `pnpm --filter server
+// prisma studio` or any Postgres client.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A registered account. Stats and career achievements are flattened into
+// columns (rather than nested JSON) so they're easy to query and view as a row.
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  token        String?
+  createdAt    DateTime @default(now())
+
+  // ── Lifetime stats ──
+  gamesPlayed  Int @default(0)
+  wins         Int @default(0)
+  losses       Int @default(0)
+  ties         Int @default(0)
+  runsScored   Int @default(0)
+  highScore    Int @default(0)
+  wicketsTaken Int @default(0)
+  boundaries   Int @default(0)
+  ballsBowled  Int @default(0)
+  runsConceded Int @default(0)
+
+  // ── Career achievements (Hall of Fame badges) ──
+  tournamentsPlayed  Int @default(0)
+  tournamentsWon     Int @default(0)
+  orangeCaps         Int @default(0)
+  purpleCaps         Int @default(0)
+  mostSixesAwards    Int @default(0)
+  playerOfTournament Int @default(0)
+
+  matchHistory MatchHistory[]
+  friendships  Friendship[]   @relation("UserFriendships")
+}
+
+// One row per finished match for a registered player (their perspective).
+model MatchHistory {
+  id       Int      @id @default(autoincrement())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opponent String
+  result   String // 'win' | 'loss' | 'tie'
+  myScore  Int
+  oppScore Int
+  overs    Int
+  wickets  Int
+  date     DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Symmetric friendship edges (one row per direction, matching the app's model).
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  friendId  String
+  user      User     @relation("UserFriendships", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+  @@index([userId])
+}
+
+// The global record book — one row per (overs, record type). Tournament matches
+// only; upserted when a new best is set.
+model GlobalRecord {
+  id         Int      @id @default(autoincrement())
+  overs      Int
+  type       String // 'fastest50' | 'fastest100' | 'highestTotal' | 'lowestTotal'
+  value      Int
+  holderName String
+  holderId   String?
+  wickets    Int
+  date       DateTime @default(now())
+
+  @@unique([overs, type])
+}
+
+// Every ball's decision, with full context. Logged for humans AND bots (labeled),
+// across all modes. This is the durable source the adaptive bot's move model is
+// rebuilt from at boot, and a rich dataset for analysing how players pick numbers
+// in different situations (batting first vs chasing, by ball, by mode).
+model BallEvent {
+  id           Int      @id @default(autoincrement())
+  roomId       String // groups the balls of a single match
+  userId       String? // null for guests and bots
+  playerName   String
+  isBot        Boolean  @default(false)
+  botStyle     String? // bot personality label, when isBot
+  role         String // 'bat' | 'bowl' — what this player was doing on this ball
+  move         Int // the number this player chose (1..6)
+  prevMove     Int? // this player's previous move in the innings (for ML transitions)
+  ballIndex    Int // nth ball of the innings (0-based)
+  innings      Int // 1 or 2
+  battingFirst Boolean // did this player bat first in the match?
+  chasing      Boolean // is this player the chaser (bats second)?
+  overs        Int
+  wickets      Int
+  isTournament Boolean  @default(false)
+  opponentMove Int? // the opponent's number on this ball
+  scored       Int      @default(0) // runs off the ball (0 on a dot or wicket)
+  isOut        Boolean  @default(false) // did this ball take the batsman's wicket?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, role])
+  @@index([roomId])
+  @@index([overs, wickets])
+}
