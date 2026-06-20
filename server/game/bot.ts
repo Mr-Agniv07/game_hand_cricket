@@ -37,55 +37,59 @@ export function randomBotName(taken: string[]): string {
 
 // ─── Personalities ─────────────────────────────────────────────────────────
 //
-// Every bot shares the same adaptive brain (it tracks the opponent's most-played
-// number and targets/avoids it). A personality layers a *bias* on top:
-//   • explore    — how often it ignores the read and plays freely (unpredictable)
-//   • aggression — batting: lean to big numbers (high-scoring but predictable);
-//                  bowling: how relentlessly it commits to the wicket ball.
+// A bot's behaviour is defined purely by a set of personality parameters; the
+// decision algorithm (pickBotMove) is shared by all of them. This keeps the
+// "what it does" cleanly separate from the "who it is", so styles are easy to
+// tune. There are fewer styles than bot names, so two bots can share a style.
+//
+//   aggression    — batting: lean toward big numbers (4/5/6);
+//                   bowling: how hard it commits to the wicket ball.
+//   adaptability  — how strongly it reads & acts on the opponent's habits.
+//   volatility    — how much pure randomness it injects (unpredictability).
+//   riskTolerance — willingness to risk the dismissal (low = plays it safe).
+//   situationalIq — how much the match state (chase / required rate / wickets)
+//                   reshapes its aggression.
+//   memory        — how quickly and deeply it builds a read on the opponent.
+//   chaos         — periodically reinvents its own sub-style mid-innings.
+//   situational   — aggression is driven entirely by the match state.
 
 interface Personality {
-  explore: number;
   aggression: number;
-  /** Aggression is computed live from the match state instead of being fixed. */
+  adaptability: number;
+  volatility: number;
+  riskTolerance: number;
+  situationalIq: number;
+  memory: number;
+  chaos?: boolean;
   situational?: boolean;
 }
 
 const PERSONALITIES: Record<string, Personality> = {
-  Aggressive: { explore: 0.22, aggression: 0.85 }, // big hitter, hunts wickets hard
-  Defensive: { explore: 0.4, aggression: 0.2 }, // plays low/spread, tough to dislodge
-  Safe: { explore: 0.22, aggression: 0.4 }, // careful & consistent, dodges the out
-  'Risk Taker': { explore: 0.5, aggression: 0.92 }, // swings big and gambles — boom or bust
-  Challenger: { explore: 0.18, aggression: 0.6 }, // reads you sharply and pushes back
-  'Situation-wise': { explore: 0.2, aggression: 0.5, situational: true }, // adapts to the chase
-  Chaotic: { explore: 0.82, aggression: 0.5 }, // almost pure randomness
-  'All-Rounder': { explore: 0.35, aggression: 0.5 }, // balanced
+  // 🔥 Attacks constantly, hunts wickets, barely cares about getting out.
+  Aggressor: { aggression: 0.95, adaptability: 0.4, volatility: 0.45, riskTolerance: 0.95, situationalIq: 0.5, memory: 0.3 },
+  // 🎲 Big risks, big rewards — streaky and wildly unpredictable.
+  Gambler: { aggression: 0.7, adaptability: 0.3, volatility: 0.95, riskTolerance: 1.0, situationalIq: 0.4, memory: 0.2 },
+  // ⚖️ Balanced across everything — the "default human".
+  'All-Rounder': { aggression: 0.5, adaptability: 0.5, volatility: 0.45, riskTolerance: 0.5, situationalIq: 0.55, memory: 0.5 },
+  // 🌀 No plan, no pattern — reinvents itself every few balls.
+  Chaos: { aggression: 0.55, adaptability: 0.2, volatility: 1.0, riskTolerance: 0.7, situationalIq: 0.2, memory: 0.1, chaos: true },
+  // 🎯 Plays against YOU — obsessed with learning and countering your habits.
+  Hunter: { aggression: 0.6, adaptability: 0.95, volatility: 0.25, riskTolerance: 0.55, situationalIq: 0.7, memory: 1.0 },
+  // 🧠 The scoreboard decides everything — cold, calculated, situational.
+  Strategist: { aggression: 0.5, adaptability: 0.9, volatility: 0.2, riskTolerance: 0.5, situationalIq: 1.0, memory: 0.8, situational: true },
+  // 🧱 Lives at 1/2/3 — survival first, miserable to dislodge.
+  Wall: { aggression: 0.12, adaptability: 0.45, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.6, memory: 0.55 },
+  // 🛡️ Doesn't make mistakes — consistent, disciplined, low variance.
+  Guardian: { aggression: 0.3, adaptability: 0.6, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.8, memory: 0.7 },
 };
 const STYLE_LABELS = Object.keys(PERSONALITIES);
-
-/** Dynamic aggression for the "Situation-wise" bot based on the live match. */
-function situationalAggression(room: Room, isBowling: boolean): number {
-  const inn = room.innings[room.currentInnings];
-  if (room.currentInnings === 1) {
-    // Second innings: there's a target in play.
-    const need = room.innings[0].score + 1 - inn.score;
-    const ballsLeft = totalBalls(room) - inn.balls;
-    if (isBowling) {
-      // Defending — hunt wickets hard when the chaser is closing in.
-      return need <= 8 ? 0.9 : 0.55;
-    }
-    if (ballsLeft <= 0) return 0.6;
-    // Chasing — go big if behind the required rate, cruise if ahead.
-    return Math.max(0.2, Math.min(0.95, need / ballsLeft / 4));
-  }
-  // First innings: build/restrict a total at a steady, slightly positive tempo.
-  return isBowling ? 0.55 : 0.6;
-}
 
 /**
  * Each bot name maps to ONE fixed personality, derived from a hash of the name.
  * Deterministic (a given bot always plays the same way, so players can learn it)
  * but opaque — the assignment isn't written down anywhere, so it stays a
- * surprise to discover through play.
+ * surprise to discover through play. With more names than styles, some bots
+ * share a style.
  */
 function styleForName(name: string): string {
   let h = 0;
@@ -99,21 +103,44 @@ export function makeBotPlayer(takenNames: string[]): RoomPlayer {
   return { id: makeBotId(), name, userId: null, isBot: true, botStyle: styleForName(name) };
 }
 
-// ─── Move strategy ───────────────────────────────────────────────────────────
+// ─── Decision algorithm (shared by every personality) ────────────────────────
 
 const rnd = (): number => 1 + Math.floor(Math.random() * 6);
+const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
+const clampSigned = (x: number): number => Math.max(-1, Math.min(1, x));
+
+type Brain = NonNullable<Room['botBrain']>[number];
+function brainFor(room: Room, idx: number): Brain {
+  room.botBrain ??= {};
+  return (room.botBrain[idx] ??= { recent: [], momentum: 0, ballsSeen: 0, mode: null });
+}
+
+/** Aggression implied purely by the match state (the Strategist's whole game). */
+function situationalAggression(room: Room, isBowling: boolean): number {
+  const inn = room.innings[room.currentInnings];
+  if (room.currentInnings === 1) {
+    const need = room.innings[0].score + 1 - inn.score;
+    const ballsLeft = totalBalls(room) - inn.balls;
+    if (isBowling) return need <= 8 ? 0.9 : 0.55; // defend hard at the death
+    if (ballsLeft <= 0) return 0.6;
+    return Math.max(0.2, Math.min(0.95, need / ballsLeft / 4)); // chase the required rate
+  }
+  return isBowling ? 0.55 : 0.6; // first innings: steady, slightly positive
+}
 
 /**
- * Pick a batting number weighted by aggression (high aggression → favours
- * 4/5/6; low → favours 1/2/3), strongly avoiding `avoid` (the bowler's predicted
- * number) when given.
+ * Pick a batting number: a boundary-lean from `aggression`, strongly avoiding
+ * the bowler's predicted `avoid` number, and softly avoiding the bot's own last
+ * move (so a reader can't pin it down). `antiRepeat` scales that self-variation.
  */
-function weightedBat(aggression: number, avoid: number | null): number {
+function weightedBat(aggression: number, avoid: number | null, recent: number[], antiRepeat: number): number {
+  const lastOwn = recent.length ? recent[recent.length - 1] : 0;
   const weights: number[] = [];
   for (let i = 1; i <= 6; i++) {
-    let w = 1 + (aggression - 0.5) * 1.6 * ((i - 3.5) / 2.5);
+    let w = 1 + (aggression - 0.5) * 1.7 * ((i - 3.5) / 2.5);
     w = Math.max(0.05, w);
     if (i === avoid) w *= 0.12;
+    if (i === lastOwn) w *= 1 - antiRepeat * 0.45;
     weights.push(w);
   }
   const sum = weights.reduce((a, b) => a + b, 0);
@@ -125,9 +152,89 @@ function weightedBat(aggression: number, avoid: number | null): number {
   return 6;
 }
 
+/** The opponent's most-played number — null until there's enough data to trust. */
+function readOpponent(room: Room, oppIdx: number, memory: number): number | null {
+  const counts = room.botMoveCounts?.[oppIdx];
+  if (!counts) return null;
+  const total = counts.reduce((a, b) => a + b, 0);
+  // Sharper memory acts on fewer samples (Hunter ~2, forgetful ~5).
+  const threshold = Math.max(2, Math.round(5 - memory * 3));
+  if (total < threshold) return null;
+  let hot = 1;
+  let max = -1;
+  for (let i = 1; i <= 6; i++) {
+    if (counts[i] > max) {
+      max = counts[i];
+      hot = i;
+    }
+  }
+  return hot;
+}
+
 /**
- * Record both players' moves for the match so bots can adapt. Cheap; only called
- * for rooms that actually contain a bot.
+ * Choose the bot's number (1–6). The shared core reads the opponent and reacts
+ * to the match; each personality's parameters bias every step — how aggressive
+ * it is, how much it trusts the read, how random it plays, and how much risk it
+ * accepts. Momentum nudges aggression up on a hot streak; the Chaos style swaps
+ * in a fresh random sub-style every few balls.
+ */
+export function pickBotMove(room: Room, botIdx: number): number {
+  const p = PERSONALITIES[room.players[botIdx]?.botStyle ?? ''] ?? PERSONALITIES['All-Rounder'];
+  const isBowling = botIdx === room.bowlerIdx;
+  const oppIdx = isBowling ? room.batsmanIdx! : room.bowlerIdx!;
+  const brain = brainFor(room, botIdx);
+
+  let aggression = p.aggression;
+  let volatility = p.volatility;
+
+  // Chaos: adopt a brand-new random sub-style for a short burst, then switch.
+  if (p.chaos) {
+    if (!brain.mode || brain.ballsSeen >= brain.mode.until) {
+      brain.mode = {
+        aggression: Math.random(),
+        volatility: 0.4 + Math.random() * 0.6,
+        until: brain.ballsSeen + 2 + Math.floor(Math.random() * 4),
+      };
+    }
+    aggression = brain.mode.aggression;
+    volatility = brain.mode.volatility;
+  }
+
+  // Match awareness reshapes aggression (Strategist fully; others partially).
+  if (p.situational) {
+    aggression = situationalAggression(room, isBowling);
+  } else if (p.situationalIq > 0) {
+    const k = p.situationalIq * 0.5;
+    aggression = clamp01(aggression * (1 - k) + situationalAggression(room, isBowling) * k);
+  }
+  // Confidence/momentum: a good streak makes it bolder, a wobble more cautious.
+  aggression = clamp01(aggression + brain.momentum * 0.2);
+
+  const hot = readOpponent(room, oppIdx, p.memory);
+
+  if (isBowling) {
+    const actOnRead = hot !== null && Math.random() < p.adaptability;
+    // Unpredictable bowling: Chaos/Gambler vary wildly, Wall/Guardian stay steady.
+    if (!actOnRead || Math.random() < volatility * 0.45) return rnd();
+    // Commit to the wicket ball harder when more aggressive / risk-tolerant.
+    const commit = 0.4 + aggression * 0.4 + p.riskTolerance * 0.15;
+    return Math.random() < commit ? hot! : rnd();
+  }
+
+  // Batting. A pure free swing some of the time (scaled by volatility).
+  if (Math.random() < volatility * 0.4) {
+    return weightedBat(aggression, null, brain.recent, p.adaptability);
+  }
+  // Otherwise avoid the bowler's danger number — readers and cautious bots avoid
+  // it more; risk-tolerant bots chance it.
+  const avoidProb = clamp01(p.adaptability * 0.6 + (1 - p.riskTolerance) * 0.5);
+  const avoid = hot !== null && Math.random() < avoidProb ? hot : null;
+  return weightedBat(aggression, avoid, brain.recent, p.adaptability);
+}
+
+/**
+ * Record both players' moves so bots can adapt, and update each bot's live brain
+ * (recent moves + momentum/confidence). Cheap; only called for rooms with a bot.
  */
 export function recordMoveCounts(
   room: Room,
@@ -139,44 +246,21 @@ export function recordMoveCounts(
   room.botMoveCounts ??= {};
   (room.botMoveCounts[batIdx] ??= new Array(7).fill(0))[batMove]++;
   (room.botMoveCounts[bowlIdx] ??= new Array(7).fill(0))[bowlMove]++;
-}
 
-/**
- * Choose the bot's number (1–6). The adaptive core (shared by all bots) reads
- * the opponent's most-played number; the bot's personality then biases whether
- * it acts on that read and how it shapes its own move.
- *  - As bowler: MATCH the batsman's likely number (a match = wicket).
- *  - As batsman: AVOID the bowler's likely number, weighted by aggression.
- */
-export function pickBotMove(room: Room, botIdx: number): number {
-  const style = PERSONALITIES[room.players[botIdx]?.botStyle ?? ''] ?? PERSONALITIES['All-Rounder'];
-  const oppIdx = botIdx === room.batsmanIdx ? room.bowlerIdx! : room.batsmanIdx!;
-  const isBowling = botIdx === room.bowlerIdx;
-  const aggression = style.situational ? situationalAggression(room, isBowling) : style.aggression;
-  const counts = room.botMoveCounts?.[oppIdx];
-  const total = counts ? counts.reduce((a, b) => a + b, 0) : 0;
+  const out = batMove === bowlMove;
 
-  // The opponent's most frequent number so far (null until there's enough data).
-  let hot: number | null = null;
-  if (counts && total >= 3) {
-    let max = -1;
-    for (let i = 1; i <= 6; i++) {
-      if (counts[i] > max) {
-        max = counts[i];
-        hot = i;
-      }
-    }
-  }
+  const bat = brainFor(room, batIdx);
+  bat.recent.push(batMove);
+  if (bat.recent.length > 5) bat.recent.shift();
+  bat.ballsSeen++;
+  if (out) bat.momentum = clampSigned(bat.momentum - 0.5); // dismissed → rattled
+  else if (batMove >= 5) bat.momentum = clampSigned(bat.momentum + 0.25); // big hit → bolder
+  else bat.momentum *= 0.85; // drift back to neutral
 
-  // Personality decides how often it plays freely instead of acting on the read.
-  const playFree = hot === null || Math.random() < style.explore;
-
-  if (isBowling) {
-    if (playFree) return rnd();
-    // Commit to the wicket ball more often the more aggressive the bot is.
-    return Math.random() < 0.5 + aggression * 0.5 ? hot! : rnd();
-  }
-
-  // Batting: aggression shapes the number; avoid the read unless playing free.
-  return weightedBat(aggression, playFree ? null : hot);
+  const bowl = brainFor(room, bowlIdx);
+  bowl.recent.push(bowlMove);
+  if (bowl.recent.length > 5) bowl.recent.shift();
+  bowl.ballsSeen++;
+  if (out) bowl.momentum = clampSigned(bowl.momentum + 0.4); // took a wicket → bolder
+  else bowl.momentum = clampSigned(bowl.momentum - 0.08);
 }

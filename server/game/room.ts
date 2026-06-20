@@ -52,6 +52,18 @@ export interface Room {
   hasBot?: boolean;
   /** Per-player-index frequency of each number played, for bot adaptation. */
   botMoveCounts?: Record<number, number[]>;
+  /** Per-player-index live "brain" state a bot carries through the match:
+   *  its recent moves, a momentum/confidence value, balls seen, and (for the
+   *  Chaos style) a transient sub-style it has temporarily adopted. */
+  botBrain?: Record<
+    number,
+    {
+      recent: number[];
+      momentum: number;
+      ballsSeen: number;
+      mode: { aggression: number; volatility: number; until: number } | null;
+    }
+  >;
   /** The final result, kept so a player who reconnects after the game ended
    *  (e.g. a blip on the last ball) is shown the result instead of a dead screen. */
   lastGameOver?: GameOverPayload;

@@ -3,14 +3,14 @@ import styles from './MeetBots.module.css';
 // Personality archetypes — these mirror the server's bot styles (the *which-bot-
 // is-which* mapping is intentionally hidden; this only describes the types).
 const TRAITS: { icon: string; name: string; line: string }[] = [
-  { icon: '🪓', name: 'Aggressive', line: 'Sees a gap, swings for six. Subtlety not included.' },
-  { icon: '🧱', name: 'Defensive', line: 'The wall. Good luck getting one past.' },
-  { icon: '🛡️', name: 'Safe', line: 'Plays the percentages — never reckless, never out cheaply.' },
-  { icon: '🎲', name: 'Risk Taker', line: 'All or nothing. Wins it in a ball… or loses it in one.' },
-  { icon: '🎯', name: 'Challenger', line: 'Studies your every move and throws it right back.' },
-  { icon: '🧠', name: 'Situation-wise', line: 'Reads the chase like a clock. Ice in the veins.' },
-  { icon: '🌀', name: 'Chaotic', line: 'No plan, no pattern, no mercy. Pure madness.' },
-  { icon: '🏏', name: 'All-Rounder', line: 'A bit of everything — the dependable all-rounder.' },
+  { icon: '🔥', name: 'Aggressor', line: "“I’d rather lose fast than win slow.” Lives on 4s, 5s and 6s." },
+  { icon: '🎲', name: 'Gambler', line: 'Big risks, big rewards. Streaky genius — you never know what’s next.' },
+  { icon: '⚖️', name: 'All-Rounder', line: 'A bit of everything — does whatever gives the best shot at winning.' },
+  { icon: '🌀', name: 'Chaos', line: 'No plan, no pattern. Reinvents itself every few balls. Pure madness.' },
+  { icon: '🎯', name: 'Hunter', line: 'Plays against YOU — learns your habits and turns them against you.' },
+  { icon: '🧠', name: 'Strategist', line: 'The scoreboard decides everything. Cold, calculated, ice in the veins.' },
+  { icon: '🧱', name: 'Wall', line: 'Lives at 1, 2, 3. Good luck getting one past it.' },
+  { icon: '🛡️', name: 'Guardian', line: '“I don’t make mistakes.” Boring, disciplined, brutally effective.' },
 ];
 
 const ROSTER = [
