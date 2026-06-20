@@ -782,6 +782,9 @@ export default function App() {
             <h2>Waiting for opponent…</h2>
             <p>Share this code with your friend</p>
             <div className="room-code">{roomId}</div>
+            <button className="cancel-room-btn" onClick={resetToLobby}>
+              Cancel room
+            </button>
           </div>
         </div>
       )}
