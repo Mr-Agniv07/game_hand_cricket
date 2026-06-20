@@ -32,10 +32,6 @@ app.use(leaderboardRouter);
 app.use(recordsRouter);
 registerGameHandlers(io);
 
-app.get('/{*path}', (_req, res) => {
-  res.sendFile(join(__dirname, '../client/dist/index.html'));
-});
-
 const PORT = process.env.PORT || 3001;
 // Load the database into memory before accepting connections; refuse to start if
 // the DB is unreachable (better a clear boot failure than silently empty state).
