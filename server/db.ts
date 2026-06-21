@@ -189,6 +189,7 @@ function rowToDbUser(u: {
     overs: number;
     wickets: number;
     date: Date;
+    isTournament: boolean;
     scorecard: Prisma.JsonValue | null;
   }>;
   friendships?: Array<{ friendId: string }>;
@@ -230,6 +231,7 @@ function rowToDbUser(u: {
         overs: m.overs,
         wickets: m.wickets,
         date: m.date.toISOString(),
+        isTournament: m.isTournament,
         ...(m.scorecard ? { scorecard: m.scorecard as unknown as MatchScorecard } : {}),
       }))
       .reverse(),
@@ -437,6 +439,8 @@ export interface GameStatsResult {
   ballsBowled?: number;
   /** Runs this player conceded while bowling this match. */
   runsConceded?: number;
+  /** Whether this match was part of a tournament. */
+  isTournament?: boolean;
   /** Full match scorecard to attach to this player's history entry. */
   scorecard?: MatchScorecard;
 }
@@ -456,6 +460,7 @@ export function updateGameStats(results: GameStatsResult[]): void {
     boundaries = 0,
     ballsBowled = 0,
     runsConceded = 0,
+    isTournament = false,
     scorecard,
   } of results) {
     if (!userId) continue;
@@ -481,6 +486,7 @@ export function updateGameStats(results: GameStatsResult[]): void {
       overs: overs || 1,
       wickets: wickets || 1,
       date: new Date().toISOString(),
+      isTournament,
       ...(scorecard ? { scorecard } : {}),
     };
     if (!user.matchHistory) user.matchHistory = [];
@@ -519,6 +525,7 @@ export function updateGameStats(results: GameStatsResult[]): void {
           overs: entry.overs,
           wickets: entry.wickets,
           date: new Date(entry.date),
+          isTournament,
           scorecard: scorecard ? (scorecard as unknown as Prisma.InputJsonValue) : undefined,
         },
       }),

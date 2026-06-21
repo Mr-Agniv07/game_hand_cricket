@@ -60,6 +60,7 @@ model MatchHistory {
   wickets  Int
   date     DateTime @default(now())
   scorecard Json? // full MatchScorecard (both innings); null for legacy rows
+  isTournament Boolean @default(false) // tournament match vs casual
 
   @@index([userId])
 }

@@ -136,6 +136,8 @@ export interface MatchHistoryEntry {
   overs: number;
   wickets: number;
   date: string;
+  /** Whether this match was part of a tournament (vs a normal casual match). */
+  isTournament?: boolean;
   /** Full match scorecard, attached for matches recorded after this was added. */
   scorecard?: MatchScorecard;
 }

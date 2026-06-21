@@ -432,7 +432,12 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                       {m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'T'}
                     </span>
                     <div className={styles['history-info']}>
-                      <span className={styles['history-opp']}>vs {m.opponent}</span>
+                      <span className={styles['history-opp']}>
+                        vs {m.opponent}
+                        {m.isTournament && (
+                          <span className={styles['history-tourney-tag']}>🏆 Tournament</span>
+                        )}
+                      </span>
                       <span className={styles['history-meta']}>
                         {m.overs !== undefined && m.wickets !== undefined
                           ? `${m.overs} ov · ${m.wickets} wkt`
