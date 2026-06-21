@@ -701,7 +701,16 @@ function scheduleBotMove(
   botTimer(() => {
     if (!roomAlive(rooms, roomId, room) || room.phase !== 'innings') return;
     if (room.pendingMoves[player.id] !== undefined) return;
-    room.pendingMoves[player.id] = pickBotMove(room, idx);
+    // Never let a bug in move selection stall the match: if pickBotMove throws,
+    // the bot still plays a random number so the ball resolves and the game goes on.
+    let move: number;
+    try {
+      move = pickBotMove(room, idx);
+    } catch (err) {
+      console.error('[bot] pickBotMove failed — playing random:', err);
+      move = 1 + Math.floor(Math.random() * 6);
+    }
+    room.pendingMoves[player.id] = move;
 
     const batMove = room.pendingMoves[batsmanId(room)];
     const bowlMove = room.pendingMoves[bowlerId(room)];

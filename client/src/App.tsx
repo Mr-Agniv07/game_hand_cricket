@@ -519,15 +519,27 @@ export default function App() {
       socket.connect();
 
       // If the server has no such room anymore (game already ended/cleaned up),
-      // no `state` arrives — fall back to the lobby/auth after a short grace.
+      // no `state` arrives — recover after a short grace.
       setTimeout(() => {
         if (!recovering.current) return;
-        console.log('[recover] fallback fired — no state arrived, going to lobby/auth');
         recovering.current = false;
         clearActiveRoom();
         roomIdRef.current = null;
         setRoomId(null);
-        setPhase(userRef.current ? 'lobby' : 'auth');
+        // If we were in a tournament match, drop back into the TOURNAMENT (its
+        // lobby/next match), not the home lobby — the match room may simply have
+        // advanced to the next fixture.
+        const tcode = tournamentCodeRef.current ?? loadTournamentCode();
+        if (storedRoom.isTournamentMatch && tcode) {
+          console.log('[recover] match room gone — re-entering tournament', tcode);
+          socket.emit('join_tournament', {
+            code: tcode,
+            playerName: userRef.current?.username ?? '',
+          });
+        } else {
+          console.log('[recover] fallback fired — no state arrived, going to lobby/auth');
+          setPhase(userRef.current ? 'lobby' : 'auth');
+        }
       }, 6000);
     }
 
