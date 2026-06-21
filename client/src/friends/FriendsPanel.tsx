@@ -22,7 +22,7 @@ interface FriendsPanelProps {
 }
 
 export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPanelProps) {
-  const [tab, setTab] = useState<'friends' | 'search' | 'bots'>('friends');
+  const [tab, setTab] = useState<'friends' | 'search'>('friends');
 
   // Friends tab
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -35,10 +35,6 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
     for (const r of h2h) m.set(r.opponent.toLowerCase(), r);
     return m;
   }, [h2h]);
-  const botRivals = useMemo(
-    () => h2h.filter((r) => r.isBot).sort((a, b) => b.played - a.played),
-    [h2h]
-  );
 
   // Search tab
   const [query, setQuery] = useState('');
@@ -187,12 +183,6 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
           >
             Find
           </button>
-          <button
-            className={tab === 'bots' ? `${styles['fp-tab']} ${styles.active}` : styles['fp-tab']}
-            onClick={() => setTab('bots')}
-          >
-            vs Bots
-          </button>
         </div>
 
         {panelMsg && <div className={styles['fp-msg']}>{panelMsg}</div>}
@@ -320,41 +310,6 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
               )}
             </>
           )}
-
-          {/* ── vs Bots ── */}
-          {tab === 'bots' &&
-            (botRivals.length === 0 ? (
-              <p className={styles['fp-empty']}>
-                No bot matches yet — beat a bot and your record shows up here!
-              </p>
-            ) : (
-              botRivals.map((r) => (
-                <div key={r.opponent} className={styles['fp-row']}>
-                  <span className={styles['fp-bot-icon']}>🤖</span>
-                  <div className={styles['fp-info']}>
-                    <span className={styles['fp-name']}>{r.opponent}</span>
-                    <span className={styles['fp-stat']}>
-                      {r.wins}–{r.losses}
-                      {r.ties > 0 ? `–${r.ties}` : ''} · {r.played} played
-                    </span>
-                    <span className={styles['fp-h2h']}>
-                      {r.runsFor} runs for · {r.runsAgainst} against
-                    </span>
-                  </div>
-                  <span
-                    className={`${styles['fp-verdict']} ${
-                      r.wins > r.losses
-                        ? styles.lead
-                        : r.wins < r.losses
-                          ? styles.behind
-                          : styles.level
-                    }`}
-                  >
-                    {r.wins > r.losses ? 'Leading' : r.wins < r.losses ? 'Behind' : 'Level'}
-                  </span>
-                </div>
-              ))
-            ))}
         </div>
       </div>
     </div>
