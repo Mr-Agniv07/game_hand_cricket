@@ -158,6 +158,62 @@
   color: var(--muted);
   margin-top: 0.15rem;
 }
+.watchBtn {
+  margin-top: 0.55rem;
+  width: 100%;
+  padding: 0.45rem;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: #ef444418;
+  color: var(--danger);
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.watchBtn:hover {
+  background: #ef444428;
+}
+
+/* ── Spectator overlay (full tournament view) ── */
+.specOverlay {
+  position: fixed;
+  inset: 0;
+  background: #000000aa;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.specCard {
+  width: min(720px, 96vw);
+  max-height: 92vh;
+  background: var(--surface);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.specHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.2rem;
+  border-bottom: 1px solid #ffffff12;
+}
+.specHeader h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.specBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.6rem 1rem 1.2rem;
+}
 
 /* ── Rankings table ── */
 .tableHead,

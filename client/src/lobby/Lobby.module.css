@@ -51,6 +51,27 @@
   color: var(--accent);
 }
 
+/* A bot league is live — make the link pulse so it stands out. */
+.link-live {
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 800;
+  animation: linkLivePulse 1.4s ease-in-out infinite;
+}
+.link-live:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+@keyframes linkLivePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 12px 3px rgba(239, 68, 68, 0.55);
+  }
+}
+
 .mode-title {
   font-size: 1.05rem;
   font-weight: 800;

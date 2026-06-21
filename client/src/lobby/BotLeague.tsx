@@ -1,9 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiGet } from '../api';
 import styles from './BotLeague.module.css';
+import TournamentLobby from '../tournament/TournamentLobby';
 import type { BotLeagueData, BotLeagueActive } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
+
+const noop = () => {};
 
 type Format = 5 | 10;
 
@@ -19,6 +22,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [starting, setStarting] = useState(false);
   const [msg, setMsg] = useState('');
+  const [watchingId, setWatchingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     apiGet<BotLeagueData>('/api/bot-league')
@@ -57,6 +61,8 @@ export default function BotLeague({ socket, user, onClose }: Props) {
 
   const rankings = data?.rankings[format] ?? [];
   const liveForFormat: BotLeagueActive | undefined = data?.active.find((a) => a.format === format);
+  // The league being watched, refreshed from the latest poll (null once it ends).
+  const watching = watchingId ? data?.active.find((a) => a.id === watchingId) : undefined;
 
   function handleStart() {
     if (starting || liveForFormat) return;
@@ -113,7 +119,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
             </div>
           ) : (
             <>
-              {liveForFormat && <LiveCard active={liveForFormat} />}
+              {liveForFormat && (
+                <LiveCard active={liveForFormat} onWatch={() => setWatchingId(liveForFormat.id)} />
+              )}
 
               <div className={styles.sectionTitle}>{format}-Over Rankings</div>
               <div className={styles.tableHead}>
@@ -147,11 +155,62 @@ export default function BotLeague({ socket, user, onClose }: Props) {
           )}
         </div>
       </div>
+
+      {watching && (
+        <div className={styles.specOverlay} onClick={() => setWatchingId(null)}>
+          <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.specHeader}>
+              <h2>
+                <span className={styles.liveDot} /> Bot League · {watching.format} Over — Spectating
+              </h2>
+              <button
+                className={styles.close}
+                onClick={() => setWatchingId(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className={styles.specBody}>
+              <TournamentLobby
+                tournamentState={watching.state}
+                myId={null}
+                onLeave={noop}
+                onStartWithBots={noop}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* The watched league ended while spectating. */}
+      {watchingId && !watching && (
+        <div className={styles.specOverlay} onClick={() => setWatchingId(null)}>
+          <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.specHeader}>
+              <h2>🏆 League finished</h2>
+              <button
+                className={styles.close}
+                onClick={() => setWatchingId(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className={styles.specBody}>
+              <p className={styles.empty}>
+                This league has wrapped up — the rankings have been updated. Close to see the new
+                standings.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function LiveCard({ active }: { active: BotLeagueActive }) {
+function LiveCard({ active, onWatch }: { active: BotLeagueActive; onWatch: () => void }) {
   const s = active.state;
   const done = s.fixtures.filter((f) => f.status === 'done').length;
   const total = s.fixtures.length;
@@ -177,6 +236,9 @@ function LiveCard({ active }: { active: BotLeagueActive }) {
           {done} of {total} matches played…
         </div>
       )}
+      <button className={styles.watchBtn} onClick={onWatch}>
+        ▶ Watch Live
+      </button>
     </div>
   );
 }

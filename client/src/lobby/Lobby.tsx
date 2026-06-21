@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
+import { apiGet } from '../api';
 import styles from './Lobby.module.css';
 import MeetBots from './MeetBots';
 import GlobalStandings from './GlobalStandings';
 import HallOfFame from './HallOfFame';
 import BotLeague from './BotLeague';
+import type { BotLeagueData } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
 
@@ -36,8 +38,24 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [showStandings, setShowStandings] = useState(false);
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const [showBotLeague, setShowBotLeague] = useState(false);
+  const [leagueLive, setLeagueLive] = useState(false);
 
   const loggedIn = !!user;
+
+  // Poll for an in-progress bot league so the homepage button can glow "live".
+  useEffect(() => {
+    let cancelled = false;
+    const check = () =>
+      apiGet<BotLeagueData>('/api/bot-league')
+        .then((d) => !cancelled && setLeagueLive(d.active.length > 0))
+        .catch(() => {});
+    check();
+    const t = setInterval(check, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
 
   function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -122,10 +140,10 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
         </button>
         <button
           type="button"
-          className={styles['meet-bots-link']}
+          className={`${styles['meet-bots-link']}${leagueLive ? ` ${styles['link-live']}` : ''}`}
           onClick={() => setShowBotLeague(true)}
         >
-          🏆 Bot League
+          🏆 Bot League{leagueLive ? ' · LIVE' : ''}
         </button>
       </div>
 
