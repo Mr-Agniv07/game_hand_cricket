@@ -264,6 +264,12 @@ body {
   border: 1px solid #ffffff15;
   border-radius: 20px;
   padding: 0.18rem 0.7rem 0.18rem 0.18rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.user-chip:hover {
+  border-color: var(--accent);
 }
 .user-avatar {
   width: 26px;

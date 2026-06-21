@@ -53,6 +53,7 @@ authRouter.get('/api/me', requireAuth, (req: Request, res: Response) => {
     username: user.username,
     stats: user.stats,
     achievements: getAchievements(user.id),
+    createdAt: user.createdAt,
   });
 });
 

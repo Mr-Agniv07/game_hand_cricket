@@ -3,6 +3,7 @@ import { socket, getClientId } from './socket';
 import { apiGet } from './api';
 import AuthScreen from './auth/AuthScreen';
 import FriendsPanel from './friends/FriendsPanel';
+import ProfilePanel from './profile/ProfilePanel';
 import Lobby from './lobby/Lobby';
 import TossScreen from './toss/TossScreen';
 import BatBowlScreen from './game/BatBowlScreen';
@@ -113,6 +114,7 @@ export default function App() {
   const [inningsEnd, setInningsEnd] = useState<InningsEndPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [incomingChallenge, setIncomingChallenge] = useState<ChallengeReceivedPayload | null>(null);
   const [rematchState, setRematchState] = useState<RematchState>(null);
   const [tournamentState, setTournamentState] = useState<TournamentState | null>(null);
@@ -731,10 +733,14 @@ export default function App() {
               </svg>
               <span className="friends-label">Friends</span>
             </button>
-            <div className="user-chip">
+            <button
+              className="user-chip"
+              onClick={() => setProfileOpen(true)}
+              title="View your profile"
+            >
               <span className="user-avatar">{user.username[0].toUpperCase()}</span>
               <span className="user-chip-name">{user.username}</span>
-            </div>
+            </button>
             <button className="logout-btn" onClick={handleLogout} title="Log out">
               <svg
                 width="15"
@@ -769,6 +775,10 @@ export default function App() {
           phase={phase}
           onClose={() => setFriendsOpen(false)}
         />
+      )}
+
+      {profileOpen && user && (
+        <ProfilePanel user={user} onClose={() => setProfileOpen(false)} />
       )}
 
       {incomingChallenge && (

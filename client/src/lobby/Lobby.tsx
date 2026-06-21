@@ -91,42 +91,8 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
     socket.emit('join_tournament', { code: tJoinCode.trim().toUpperCase(), playerName });
   }
 
-  const s = user?.stats;
-
   return (
     <div className={styles['lobby']}>
-      {user && s && (
-        <div className={styles['stats-card']}>
-          <div className={styles['stats-header']}>{user.username}'s Stats</div>
-          <div className={styles['stats-grid']}>
-            <div className={styles['stat-item']}>
-              <span className={styles['stat-value']}>{s.gamesPlayed}</span>
-              <span className={styles['stat-label']}>Played</span>
-            </div>
-            <div className={styles['stat-item']}>
-              <span className={`${styles['stat-value']} ${styles.won}`}>{s.wins}</span>
-              <span className={styles['stat-label']}>Won</span>
-            </div>
-            <div className={styles['stat-item']}>
-              <span className={`${styles['stat-value']} ${styles.lost}`}>{s.losses}</span>
-              <span className={styles['stat-label']}>Lost</span>
-            </div>
-            <div className={styles['stat-item']}>
-              <span className={`${styles['stat-value']} ${styles.tied}`}>{s.ties}</span>
-              <span className={styles['stat-label']}>Tied</span>
-            </div>
-            <div className={styles['stat-item']}>
-              <span className={styles['stat-value']}>{s.runsScored}</span>
-              <span className={styles['stat-label']}>Runs</span>
-            </div>
-            <div className={styles['stat-item']}>
-              <span className={styles['stat-value']}>{s.highScore}</span>
-              <span className={styles['stat-label']}>Best</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="tabs">
         <button
           className={tab === 'create' ? 'tab active' : 'tab'}
