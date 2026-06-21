@@ -559,6 +559,16 @@ export function forfeitTournamentMatch(
   setTimeout(() => advanceTournament(io, rooms, tournament, matchIndex), advanceDelayMs);
 }
 
+// How long to wait for an absent human to (re)connect at the start of their
+// match before forfeiting — covers a page refresh (socket id changes), a
+// backgrounded mobile tab (socket drops), or a brief network blip. The match
+// begins the instant both players are present, so this never delays a normal start.
+const MATCH_START_GRACE_MS = 12000;
+const MATCH_START_POLL_MS = 1500;
+
+const playerSocket = (io: GameServer, p: TournamentPlayerEntry) =>
+  isBot(p) ? undefined : io.sockets.sockets.get(p.id);
+
 export function startTournamentMatch(
   io: GameServer,
   rooms: Map<string, Room>,
@@ -573,41 +583,102 @@ export function startTournamentMatch(
   tournament.currentMatchIndex = matchIndex;
   const fixture = tournament.fixtures[matchIndex];
   fixture.status = 'live';
+  // Let the lobby reflect that this fixture is up while we wait for both players.
+  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+
+  // Give any absent human a grace window to (re)connect before forfeiting.
+  awaitPlayersThenBegin(io, rooms, tournament, matchIndex, Date.now());
+}
+
+/**
+ * Poll for both players to be present, then begin the match. If a human is still
+ * missing after the grace window, forfeit. The moment both are present (e.g. a
+ * refreshing player re-emitted join_tournament and got remapped), the match
+ * starts — so a present opponent never waits longer than necessary.
+ */
+function awaitPlayersThenBegin(
+  io: GameServer,
+  rooms: Map<string, Room>,
+  tournament: Tournament,
+  matchIndex: number,
+  since: number
+): void {
+  const fixture = tournament.fixtures[matchIndex];
+  // Bail if the tournament moved on or this fixture was resolved elsewhere.
+  if (
+    tournament.phase !== 'in_progress' ||
+    !fixture ||
+    fixture.status !== 'live' ||
+    tournament.currentMatchIndex !== matchIndex
+  )
+    return;
 
   const p1 = tournament.players[fixture.player1Idx];
   const p2 = tournament.players[fixture.player2Idx];
-  // Bots have no socket; a human is "present" only if their socket is live.
-  const p1Socket = isBot(p1) ? undefined : io.sockets.sockets.get(p1.id);
-  const p2Socket = isBot(p2) ? undefined : io.sockets.sockets.get(p2.id);
-  const p1Present = isBot(p1) || !!p1Socket;
-  const p2Present = isBot(p2) || !!p2Socket;
+  const p1Present = isBot(p1) || !!playerSocket(io, p1);
+  const p2Present = isBot(p2) || !!playerSocket(io, p2);
 
-  if (!p1Present || !p2Present) {
-    // A human player vanished — forfeit to the present side, continue to next match.
-    fixture.status = 'done';
-    const p1Gone = !p1Present;
-    fixture.result = p1Gone ? 'p2' : 'p1';
-    const winnerId = p1Gone ? p2.id : p1.id;
-    const loserId = p1Gone ? p1.id : p2.id;
-    if (fixture.stage === 'final') {
-      tournament.champion = winnerId;
-    } else if (fixture.stage === 'group') {
-      const we = tournament.pointsTable[winnerId];
-      const le = tournament.pointsTable[loserId];
-      if (we) {
-        we.played += 1;
-        we.won += 1;
-        we.points += 2;
-      }
-      if (le) {
-        le.played += 1;
-        le.lost += 1;
-      }
-    }
-    io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
-    setTimeout(() => advanceTournament(io, rooms, tournament, matchIndex), 1000);
+  if (p1Present && p2Present) {
+    beginTournamentMatch(io, rooms, tournament, matchIndex);
     return;
   }
+  if (Date.now() - since >= MATCH_START_GRACE_MS) {
+    forfeitAbsentAtStart(io, rooms, tournament, matchIndex, !p1Present);
+    return;
+  }
+  setTimeout(
+    () => awaitPlayersThenBegin(io, rooms, tournament, matchIndex, since),
+    MATCH_START_POLL_MS
+  );
+}
+
+/** Grace elapsed with a human still missing — award the fixture to the present side. */
+function forfeitAbsentAtStart(
+  io: GameServer,
+  rooms: Map<string, Room>,
+  tournament: Tournament,
+  matchIndex: number,
+  p1Gone: boolean
+): void {
+  const fixture = tournament.fixtures[matchIndex];
+  if (!fixture || fixture.status === 'done') return;
+  const p1 = tournament.players[fixture.player1Idx];
+  const p2 = tournament.players[fixture.player2Idx];
+  fixture.status = 'done';
+  fixture.result = p1Gone ? 'p2' : 'p1';
+  const winnerId = p1Gone ? p2.id : p1.id;
+  const loserId = p1Gone ? p1.id : p2.id;
+  if (fixture.stage === 'final') {
+    tournament.champion = winnerId;
+  } else if (fixture.stage === 'group') {
+    const we = tournament.pointsTable[winnerId];
+    const le = tournament.pointsTable[loserId];
+    if (we) {
+      we.played += 1;
+      we.won += 1;
+      we.points += 2;
+    }
+    if (le) {
+      le.played += 1;
+      le.lost += 1;
+    }
+  }
+  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+  setTimeout(() => advanceTournament(io, rooms, tournament, matchIndex), 1000);
+}
+
+/** Both players present — build the room and kick the match off. */
+function beginTournamentMatch(
+  io: GameServer,
+  rooms: Map<string, Room>,
+  tournament: Tournament,
+  matchIndex: number
+): void {
+  const fixture = tournament.fixtures[matchIndex];
+  const p1 = tournament.players[fixture.player1Idx];
+  const p2 = tournament.players[fixture.player2Idx];
+  const p1Socket = playerSocket(io, p1);
+  const p2Socket = playerSocket(io, p2);
 
   const roomId = makeRoomId(rooms);
   const room = createRoom(tournament.overs, tournament.wickets);

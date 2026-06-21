@@ -60,6 +60,44 @@ function clearActiveRoom(): void {
   }
 }
 
+// Remembers the tournament you're in so a full page refresh — even while waiting
+// in the lobby between matches — can re-announce you (join_tournament) before
+// your next match starts, instead of the server forfeiting you for being absent.
+const STORED_TOURNAMENT_KEY = 'cric_active_tournament';
+const TOURNAMENT_TTL_MS = 30 * 60_000; // ignore a stale code older than this
+
+function saveTournamentCode(code: string): void {
+  try {
+    localStorage.setItem(STORED_TOURNAMENT_KEY, JSON.stringify({ code, ts: Date.now() }));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function clearTournamentCode(): void {
+  try {
+    localStorage.removeItem(STORED_TOURNAMENT_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** The stored tournament code if still fresh, else null (and cleans up stale entries). */
+function loadTournamentCode(): string | null {
+  try {
+    const raw = localStorage.getItem(STORED_TOURNAMENT_KEY);
+    if (!raw) return null;
+    const { code, ts } = JSON.parse(raw) as { code: string; ts: number };
+    if (!code || Date.now() - ts > TOURNAMENT_TTL_MS) {
+      clearTournamentCode();
+      return null;
+    }
+    return code;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>('loading');
   const [user, setUser] = useState<ClientUser | null>(null);
@@ -122,6 +160,9 @@ export default function App() {
   // from clearing the saved room on the INITIAL mount (when roomId starts null) —
   // doing so would wipe localStorage before refresh-recovery gets to read it.
   const hasEnteredRoom = useRef(false);
+  // Same idea for the tournament: guards the persist effect from clearing the
+  // saved code on the initial mount (before refresh-recovery reads it).
+  const hasEnteredTournament = useRef(false);
 
   useEffect(() => {
     roomIdRef.current = roomId;
@@ -142,7 +183,17 @@ export default function App() {
   }, [roomId, myPlayerIdx, isTournamentMatch]);
 
   useEffect(() => {
-    tournamentCodeRef.current = tournamentState?.code ?? null;
+    const code = tournamentState?.code ?? null;
+    tournamentCodeRef.current = code;
+    // Persist while an active tournament is running; clear once it's complete or
+    // we've left. Guarded so the initial mount (code null) can't wipe a saved
+    // code before the connect handler gets to recover from it.
+    if (code && tournamentState?.phase !== 'complete') {
+      saveTournamentCode(code);
+      hasEnteredTournament.current = true;
+    } else if (hasEnteredTournament.current) {
+      clearTournamentCode();
+    }
   }, [tournamentState]);
 
   useEffect(() => {
@@ -177,15 +228,18 @@ export default function App() {
       // tournament_created, which forces the client to 'tournament_lobby' and
       // ejects the player from the live match screen mid-game.
       console.log('[recover] connected id=%s rejoinRoom=%s', socket.id, roomIdRef.current);
+      // Fall back to the persisted code so a HARD REFRESH in the tournament lobby
+      // (which wipes the in-memory ref) still re-announces us before our match.
+      const tournamentCode = tournamentCodeRef.current ?? loadTournamentCode();
       if (roomIdRef.current) {
         socket.emit('rejoin_room', { roomId: roomIdRef.current });
-      } else if (tournamentCodeRef.current) {
+      } else if (tournamentCode) {
         // No active match room (between matches / spectating): re-sync tournament
         // identity. The server remaps by userId or the stable clientId, so guests
         // recover too. playerName is unused on the reconnection path (it only
         // matters for a fresh join).
         socket.emit('join_tournament', {
-          code: tournamentCodeRef.current,
+          code: tournamentCode,
           playerName: userRef.current?.username ?? '',
         });
       }
