@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../api';
+import Scorecard from '../result/Scorecard';
 import styles from './ProfilePanel.module.css';
 import type {
   UserStats,
   UserAchievements,
   MatchHistoryEntry,
   HeadToHeadRecord,
+  MatchScorecard,
 } from '@cric/types';
 import type { ClientUser } from '../types';
 
@@ -34,6 +36,7 @@ export default function ProfilePanel({ user, onClose }: { user: ClientUser; onCl
   const [me, setMe] = useState<MeResponse | null>(null);
   const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null);
   const [h2h, setH2h] = useState<HeadToHeadRecord[] | null>(null);
+  const [openScorecard, setOpenScorecard] = useState<MatchScorecard | null>(null);
 
   useEffect(() => {
     apiGet<MeResponse>('/api/me', user.token).then(setMe).catch(() => {});
@@ -71,6 +74,7 @@ export default function ProfilePanel({ user, onClose }: { user: ClientUser; onCl
   }, [h2h]);
 
   return (
+    <>
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.card} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
@@ -160,8 +164,19 @@ export default function ProfilePanel({ user, onClose }: { user: ClientUser; onCl
               <>
                 <div className={styles.sectionTitle}>Last {history.length} Matches</div>
                 <div className={styles.matchList}>
-                  {history.map((m, i) => (
-                    <div key={i} className={`${styles.matchRow} ${styles[m.result]}`}>
+                  {history.map((m, i) => {
+                    const hasCard = !!m.scorecard;
+                    return (
+                    <div
+                      key={i}
+                      className={`${styles.matchRow} ${styles[m.result]}${
+                        hasCard ? ` ${styles.clickable}` : ''
+                      }`}
+                      onClick={hasCard ? () => setOpenScorecard(m.scorecard!) : undefined}
+                      role={hasCard ? 'button' : undefined}
+                      tabIndex={hasCard ? 0 : undefined}
+                      title={hasCard ? 'View scorecard' : undefined}
+                    >
                       <span className={`${styles.matchBadge} ${styles[m.result]}`}>
                         {m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'T'}
                       </span>
@@ -171,6 +186,7 @@ export default function ProfilePanel({ user, onClose }: { user: ClientUser; onCl
                         </span>
                         <span className={styles.matchMeta}>
                           {m.overs} ov · {m.wickets} wkt
+                          {hasCard ? ' · 📋 Scorecard' : ''}
                         </span>
                       </div>
                       <div className={styles.matchRight}>
@@ -185,7 +201,8 @@ export default function ProfilePanel({ user, onClose }: { user: ClientUser; onCl
                         </span>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             ))}
@@ -221,6 +238,11 @@ export default function ProfilePanel({ user, onClose }: { user: ClientUser; onCl
         </div>
       </div>
     </div>
+
+    {openScorecard && (
+      <Scorecard scorecard={openScorecard} onClose={() => setOpenScorecard(null)} />
+    )}
+    </>
   );
 }
 

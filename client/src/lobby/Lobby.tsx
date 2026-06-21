@@ -1,19 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { apiGet } from '../api';
 import styles from './Lobby.module.css';
 import MeetBots from './MeetBots';
 import GlobalStandings from './GlobalStandings';
 import HallOfFame from './HallOfFame';
-import Scorecard from '../result/Scorecard';
-import type { MatchHistoryEntry, MatchScorecard } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
 
 const OVER_OPTIONS = [1, 2, 3, 5, 10];
 const WICKET_OPTIONS = [1, 2, 3, 5, 10];
 
-type LobbyTab = 'create' | 'join' | 'history' | 'tournament';
+type LobbyTab = 'create' | 'join' | 'tournament';
 
 interface LobbyProps {
   socket: AppSocket;
@@ -29,7 +26,6 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [wickets, setWickets] = useState(2);
   const [joinCode, setJoinCode] = useState('');
   const [joinName, setJoinName] = useState(defaultName);
-  const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null);
   const [tOvers, setTOvers] = useState(2);
   const [tWickets, setTWickets] = useState(2);
   const [tSize, setTSize] = useState<4 | 8>(4);
@@ -38,19 +34,8 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [showBots, setShowBots] = useState(false);
   const [showStandings, setShowStandings] = useState(false);
   const [showHallOfFame, setShowHallOfFame] = useState(false);
-  const [openScorecard, setOpenScorecard] = useState<MatchScorecard | null>(null);
 
   const loggedIn = !!user;
-
-  // Refetch each time the History tab is opened so a freshly-finished match
-  // shows; keep any existing list visible (no spinner flash) while reloading.
-  useEffect(() => {
-    if (tab === 'history' && user?.token) {
-      apiGet<MatchHistoryEntry[]>('/api/history', user.token)
-        .then((data) => setHistory(data))
-        .catch(() => setHistory((h) => h ?? []));
-    }
-  }, [tab]);
 
   function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -109,14 +94,6 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
         >
           Tournament
         </button>
-        {loggedIn && (
-          <button
-            className={tab === 'history' ? 'tab active' : 'tab'}
-            onClick={() => setTab('history')}
-          >
-            History
-          </button>
-        )}
       </div>
 
       <div className={styles['lobby-links']}>
@@ -368,78 +345,11 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
         </div>
       )}
 
-      {tab === 'history' && (
-        <div className={`card ${styles['history-card']}`}>
-          <div className={styles['stats-header']}>Last 10 Matches</div>
-          {history === null ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem' }}>
-              <div className="spinner" />
-            </div>
-          ) : history.length === 0 ? (
-            <p className={styles['fp-empty']} style={{ marginTop: '.5rem' }}>
-              No matches played yet.
-            </p>
-          ) : (
-            <div className={styles['history-list']}>
-              {history.map((m, i) => {
-                const hasCard = !!m.scorecard;
-                return (
-                  <div
-                    key={i}
-                    className={`${styles['history-row']} ${styles[m.result]}${
-                      hasCard ? ` ${styles['history-clickable']}` : ''
-                    }`}
-                    onClick={hasCard ? () => setOpenScorecard(m.scorecard!) : undefined}
-                    role={hasCard ? 'button' : undefined}
-                    tabIndex={hasCard ? 0 : undefined}
-                    title={hasCard ? 'View scorecard' : undefined}
-                  >
-                    <span className={`${styles['history-badge']} ${styles[m.result]}`}>
-                      {m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'T'}
-                    </span>
-                    <div className={styles['history-info']}>
-                      <span className={styles['history-opp']}>
-                        vs {m.opponent}
-                        {m.isTournament && (
-                          <span className={styles['history-tourney-tag']} title="Tournament match">
-                            🏆
-                          </span>
-                        )}
-                      </span>
-                      <span className={styles['history-meta']}>
-                        {m.overs !== undefined && m.wickets !== undefined
-                          ? `${m.overs} ov · ${m.wickets} wkt`
-                          : null}
-                        {hasCard && <span className={styles['history-card-tag']}>📋 Scorecard</span>}
-                      </span>
-                    </div>
-                    <div className={styles['history-right']}>
-                      <span className={styles['history-score']}>
-                        {m.myScore} – {m.oppScore}
-                      </span>
-                      <span className={styles['history-date']}>
-                        {new Date(m.date).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {showBots && <MeetBots onClose={() => setShowBots(false)} />}
       {showStandings && (
         <GlobalStandings myId={user?.id ?? null} onClose={() => setShowStandings(false)} />
       )}
       {showHallOfFame && <HallOfFame user={user} onClose={() => setShowHallOfFame(false)} />}
-      {openScorecard && (
-        <Scorecard scorecard={openScorecard} onClose={() => setOpenScorecard(null)} />
-      )}
     </div>
   );
 }

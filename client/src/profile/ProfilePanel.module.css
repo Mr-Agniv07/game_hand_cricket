@@ -233,6 +233,13 @@
 .matchRow.tie {
   border-left-color: var(--warn);
 }
+.matchRow.clickable {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.matchRow.clickable:hover {
+  background: #ffffff10;
+}
 .matchBadge {
   width: 26px;
   height: 26px;
