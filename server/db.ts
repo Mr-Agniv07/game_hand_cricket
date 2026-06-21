@@ -11,7 +11,9 @@ import type {
   GlobalRecords,
   OversRecords,
   GameRecord,
+  HeadToHeadRecord,
 } from '@cric/types';
+import { isBotName } from './game/bot.ts';
 import type { Prisma } from '@prisma/client';
 import {
   observeHuman,
@@ -537,6 +539,53 @@ export function updateGameStats(results: GameStatsResult[]): void {
 export function getMatchHistory(userId: string): MatchHistoryEntry[] {
   const user = load().users.find((u) => u.id === userId);
   return user?.matchHistory ?? [];
+}
+
+/**
+ * Lifetime head-to-head records for a user, one row per distinct opponent name
+ * (human or bot). Aggregated straight from the full MatchHistory table in
+ * Postgres — the in-memory cache only keeps each user's last 10 matches, so it
+ * can't answer this. Cheap (a single grouped query) and off the game hot path.
+ */
+export async function getHeadToHead(userId: string): Promise<HeadToHeadRecord[]> {
+  const grouped = await prisma.matchHistory.groupBy({
+    by: ['opponent', 'result'],
+    where: { userId },
+    _count: { _all: true },
+    _sum: { myScore: true, oppScore: true },
+    _max: { date: true },
+  });
+
+  const byOpponent = new Map<string, HeadToHeadRecord>();
+  for (const g of grouped) {
+    let rec = byOpponent.get(g.opponent);
+    if (!rec) {
+      rec = {
+        opponent: g.opponent,
+        isBot: isBotName(g.opponent),
+        played: 0,
+        wins: 0,
+        losses: 0,
+        ties: 0,
+        runsFor: 0,
+        runsAgainst: 0,
+        lastPlayed: '',
+      };
+      byOpponent.set(g.opponent, rec);
+    }
+    const n = g._count._all;
+    rec.played += n;
+    if (g.result === 'win') rec.wins += n;
+    else if (g.result === 'loss') rec.losses += n;
+    else rec.ties += n;
+    rec.runsFor += g._sum.myScore ?? 0;
+    rec.runsAgainst += g._sum.oppScore ?? 0;
+    const d = g._max.date ? g._max.date.toISOString() : '';
+    if (d > rec.lastPlayed) rec.lastPlayed = d;
+  }
+
+  // Most recently played opponents first.
+  return [...byOpponent.values()].sort((a, b) => (a.lastPlayed < b.lastPlayed ? 1 : -1));
 }
 
 /**

@@ -135,6 +135,39 @@
   font-size: 0.72rem;
   color: var(--muted);
 }
+.fp-h2h {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.fp-bot-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.fp-verdict {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.fp-verdict.lead {
+  color: var(--accent);
+  background: #22c55e18;
+}
+.fp-verdict.behind {
+  color: var(--danger);
+  background: #ef444418;
+}
+.fp-verdict.level {
+  color: var(--muted);
+  background: #ffffff10;
+}
 
 .fp-actions {
   display: flex;

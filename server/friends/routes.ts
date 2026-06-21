@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { getFriends, searchUsers, addFriend, removeFriend, getMatchHistory } from '../db.ts';
+import {
+  getFriends,
+  searchUsers,
+  addFriend,
+  removeFriend,
+  getMatchHistory,
+  getHeadToHead,
+} from '../db.ts';
 import { requireAuth } from '../auth/routes.ts';
 import type { AuthRequest } from '../auth/routes.ts';
 import { onlineUsers } from '../game/handlers.ts';
@@ -44,4 +51,14 @@ friendsRouter.get('/api/history', requireAuth, (req: Request, res: Response) => 
   const userId = (req as AuthRequest).userId;
   const history = getMatchHistory(userId);
   res.json([...history].reverse());
+});
+
+friendsRouter.get('/api/head-to-head', requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as AuthRequest).userId;
+  try {
+    res.json(await getHeadToHead(userId));
+  } catch (e) {
+    console.error('[friends] head-to-head failed:', (e as Error)?.message ?? e);
+    res.status(500).json({ error: 'Could not load head-to-head.' });
+  }
 });

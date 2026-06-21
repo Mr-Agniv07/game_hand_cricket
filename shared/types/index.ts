@@ -142,6 +142,26 @@ export interface MatchHistoryEntry {
   scorecard?: MatchScorecard;
 }
 
+/**
+ * Aggregated record between the requesting user and one opponent (a human friend
+ * or a bot), folded over the user's full match history. Wins/losses are from the
+ * requesting user's perspective.
+ */
+export interface HeadToHeadRecord {
+  opponent: string;
+  isBot: boolean;
+  played: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  /** Total runs the user has scored against this opponent. */
+  runsFor: number;
+  /** Total runs this opponent has scored against the user. */
+  runsAgainst: number;
+  /** ISO date of the most recent meeting. */
+  lastPlayed: string;
+}
+
 // ─── Server → client event payloads ─────────────────────────────────────────
 
 export interface RoomCreatedPayload {

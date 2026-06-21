@@ -28,6 +28,15 @@ export function isBot(p: RoomPlayer | { isBot?: boolean }): boolean {
   return !!p.isBot;
 }
 
+/**
+ * True if `name` belongs to the bot roster (case-insensitive). Lets other modules
+ * (e.g. head-to-head stats) tag a bot opponent by the name stored in match
+ * history, without exposing which hidden personality it plays.
+ */
+export function isBotName(name: string): boolean {
+  return BOT_NAMES.some((n) => n.toLowerCase() === name.toLowerCase());
+}
+
 /** Pick a bot name not already used by `taken` (case-insensitive). */
 export function randomBotName(taken: string[]): string {
   const used = new Set(taken.map((n) => n.toLowerCase()));

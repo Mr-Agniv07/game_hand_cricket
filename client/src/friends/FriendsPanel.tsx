@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { ChangeEvent } from 'react';
 import { apiGet, apiPost, apiDelete } from '../api';
 import styles from './FriendsPanel.module.css';
-import type { Friend, SearchResult, ChallengeDeclinedPayload } from '@cric/types';
+import type {
+  Friend,
+  SearchResult,
+  ChallengeDeclinedPayload,
+  HeadToHeadRecord,
+} from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser, AppPhase } from '../types';
 
@@ -17,11 +22,23 @@ interface FriendsPanelProps {
 }
 
 export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPanelProps) {
-  const [tab, setTab] = useState<'friends' | 'search'>('friends');
+  const [tab, setTab] = useState<'friends' | 'search' | 'bots'>('friends');
 
   // Friends tab
   const [friends, setFriends] = useState<Friend[]>([]);
   const [removingId, setRemovingId] = useState<string | null>(null);
+
+  // Head-to-head records (lifetime, vs every opponent the user has faced).
+  const [h2h, setH2h] = useState<HeadToHeadRecord[]>([]);
+  const h2hByName = useMemo(() => {
+    const m = new Map<string, HeadToHeadRecord>();
+    for (const r of h2h) m.set(r.opponent.toLowerCase(), r);
+    return m;
+  }, [h2h]);
+  const botRivals = useMemo(
+    () => h2h.filter((r) => r.isBot).sort((a, b) => b.played - a.played),
+    [h2h]
+  );
 
   // Search tab
   const [query, setQuery] = useState('');
@@ -42,6 +59,13 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
   useEffect(() => {
     if (tab === 'friends') loadFriends();
   }, [tab]);
+
+  // ── Load head-to-head records once when the panel opens ─────────────────────
+  useEffect(() => {
+    apiGet<HeadToHeadRecord[]>('/api/head-to-head', user.token)
+      .then(setH2h)
+      .catch(() => {});
+  }, [user.token]);
 
   // ── Socket: challenge outcome ────────────────────────────────────────────────
   useEffect(() => {
@@ -155,13 +179,19 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
             className={tab === 'friends' ? `${styles['fp-tab']} ${styles.active}` : styles['fp-tab']}
             onClick={() => setTab('friends')}
           >
-            My Friends
+            Friends
           </button>
           <button
             className={tab === 'search' ? `${styles['fp-tab']} ${styles.active}` : styles['fp-tab']}
             onClick={() => setTab('search')}
           >
-            Find Players
+            Find
+          </button>
+          <button
+            className={tab === 'bots' ? `${styles['fp-tab']} ${styles.active}` : styles['fp-tab']}
+            onClick={() => setTab('bots')}
+          >
+            vs Bots
           </button>
         </div>
 
@@ -186,6 +216,15 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
                     <span className={styles['fp-stat']}>
                       W {f.stats.wins} · L {f.stats.losses}
                     </span>
+                    {(() => {
+                      const r = h2hByName.get(f.username.toLowerCase());
+                      return r && r.played > 0 ? (
+                        <span className={styles['fp-h2h']}>
+                          vs you {r.wins}–{r.losses}
+                          {r.ties > 0 ? `–${r.ties}` : ''} · {r.played} played
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   <div className={styles['fp-actions']}>
                     {f.online && canChallenge && !sentTo && (
@@ -281,6 +320,41 @@ export default function FriendsPanel({ user, socket, phase, onClose }: FriendsPa
               )}
             </>
           )}
+
+          {/* ── vs Bots ── */}
+          {tab === 'bots' &&
+            (botRivals.length === 0 ? (
+              <p className={styles['fp-empty']}>
+                No bot matches yet — beat a bot and your record shows up here!
+              </p>
+            ) : (
+              botRivals.map((r) => (
+                <div key={r.opponent} className={styles['fp-row']}>
+                  <span className={styles['fp-bot-icon']}>🤖</span>
+                  <div className={styles['fp-info']}>
+                    <span className={styles['fp-name']}>{r.opponent}</span>
+                    <span className={styles['fp-stat']}>
+                      {r.wins}–{r.losses}
+                      {r.ties > 0 ? `–${r.ties}` : ''} · {r.played} played
+                    </span>
+                    <span className={styles['fp-h2h']}>
+                      {r.runsFor} runs for · {r.runsAgainst} against
+                    </span>
+                  </div>
+                  <span
+                    className={`${styles['fp-verdict']} ${
+                      r.wins > r.losses
+                        ? styles.lead
+                        : r.wins < r.losses
+                          ? styles.behind
+                          : styles.level
+                    }`}
+                  >
+                    {r.wins > r.losses ? 'Leading' : r.wins < r.losses ? 'Behind' : 'Level'}
+                  </span>
+                </div>
+              ))
+            ))}
         </div>
       </div>
     </div>
