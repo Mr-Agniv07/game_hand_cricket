@@ -162,6 +162,37 @@ export interface HeadToHeadRecord {
   lastPlayed: string;
 }
 
+/**
+ * One bot's standing in the global bot league, for a single format (5 or 10
+ * overs). `rating` is the ICC/Elo-style number the table is ranked by; `rank`
+ * and `winPct` are derived server-side for display.
+ */
+export interface BotRankingEntry {
+  rank: number;
+  botName: string;
+  format: number;
+  rating: number;
+  played: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  trophies: number;
+  winPct: number;
+}
+
+/** Lightweight summary of an in-progress bot-league tournament, for spectating. */
+export interface BotLeagueActive {
+  id: string;
+  format: number;
+  state: TournamentState;
+}
+
+/** Response of GET /api/bot-league: rankings per format + any live tournaments. */
+export interface BotLeagueData {
+  rankings: { 5: BotRankingEntry[]; 10: BotRankingEntry[] };
+  active: BotLeagueActive[];
+}
+
 // ─── Server → client event payloads ─────────────────────────────────────────
 
 export interface RoomCreatedPayload {
@@ -446,6 +477,7 @@ export interface ServerToClientEvents {
   tournament_match_starting: (p: TournamentMatchStartingPayload) => void;
   tournament_complete: (p: TournamentCompletePayload) => void;
   emote_received: (p: EmoteReceivedPayload) => void;
+  bot_league_started: (p: { id: string; format: number }) => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────
@@ -512,4 +544,5 @@ export interface ClientToServerEvents {
   join_tournament: (p: JoinTournamentPayload) => void;
   start_tournament_with_bots: () => void;
   send_emote: (p: SendEmotePayload) => void;
+  start_bot_league: (p: { format: number }) => void;
 }

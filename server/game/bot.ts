@@ -4,7 +4,7 @@ import { predict as predictHuman, isReady as humanModelReady, phaseOf, type Role
 
 // ─── Identity ────────────────────────────────────────────────────────────────
 
-const BOT_NAMES = [
+export const BOT_NAMES = [
   'Botinho',
   'Sir Bot-a-lot',
   'RoboHitter',
@@ -110,6 +110,15 @@ function styleForName(name: string): string {
 /** Build a fresh bot RoomPlayer; its personality is fixed by its name. */
 export function makeBotPlayer(takenNames: string[]): RoomPlayer {
   const name = randomBotName(takenNames);
+  return { id: makeBotId(), name, userId: null, isBot: true, botStyle: styleForName(name) };
+}
+
+/**
+ * Build a bot RoomPlayer with a SPECIFIC roster name (its personality follows
+ * from the name). Used by the bot league, which fields named bots by ranking
+ * rather than picking randomly.
+ */
+export function makeBotPlayerNamed(name: string): RoomPlayer {
   return { id: makeBotId(), name, userId: null, isBot: true, botStyle: styleForName(name) };
 }
 

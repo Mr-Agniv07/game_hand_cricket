@@ -7,7 +7,7 @@ import type {
   InningsScorecard,
   MatchScorecard,
 } from '@cric/types';
-import { updateGameStats, recordBalls, recordInnings } from '../db.ts';
+import { updateGameStats, recordBalls, recordInnings, recordBotLeagueMatch } from '../db.ts';
 import {
   type Room,
   type RoomInnings,
@@ -414,6 +414,19 @@ export function endInnings(
           fixture.result = winnerId === null ? 'tie' : winnerId === p1Id ? 'p1' : 'p2';
           if (viaSuperOver) fixture.superOver = true;
           fixture.scorecard = scorecard;
+
+          // Bot league: fold this match into the global per-format bot rankings
+          // (every group/semi/final match counts toward a bot's win % and Elo).
+          if (tournament.isBotLeague) {
+            recordBotLeagueMatch({
+              format: tournament.format ?? room.overs,
+              aName: tournament.players[fixture.player1Idx].name,
+              aScore: fixture.p1Score,
+              bName: tournament.players[fixture.player2Idx].name,
+              bScore: fixture.p2Score,
+              result: fixture.result === 'p1' ? 'a' : fixture.result === 'p2' ? 'b' : 'tie',
+            });
+          }
 
           // Feed the global record book — tournament matches only, and never the
           // 1-over Super Over innings (they'd pollute totals for the overs bucket).

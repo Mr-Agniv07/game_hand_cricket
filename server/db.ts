@@ -12,8 +12,9 @@ import type {
   OversRecords,
   GameRecord,
   HeadToHeadRecord,
+  BotRankingEntry,
 } from '@cric/types';
-import { isBotName } from './game/bot.ts';
+import { isBotName, BOT_NAMES } from './game/bot.ts';
 import type { Prisma } from '@prisma/client';
 import {
   observeHuman,
@@ -285,6 +286,31 @@ export async function initDb(): Promise<void> {
 
   const recs = await prisma.globalRecord.findMany();
   cache.records = buildRecords(recs);
+
+  // Bot-league rankings. Wrapped so a server with the migration not yet applied
+  // still boots (the bot league simply has no data until the table exists).
+  try {
+    const ranks = await prisma.botRanking.findMany();
+    for (const r of ranks)
+      botRankings.set(botKey(r.botName, r.format), {
+        botName: r.botName,
+        format: r.format,
+        rating: r.rating,
+        played: r.played,
+        wins: r.wins,
+        losses: r.losses,
+        ties: r.ties,
+        trophies: r.trophies,
+        runsFor: r.runsFor,
+        runsAgainst: r.runsAgainst,
+      });
+    seedBotRankings(); // backfill any missing (bot, format) rows
+  } catch (err) {
+    console.error(
+      '[db] bot rankings unavailable (is the BotRanking migration applied?):',
+      (err as Error)?.message ?? err
+    );
+  }
 
   const balls = await prisma.ballEvent.findMany({
     where: { userId: { not: null } },
@@ -722,6 +748,167 @@ export function recordInnings(inputs: InningsRecordInput[]): void {
       );
     }
   }
+}
+
+// ─── Bot league rankings ─────────────────────────────────────────────────────────
+//
+// Persistent per-format (5/10 over) Elo-style ranking for each roster bot, held
+// in a write-through in-memory map like everything else here. Updated after each
+// bot-league match; bots are identified by their stable roster name. Beating a
+// higher-rated bot moves the needle more (the "ICC-style" weighting).
+
+const BOT_FORMATS = [5, 10] as const;
+const ELO_BASE = 1000;
+const ELO_K = 32;
+
+interface BotRankingRow {
+  botName: string;
+  format: number;
+  rating: number;
+  played: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  trophies: number;
+  runsFor: number;
+  runsAgainst: number;
+}
+
+const botRankings = new Map<string, BotRankingRow>(); // keyed by `${botName}|${format}`
+const botKey = (name: string, format: number) => `${name}|${format}`;
+
+function freshBotRow(botName: string, format: number): BotRankingRow {
+  return {
+    botName,
+    format,
+    rating: ELO_BASE,
+    played: 0,
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    trophies: 0,
+    runsFor: 0,
+    runsAgainst: 0,
+  };
+}
+
+function getOrCreateBotRow(name: string, format: number): BotRankingRow {
+  const key = botKey(name, format);
+  let row = botRankings.get(key);
+  if (!row) {
+    row = freshBotRow(name, format);
+    botRankings.set(key, row);
+  }
+  return row;
+}
+
+function persistBotRow(row: BotRankingRow): void {
+  persist(
+    prisma.botRanking.upsert({
+      where: { botName_format: { botName: row.botName, format: row.format } },
+      create: { ...row },
+      update: {
+        rating: row.rating,
+        played: row.played,
+        wins: row.wins,
+        losses: row.losses,
+        ties: row.ties,
+        trophies: row.trophies,
+        runsFor: row.runsFor,
+        runsAgainst: row.runsAgainst,
+      },
+    }),
+    'botRanking'
+  );
+}
+
+/** Ensure every roster bot has a row in both formats (cache + DB). */
+function seedBotRankings(): void {
+  for (const name of BOT_NAMES) {
+    for (const format of BOT_FORMATS) {
+      if (!botRankings.has(botKey(name, format))) {
+        const row = freshBotRow(name, format);
+        botRankings.set(botKey(name, format), row);
+        persistBotRow(row);
+      }
+    }
+  }
+}
+
+/**
+ * Record one finished bot-league match into both bots' rankings (Elo + tallies).
+ * `result` is authoritative (so a tie broken by a Super Over still counts as a
+ * win for the bot that actually advanced, even though the run scores are level).
+ */
+export function recordBotLeagueMatch(input: {
+  format: number;
+  aName: string;
+  aScore: number;
+  bName: string;
+  bScore: number;
+  result: 'a' | 'b' | 'tie';
+}): void {
+  const { format, aName, aScore, bName, bScore, result } = input;
+  const a = getOrCreateBotRow(aName, format);
+  const b = getOrCreateBotRow(bName, format);
+
+  const sA = result === 'a' ? 1 : result === 'b' ? 0 : 0.5;
+  const sB = 1 - sA;
+  const eA = 1 / (1 + Math.pow(10, (b.rating - a.rating) / 400));
+  const eB = 1 - eA;
+  a.rating += ELO_K * (sA - eA);
+  b.rating += ELO_K * (sB - eB);
+
+  a.played++;
+  b.played++;
+  a.runsFor += aScore;
+  a.runsAgainst += bScore;
+  b.runsFor += bScore;
+  b.runsAgainst += aScore;
+  if (sA === 1) {
+    a.wins++;
+    b.losses++;
+  } else if (sA === 0) {
+    a.losses++;
+    b.wins++;
+  } else {
+    a.ties++;
+    b.ties++;
+  }
+
+  persistBotRow(a);
+  persistBotRow(b);
+}
+
+/** Award a bot-league trophy (a tournament title) to the winning bot for a format. */
+export function recordBotTrophy(botName: string, format: number): void {
+  const row = getOrCreateBotRow(botName, format);
+  row.trophies++;
+  persistBotRow(row);
+}
+
+/** Ranked standings for a format: every roster bot, highest rating first. */
+export function getBotRankings(format: number): BotRankingEntry[] {
+  const rows = [...botRankings.values()].filter((r) => r.format === format);
+  rows.sort(
+    (x, y) =>
+      y.rating - x.rating ||
+      y.wins - x.wins ||
+      y.trophies - x.trophies ||
+      x.botName.localeCompare(y.botName)
+  );
+  return rows.map((r, i) => ({
+    rank: i + 1,
+    botName: r.botName,
+    format: r.format,
+    rating: Math.round(r.rating),
+    played: r.played,
+    wins: r.wins,
+    losses: r.losses,
+    ties: r.ties,
+    trophies: r.trophies,
+    winPct: r.played ? Math.round((r.wins / r.played) * 100) : 0,
+  }));
 }
 
 // ─── ML profiles & ball log ──────────────────────────────────────────────────────

@@ -12,10 +12,10 @@ import type {
   TournamentAwards,
 } from '@cric/types';
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
-import { makeBotPlayer, isBot } from '../game/bot.ts';
+import { makeBotPlayer, makeBotPlayerNamed, isBot } from '../game/bot.ts';
 import { driveBots } from '../game/logic.ts';
 import type { SocketData } from '../game/types.ts';
-import { incrementAchievements } from '../db.ts';
+import { incrementAchievements, getBotRankings, recordBotTrophy, findById } from '../db.ts';
 import type { UserAchievements } from '@cric/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -84,6 +84,10 @@ export interface Tournament {
   champion?: string | null;
   /** Batting awards, computed at finalize. */
   awards?: TournamentAwards | null;
+  /** True for an admin-launched all-bot league (feeds the global bot rankings). */
+  isBotLeague?: boolean;
+  /** Ranked format (5 or 10 overs) — only set for bot-league tournaments. */
+  format?: number;
 }
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -496,6 +500,11 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
   }
   tournament.awards = computeAwards(tournament);
   recordTournamentAchievements(tournament);
+  // Bot league: credit the champion bot a trophy in this format's rankings.
+  if (tournament.isBotLeague && tournament.format && tournament.champion) {
+    const champ = tournament.players.find((p) => p.id === tournament.champion);
+    if (champ) recordBotTrophy(champ.name, tournament.format);
+  }
   const state = publicTournamentState(tournament);
   io.to('t:' + tournament.id).emit('tournament_state', state);
   io.to('t:' + tournament.id).emit('tournament_complete', {
@@ -751,6 +760,59 @@ function beginTournamentMatch(
   }
 }
 
+// ─── Bot league ───────────────────────────────────────────────────────────────
+
+/**
+ * Launch an admin-triggered all-bot league for a format (5 or 10 overs): field
+ * the current top-8 ranked bots into an 8-team tournament that runs itself (no
+ * human host). Spectators watch via the polled public state. Returns the new
+ * tournament, or null if one for this format is already running / not enough bots.
+ */
+export function startBotLeague(
+  io: GameServer,
+  rooms: Map<string, Room>,
+  format: number
+): Tournament | null {
+  const fmt = Number(format) === 10 ? 10 : 5;
+  // Only one live league per format at a time.
+  for (const t of tournaments.values())
+    if (t.isBotLeague && t.format === fmt && t.phase !== 'complete') return null;
+
+  const top8 = getBotRankings(fmt).slice(0, 8); // current top 8 by rating
+  if (top8.length < 8) return null;
+
+  const tournament: Tournament = {
+    id: randomUUID(),
+    code: makeRoomId(tournaments),
+    overs: fmt,
+    wickets: fmt,
+    size: 8,
+    groups: [],
+    players: top8.map((r) => makeBotPlayerNamed(r.botName)),
+    phase: 'in_progress',
+    fixtures: [],
+    currentMatchIndex: 0,
+    pointsTable: {},
+    liveScore: null,
+    isBotLeague: true,
+    format: fmt,
+  };
+  tournaments.set(tournament.code, tournament);
+  generateFixture(tournament);
+  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+  startTournamentMatch(io, rooms, tournament, 0);
+  return tournament;
+}
+
+/** In-progress bot leagues, as lightweight spectator summaries. */
+export function activeBotLeagues(): { id: string; format: number; state: TournamentState }[] {
+  const out: { id: string; format: number; state: TournamentState }[] = [];
+  for (const t of tournaments.values())
+    if (t.isBotLeague && t.phase !== 'complete')
+      out.push({ id: t.id, format: t.format ?? t.overs, state: publicTournamentState(t) });
+  return out;
+}
+
 // ─── Socket handlers ──────────────────────────────────────────────────────────
 
 export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Room>): void {
@@ -870,6 +932,21 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       tournament.phase = 'in_progress';
       io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
       startTournamentMatch(io, rooms, tournament, 0);
+    });
+
+    // Admin-only: kick off an all-bot league for a format (top-8 ranked bots).
+    socket.on('start_bot_league', ({ format }) => {
+      const adminName = process.env.ADMIN_USERNAME;
+      const uid = socket.data.userId;
+      const user = uid ? findById(uid) : null;
+      if (!adminName || !user || user.username !== adminName)
+        return socket.emit('error', { message: 'Not authorized to start a bot league.' });
+
+      const fmt = Number(format) === 10 ? 10 : 5;
+      const tournament = startBotLeague(io, rooms, fmt);
+      if (!tournament)
+        return socket.emit('error', { message: `A ${fmt}-over bot league is already running.` });
+      socket.emit('bot_league_started', { id: tournament.id, format: fmt });
     });
   });
 }

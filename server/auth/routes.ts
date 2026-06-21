@@ -54,6 +54,7 @@ authRouter.get('/api/me', requireAuth, (req: Request, res: Response) => {
     stats: user.stats,
     achievements: getAchievements(user.id),
     createdAt: user.createdAt,
+    isAdmin: !!process.env.ADMIN_USERNAME && user.username === process.env.ADMIN_USERNAME,
   });
 });
 

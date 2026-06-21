@@ -122,3 +122,24 @@ model BallEvent {
   @@index([roomId])
   @@index([overs, wickets])
 }
+
+// Persistent global ranking for each bot, kept separately per format (5 or 10
+// overs — the only bot-tournament formats). One row per (botName, format). The
+// rating is an ICC/Elo-style number updated after every bot-league match, so
+// beating a higher-rated bot is worth more. Trophies count bot-league titles.
+model BotRanking {
+  id          Int      @id @default(autoincrement())
+  botName     String
+  format      Int // 5 or 10 (overs)
+  rating      Float    @default(1000)
+  played      Int      @default(0)
+  wins        Int      @default(0)
+  losses      Int      @default(0)
+  ties        Int      @default(0)
+  trophies    Int      @default(0)
+  runsFor     Int      @default(0)
+  runsAgainst Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([botName, format])
+}
