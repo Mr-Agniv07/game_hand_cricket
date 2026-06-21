@@ -15,7 +15,13 @@ import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room }
 import { makeBotPlayer, makeBotPlayerNamed, isBot } from '../game/bot.ts';
 import { driveBots } from '../game/logic.ts';
 import type { SocketData } from '../game/types.ts';
-import { incrementAchievements, getBotRankings, recordBotTrophy, findById } from '../db.ts';
+import {
+  incrementAchievements,
+  getBotRankings,
+  recordBotTrophy,
+  resetBotRankings,
+  findById,
+} from '../db.ts';
 import type { UserAchievements } from '@cric/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -947,6 +953,22 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       if (!tournament)
         return socket.emit('error', { message: `A ${fmt}-over bot league is already running.` });
       socket.emit('bot_league_started', { id: tournament.id, format: fmt });
+    });
+
+    // Admin-only: wipe all bot rankings back to base (recover from an interrupted
+    // league). Refused while any league is live so a reset can't race live writes.
+    socket.on('reset_bot_rankings', () => {
+      const adminName = process.env.ADMIN_USERNAME;
+      const uid = socket.data.userId;
+      const user = uid ? findById(uid) : null;
+      if (!adminName || !user || user.username !== adminName)
+        return socket.emit('error', { message: 'Not authorized to reset bot rankings.' });
+      if (activeBotLeagues().length > 0)
+        return socket.emit('error', {
+          message: 'Finish or wait for the live league before resetting.',
+        });
+      resetBotRankings();
+      socket.emit('bot_rankings_reset');
     });
   });
 }

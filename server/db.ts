@@ -880,6 +880,18 @@ export function recordBotLeagueMatch(input: {
   persistBotRow(b);
 }
 
+/**
+ * Wipe every bot ranking back to base (rating 1000, zeroed played/W-L-T,
+ * trophies, runs) in BOTH the cache and the DB. Used to recover cleanly when a
+ * league is interrupted mid-flight (e.g. a deploy restarts the server). Done as
+ * an in-place reseed (upsert to base) so no row is deleted and no race window
+ * opens against concurrent writes.
+ */
+export function resetBotRankings(): void {
+  botRankings.clear();
+  seedBotRankings(); // recreate every (bot, format) row at base + persist base values
+}
+
 /** Award a bot-league trophy (a tournament title) to the winning bot for a format. */
 export function recordBotTrophy(botName: string, format: number): void {
   const row = getOrCreateBotRow(botName, format);

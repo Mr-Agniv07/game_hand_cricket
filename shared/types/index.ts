@@ -478,6 +478,7 @@ export interface ServerToClientEvents {
   tournament_complete: (p: TournamentCompletePayload) => void;
   emote_received: (p: EmoteReceivedPayload) => void;
   bot_league_started: (p: { id: string; format: number }) => void;
+  bot_rankings_reset: () => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────
@@ -545,4 +546,5 @@ export interface ClientToServerEvents {
   start_tournament_with_bots: () => void;
   send_emote: (p: SendEmotePayload) => void;
   start_bot_league: (p: { format: number }) => void;
+  reset_bot_rankings: () => void;
 }

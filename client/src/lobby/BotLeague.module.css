@@ -113,6 +113,24 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+.resetBtn {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--danger);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--danger);
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.resetBtn:hover {
+  background: #ef444418;
+}
+.resetBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 .msg {
   font-size: 0.78rem;
   color: var(--accent);

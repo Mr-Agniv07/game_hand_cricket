@@ -53,9 +53,16 @@ export default function BotLeague({ socket, user, onClose }: Props) {
       load();
       setTimeout(() => setMsg(''), 4000);
     }
+    function onReset() {
+      setMsg('Rankings reset to base. 🔄');
+      load();
+      setTimeout(() => setMsg(''), 4000);
+    }
     socket.on('bot_league_started', onStarted);
+    socket.on('bot_rankings_reset', onReset);
     return () => {
       socket.off('bot_league_started', onStarted);
+      socket.off('bot_rankings_reset', onReset);
     };
   }, [socket, load]);
 
@@ -71,6 +78,15 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     socket.emit('start_bot_league', { format });
     // Safety: clear the spinner even if the server stays silent (e.g. rejected).
     setTimeout(() => setStarting(false), 4000);
+  }
+
+  function handleReset() {
+    if (data && data.active.length > 0) {
+      setMsg('Finish the live league before resetting.');
+      return;
+    }
+    if (!window.confirm('Reset ALL bot rankings (ratings, records and trophies) to zero?')) return;
+    socket.emit('reset_bot_rankings');
   }
 
   return (
@@ -108,6 +124,14 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                   : starting
                     ? 'Starting…'
                     : `▶ Start ${format}-Over League`}
+              </button>
+              <button
+                className={styles.resetBtn}
+                onClick={handleReset}
+                disabled={!!data && data.active.length > 0}
+                title="Reset all bot rankings to zero"
+              >
+                🔄 Reset
               </button>
             </div>
           )}
