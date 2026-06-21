@@ -561,9 +561,12 @@ export function forfeitTournamentMatch(
 
 // How long to wait for an absent human to (re)connect at the start of their
 // match before forfeiting — covers a page refresh (socket id changes), a
-// backgrounded mobile tab (socket drops), or a brief network blip. The match
+// backgrounded mobile tab (socket drops while the OS freezes the page), or a
+// network blip. On mobile the tab can't reconnect until the player returns to
+// it, and the countdown runs the whole time they're away, so this needs to be
+// generous (a quick glance at another app easily exceeds 10–15s). The match
 // begins the instant both players are present, so this never delays a normal start.
-const MATCH_START_GRACE_MS = 12000;
+const MATCH_START_GRACE_MS = 60000;
 const MATCH_START_POLL_MS = 1500;
 
 const playerSocket = (io: GameServer, p: TournamentPlayerEntry) =>
