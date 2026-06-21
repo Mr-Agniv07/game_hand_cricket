@@ -13,6 +13,13 @@ import type {
   GameRecord,
 } from '@cric/types';
 import type { Prisma } from '@prisma/client';
+import {
+  observeHuman,
+  phaseOf,
+  reset as resetOpponentModel,
+  isReady as opponentModelReady,
+  type Role,
+} from './game/opponentModel.ts';
 
 // ─── Persistence model ────────────────────────────────────────────────────────
 //
@@ -285,8 +292,22 @@ export async function initDb(): Promise<void> {
   for (const b of balls)
     applyToProfile(b.userId!, b.role as 'bat' | 'bowl', b.move, b.prevMove ?? undefined);
 
+  // Train the global, context-aware human-move model from history (human balls
+  // only — predicting bots would be pointless). Bots use it as a prior so they
+  // read a human well from ball one; it sharpens as more games are logged.
+  const humanBalls = await prisma.ballEvent.findMany({
+    where: { isBot: false },
+    orderBy: { id: 'desc' },
+    take: 100000,
+    select: { role: true, innings: true, ballIndex: true, overs: true, prevMove: true, move: true },
+  });
+  resetOpponentModel();
+  for (const b of humanBalls)
+    observeHuman(b.role as Role, b.innings, phaseOf(b.ballIndex, b.overs * 6), b.prevMove ?? null, b.move);
+
   console.log(
-    `[db] ready — ${cache.users.length} users, ${recs.length} records, ${balls.length} ball-events replayed`
+    `[db] ready — ${cache.users.length} users, ${recs.length} records, ${balls.length} ball-events replayed; ` +
+      `human-move model trained on ${humanBalls.length} balls (ready=${opponentModelReady()})`
   );
 }
 
@@ -733,6 +754,10 @@ async function flushBalls(): Promise<void> {
 export function recordBalls(events: BallEventInput[]): void {
   for (const e of events) {
     if (e.userId) applyToProfile(e.userId, e.role, e.move, e.prevMove ?? undefined);
+    // Keep the global human-move model fresh within a running server (no restart
+    // needed to "level up"). Human balls only.
+    if (!e.isBot)
+      observeHuman(e.role, e.innings, phaseOf(e.ballIndex, e.overs * 6), e.prevMove ?? null, e.move);
   }
   ballQueue.push(...events);
   scheduleBallFlush();

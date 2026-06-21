@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { totalBalls, type Room, type RoomPlayer } from './room.ts';
+import { predict as predictHuman, isReady as humanModelReady, phaseOf, type Role } from './opponentModel.ts';
 
 // ─── Identity ────────────────────────────────────────────────────────────────
 
@@ -152,19 +153,59 @@ function weightedBat(aggression: number, avoid: number | null, recent: number[],
   return 6;
 }
 
-/** The opponent's most-played number — null until there's enough data to trust. */
-function readOpponent(room: Room, oppIdx: number, memory: number): number | null {
-  const counts = room.botMoveCounts?.[oppIdx];
-  if (!counts) return null;
-  const total = counts.reduce((a, b) => a + b, 0);
-  // Sharper memory acts on fewer samples (Hunter ~2, forgetful ~5).
-  const threshold = Math.max(2, Math.round(5 - memory * 3));
-  if (total < threshold) return null;
+function argmax(counts: number[]): number {
   let hot = 1;
   let max = -1;
   for (let i = 1; i <= 6; i++) {
     if (counts[i] > max) {
       max = counts[i];
+      hot = i;
+    }
+  }
+  return hot;
+}
+
+/**
+ * The opponent's most likely next number — null until there's enough to go on.
+ *
+ * Against a HUMAN we start from the trained global model (a smart prior, good
+ * from ball one) and blend in the live in-match count, which takes over as the
+ * match's own data accumulates. Against a BOT (tournaments/sims) there's no
+ * human prior, so we fall back to the original live-count read unchanged.
+ * `memory` makes sharper bots act on fewer samples and trust the live read sooner.
+ */
+function readOpponent(room: Room, oppIdx: number, isBowling: boolean, memory: number): number | null {
+  const counts = room.botMoveCounts?.[oppIdx];
+  let liveTotal = 0;
+  if (counts) for (let i = 1; i <= 6; i++) liveTotal += counts[i];
+
+  // Trained prior — only meaningful when the opponent is a human.
+  let prior: number[] | null = null;
+  if (humanModelReady() && !room.players[oppIdx]?.isBot) {
+    const oppRole: Role = isBowling ? 'bat' : 'bowl'; // what the opponent is doing
+    const innings = room.currentInnings + 1;
+    const phase = phaseOf(room.innings[room.currentInnings].balls, totalBalls(room));
+    const prevMove = room.mlLastMoves?.[oppIdx] ?? null;
+    prior = predictHuman(oppRole, innings, phase, prevMove);
+  }
+
+  // No prior (bot opponent, or model still cold): original live-count read.
+  if (!prior) {
+    const threshold = Math.max(2, Math.round(5 - memory * 3));
+    return counts && liveTotal >= threshold ? argmax(counts) : null;
+  }
+
+  // Hybrid: blend prior with the live count; the live read's weight grows with
+  // in-match samples (sharper memory → it takes over faster).
+  const priorStrength = 8 - memory * 4; // memory 1 → 4 balls, memory 0 → 8 balls
+  const liveW = liveTotal / (liveTotal + priorStrength);
+  let hot = 1;
+  let max = -1;
+  for (let i = 1; i <= 6; i++) {
+    const live = liveTotal && counts ? counts[i] / liveTotal : 1 / 6;
+    const v = (1 - liveW) * prior[i] + liveW * live;
+    if (v > max) {
+      max = v;
       hot = i;
     }
   }
@@ -210,7 +251,7 @@ export function pickBotMove(room: Room, botIdx: number): number {
   // Confidence/momentum: a good streak makes it bolder, a wobble more cautious.
   aggression = clamp01(aggression + brain.momentum * 0.2);
 
-  const hot = readOpponent(room, oppIdx, p.memory);
+  const hot = readOpponent(room, oppIdx, isBowling, p.memory);
 
   if (isBowling) {
     const actOnRead = hot !== null && Math.random() < p.adaptability;
