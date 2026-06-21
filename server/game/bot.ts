@@ -179,14 +179,22 @@ function readOpponent(room: Room, oppIdx: number, isBowling: boolean, memory: nu
   let liveTotal = 0;
   if (counts) for (let i = 1; i <= 6; i++) liveTotal += counts[i];
 
-  // Trained prior — only meaningful when the opponent is a human.
+  // Trained prior — only meaningful when the opponent is a human. This is the
+  // only "extra" step on top of the core personality logic, so guard it alone:
+  // if the model ever fails, the bot degrades to its normal live read (still its
+  // intended personality move) rather than breaking the whole decision.
   let prior: number[] | null = null;
   if (humanModelReady() && !room.players[oppIdx]?.isBot) {
-    const oppRole: Role = isBowling ? 'bat' : 'bowl'; // what the opponent is doing
-    const innings = room.currentInnings + 1;
-    const phase = phaseOf(room.innings[room.currentInnings].balls, totalBalls(room));
-    const prevMove = room.mlLastMoves?.[oppIdx] ?? null;
-    prior = predictHuman(oppRole, innings, phase, prevMove);
+    try {
+      const oppRole: Role = isBowling ? 'bat' : 'bowl'; // what the opponent is doing
+      const innings = room.currentInnings + 1;
+      const phase = phaseOf(room.innings[room.currentInnings].balls, totalBalls(room));
+      const prevMove = room.mlLastMoves?.[oppIdx] ?? null;
+      prior = predictHuman(oppRole, innings, phase, prevMove);
+    } catch (err) {
+      console.error('[bot] human-model prediction failed — using live read only:', err);
+      prior = null;
+    }
   }
 
   // No prior (bot opponent, or model still cold): original live-count read.

@@ -701,16 +701,10 @@ function scheduleBotMove(
   botTimer(() => {
     if (!roomAlive(rooms, roomId, room) || room.phase !== 'innings') return;
     if (room.pendingMoves[player.id] !== undefined) return;
-    // Never let a bug in move selection stall the match: if pickBotMove throws,
-    // the bot still plays a random number so the ball resolves and the game goes on.
-    let move: number;
-    try {
-      move = pickBotMove(room, idx);
-    } catch (err) {
-      console.error('[bot] pickBotMove failed — playing random:', err);
-      move = 1 + Math.floor(Math.random() * 6);
-    }
-    room.pendingMoves[player.id] = move;
+    // pickBotMove is hardened to never throw (its only risky step, the trained
+    // prior, is guarded internally and degrades to the live read), so the bot
+    // always plays the number its personality intended.
+    room.pendingMoves[player.id] = pickBotMove(room, idx);
 
     const batMove = room.pendingMoves[batsmanId(room)];
     const bowlMove = room.pendingMoves[bowlerId(room)];
