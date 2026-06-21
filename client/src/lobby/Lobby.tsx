@@ -4,6 +4,7 @@ import styles from './Lobby.module.css';
 import MeetBots from './MeetBots';
 import GlobalStandings from './GlobalStandings';
 import HallOfFame from './HallOfFame';
+import BotLeague from './BotLeague';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
 
@@ -34,6 +35,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [showBots, setShowBots] = useState(false);
   const [showStandings, setShowStandings] = useState(false);
   const [showHallOfFame, setShowHallOfFame] = useState(false);
+  const [showBotLeague, setShowBotLeague] = useState(false);
 
   const loggedIn = !!user;
 
@@ -117,6 +119,13 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           onClick={() => setShowBots(true)}
         >
           🤖 Meet our Bots
+        </button>
+        <button
+          type="button"
+          className={styles['meet-bots-link']}
+          onClick={() => setShowBotLeague(true)}
+        >
+          🏆 Bot League
         </button>
       </div>
 
@@ -350,6 +359,9 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
         <GlobalStandings myId={user?.id ?? null} onClose={() => setShowStandings(false)} />
       )}
       {showHallOfFame && <HallOfFame user={user} onClose={() => setShowHallOfFame(false)} />}
+      {showBotLeague && (
+        <BotLeague socket={socket} user={user} onClose={() => setShowBotLeague(false)} />
+      )}
     </div>
   );
 }
