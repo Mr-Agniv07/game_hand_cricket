@@ -263,3 +263,80 @@
     gap: 0.4rem;
   }
 }
+
+/* ─── In-match emotes / taunts ─── */
+.emote-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  max-width: 460px;
+}
+.emote-btn {
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface2);
+  border: 1px solid #ffffff14;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    transform 0.1s,
+    background 0.15s;
+}
+.emote-btn:hover:not(:disabled) {
+  background: var(--surface);
+  transform: translateY(-2px) scale(1.1);
+}
+.emote-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.emote-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.emote-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  overflow: hidden;
+}
+.emote-float {
+  position: absolute;
+  bottom: 28%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: emoteFloat 2.4s ease-out forwards;
+}
+.emote-emoji {
+  font-size: 3.2rem;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+.emote-from {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+@keyframes emoteFloat {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.5);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1.15);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-46px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-100px) scale(0.9);
+  }
+}

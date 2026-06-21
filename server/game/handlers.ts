@@ -50,6 +50,10 @@ export const onlineUsers = new Map<string, string>(); // userId → socketId
 const pendingChallenges = new Map<string, PendingChallenge>();
 const rooms = new Map<string, Room>();
 
+// The taunt emojis players can send in a match (server validates against this).
+const ALLOWED_EMOTES = new Set(['😎', '🔥', '😂', '🧊', '👏', '😱', '🤡', '💪']);
+const EMOTE_COOLDOWN_MS = 800;
+
 export function registerGameHandlers(io: GameServer): void {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
@@ -162,6 +166,22 @@ export function registerGameHandlers(io: GameServer): void {
       resolveBall(io, roomId, room, rooms, batMove, bowlMove);
       // Pre-arm the bot for the next ball (human triggers the resolve by playing).
       if (room.hasBot) driveBots(io, roomId, room, rooms);
+    });
+
+    socket.on('send_emote', ({ emote }) => {
+      if (typeof emote !== 'string' || !ALLOWED_EMOTES.has(emote)) return;
+      const roomId = socket.data.roomId;
+      if (!roomId || !rooms.has(roomId)) return;
+      // Per-socket rate limit so a custom client can't spam the room.
+      const now = Date.now();
+      if (socket.data.lastEmoteAt && now - socket.data.lastEmoteAt < EMOTE_COOLDOWN_MS) return;
+      socket.data.lastEmoteAt = now;
+      // Relay to everyone else in the room (the sender shows their own locally).
+      socket.to(roomId).emit('emote_received', {
+        emote,
+        fromName: socket.data.playerName ?? 'Opponent',
+        fromId: socket.id,
+      });
     });
 
     socket.on('final_ready', () => {

@@ -388,6 +388,19 @@ export interface JoinTournamentPayload {
 
 // ─── Socket event maps ───────────────────────────────────────────────────────
 
+export interface EmoteReceivedPayload {
+  /** The emoji that was sent. */
+  emote: string;
+  /** Display name of the sender. */
+  fromName: string;
+  /** Socket id of the sender. */
+  fromId: string;
+}
+
+export interface SendEmotePayload {
+  emote: string;
+}
+
 export interface ServerToClientEvents {
   room_created: (p: RoomCreatedPayload) => void;
   state: (p: GameState) => void;
@@ -412,6 +425,7 @@ export interface ServerToClientEvents {
   tournament_state: (p: TournamentState) => void;
   tournament_match_starting: (p: TournamentMatchStartingPayload) => void;
   tournament_complete: (p: TournamentCompletePayload) => void;
+  emote_received: (p: EmoteReceivedPayload) => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────
@@ -477,4 +491,5 @@ export interface ClientToServerEvents {
   create_tournament: (p: CreateTournamentPayload) => void;
   join_tournament: (p: JoinTournamentPayload) => void;
   start_tournament_with_bots: () => void;
+  send_emote: (p: SendEmotePayload) => void;
 }

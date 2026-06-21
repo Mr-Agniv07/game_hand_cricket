@@ -9,6 +9,17 @@ import type { MLModelData, MLStats, OppRole } from './autoplayML';
 import MLInsightsPanel from './MLInsightsPanel';
 
 const NUMBERS = [1, 2, 3, 4, 5, 6];
+// Taunt emojis players can fling at each other mid-match (must match the
+// server's allow-list in game/handlers.ts).
+const EMOTES = ['😎', '🔥', '😂', '🧊', '👏', '😱', '🤡', '💪'];
+
+interface FloatingEmote {
+  id: number;
+  emote: string;
+  self: boolean;
+  from: string;
+  jitter: number;
+}
 
 interface GameScreenProps {
   socket: AppSocket;
@@ -37,6 +48,36 @@ export default function GameScreen({
   const [showML, setShowML] = useState(false);
   const [mlStats, setMlStats] = useState<MLStats>(() => new HandCricketML().getStats('bat'));
   const mlRef = useRef(new HandCricketML());
+
+  // In-match emotes/taunts.
+  const [emotes, setEmotes] = useState<FloatingEmote[]>([]);
+  const [emoteReady, setEmoteReady] = useState(true);
+  const emoteId = useRef(0);
+
+  function spawnEmote(emote: string, self: boolean, from: string) {
+    const id = emoteId.current++;
+    setEmotes((prev) => [...prev, { id, emote, self, from, jitter: Math.random() * 22 }]);
+    setTimeout(() => setEmotes((prev) => prev.filter((e) => e.id !== id)), 2400);
+  }
+
+  function sendEmote(emote: string) {
+    if (!emoteReady) return;
+    socket.emit('send_emote', { emote });
+    spawnEmote(emote, true, 'You');
+    setEmoteReady(false);
+    setTimeout(() => setEmoteReady(true), 1000);
+  }
+
+  // Receive opponents'/spectated emotes and float them in.
+  useEffect(() => {
+    function onEmote(p: { emote: string; fromName: string; fromId: string }) {
+      spawnEmote(p.emote, false, p.fromName);
+    }
+    socket.on('emote_received', onEmote);
+    return () => {
+      socket.off('emote_received', onEmote);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const players = gameState?.players || [];
   const batsmanIdx = gameState?.batsmanIdx ?? 0;
@@ -161,6 +202,20 @@ export default function GameScreen({
 
   return (
     <div className={styles['game-screen']}>
+      {/* Floating taunt emojis */}
+      <div className={styles['emote-layer']}>
+        {emotes.map((e) => (
+          <div
+            key={e.id}
+            className={`${styles['emote-float']} ${e.self ? styles['emote-self'] : styles['emote-opp']}`}
+            style={e.self ? { right: `${12 + e.jitter}%` } : { left: `${12 + e.jitter}%` }}
+          >
+            <span className={styles['emote-emoji']}>{e.emote}</span>
+            <span className={styles['emote-from']}>{e.from}</span>
+          </div>
+        ))}
+      </div>
+
       <div className={styles['scoreboard']}>
         <div className={styles['innings-tag']}>
           {superOver > 0 ? `🔥 SUPER OVER${superOver > 1 ? ` ${superOver}` : ''} · ` : ''}
@@ -260,6 +315,22 @@ export default function GameScreen({
             </>
           )}
         </p>
+      )}
+
+      {myPlayerIdx !== null && (
+        <div className={styles['emote-bar']}>
+          {EMOTES.map((e) => (
+            <button
+              key={e}
+              className={styles['emote-btn']}
+              onClick={() => sendEmote(e)}
+              disabled={!emoteReady}
+              title="Send a taunt"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
       )}
 
       {currentInnings === 2 && (

@@ -6,4 +6,6 @@ export interface SocketData {
   roomId?: string;
   playerName?: string;
   tournamentId?: string;
+  /** Timestamp of this socket's last emote, for server-side rate limiting. */
+  lastEmoteAt?: number;
 }
