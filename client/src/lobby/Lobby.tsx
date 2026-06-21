@@ -435,7 +435,9 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
                       <span className={styles['history-opp']}>
                         vs {m.opponent}
                         {m.isTournament && (
-                          <span className={styles['history-tourney-tag']}>🏆 Tournament</span>
+                          <span className={styles['history-tourney-tag']} title="Tournament match">
+                            🏆
+                          </span>
                         )}
                       </span>
                       <span className={styles['history-meta']}>

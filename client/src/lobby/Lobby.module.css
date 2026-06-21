@@ -168,17 +168,10 @@
   font-weight: 700;
 }
 .history-tourney-tag {
-  margin-left: 0.45rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 6px;
-  background: #f59e0b22;
-  color: var(--warn);
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  margin-left: 0.4rem;
+  font-size: 0.95rem;
   vertical-align: middle;
-  white-space: nowrap;
+  cursor: default;
 }
 .history-badge {
   width: 26px;
