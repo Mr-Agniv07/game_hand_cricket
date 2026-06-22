@@ -117,6 +117,7 @@ export default function App() {
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
+  const [bidWin, setBidWin] = useState<{ botName: string; reward: number } | null>(null);
 
   function updateEconomy(coins: number, unlocks: string[]) {
     setUser((u) => (u ? { ...u, coins, unlocks } : u));
@@ -387,6 +388,13 @@ export default function App() {
     socket.on('match_found', ({ roomId, myPlayerIdx }) => {
       setRoomId(roomId);
       setMyPlayerIdx(myPlayerIdx);
+    });
+
+    // A backed bot won the league — credit the coins live + celebrate.
+    socket.on('bid_won', ({ botName, reward, coins }) => {
+      setUser((u) => (u ? { ...u, coins } : u));
+      setBidWin({ botName, reward });
+      setTimeout(() => setBidWin(null), 7000);
     });
 
     socket.on('rematch_requested', () => setRematchState('opponent_wants'));
@@ -820,6 +828,22 @@ export default function App() {
 
       {storeOpen && user && (
         <Store user={user} onClose={() => setStoreOpen(false)} onEconomyChange={updateEconomy} />
+      )}
+
+      {bidWin && (
+        <div className="bidwin-overlay" onClick={() => setBidWin(null)}>
+          <div className="bidwin-card" onClick={(e) => e.stopPropagation()}>
+            <div className="bidwin-emoji">🎉</div>
+            <h2>Your bid won!</h2>
+            <p>
+              <strong>{bidWin.botName}</strong> won the league.
+            </p>
+            <div className="bidwin-reward">+{bidWin.reward} 🪙</div>
+            <button className="btn-primary" onClick={() => setBidWin(null)}>
+              Collect
+            </button>
+          </div>
+        </div>
       )}
 
       {incomingChallenge && (

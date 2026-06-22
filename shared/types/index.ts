@@ -535,6 +535,7 @@ export interface ServerToClientEvents {
   match_found: (p: MatchFoundPayload) => void;
   match_waiting: (p: MatchWaitingPayload) => void;
   bid_placed: (p: { tournamentId: string; botName: string }) => void;
+  bid_won: (p: { botName: string; reward: number; coins: number }) => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────

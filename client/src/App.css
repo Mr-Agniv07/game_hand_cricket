@@ -235,6 +235,56 @@ body {
   margin-left: auto;
 }
 
+.bidwin-overlay {
+  position: fixed;
+  inset: 0;
+  background: #00000099;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.bidwin-card {
+  background: var(--surface);
+  border: 1px solid #fbbf2466;
+  border-radius: 18px;
+  padding: 1.8rem 2rem;
+  text-align: center;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6), 0 0 40px rgba(251, 191, 36, 0.25);
+  animation: pop 0.25s ease-out;
+}
+@keyframes pop {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.bidwin-emoji {
+  font-size: 3rem;
+  line-height: 1;
+}
+.bidwin-card h2 {
+  font-size: 1.4rem;
+  font-weight: 900;
+  margin: 0.5rem 0 0.2rem;
+  color: #fbbf24;
+}
+.bidwin-card p {
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+.bidwin-reward {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #fbbf24;
+  margin-bottom: 1rem;
+}
+
 .coins-btn {
   display: flex;
   align-items: center;

@@ -25,6 +25,7 @@ import {
   hasUnlock,
   overUnlockId,
   addCoins,
+  getEconomy,
   COIN_REWARDS,
 } from '../db.ts';
 import type { UserAchievements } from '@cric/types';
@@ -560,12 +561,21 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
     }
   }
 
-  // Pay out spectator bids: anyone who backed the winning bot earns coins.
+  // Pay out spectator bids: anyone who backed the winning bot earns coins, and is
+  // notified live (balance + celebration) if they're online.
   if (tournament.isBotLeague && tournament.bids && tournament.champion) {
     const champName = tournament.players.find((p) => p.id === tournament.champion)?.name;
     if (champName) {
       for (const [userId, botName] of Object.entries(tournament.bids)) {
-        if (botName === champName) addCoins(userId, COIN_REWARDS.bidWin);
+        if (botName !== champName) continue;
+        addCoins(userId, COIN_REWARDS.bidWin);
+        const coins = getEconomy(userId).coins;
+        for (const [, s] of io.sockets.sockets) {
+          if (s.data.userId === userId) {
+            s.emit('bid_won', { botName: champName, reward: COIN_REWARDS.bidWin, coins });
+            break;
+          }
+        }
       }
     }
   }
