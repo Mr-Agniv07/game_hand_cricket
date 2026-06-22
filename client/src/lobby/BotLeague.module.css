@@ -342,6 +342,31 @@
   margin-bottom: 0.6rem;
 }
 
+/* ── Result summary overlay (reuses TournamentResult) ── */
+.resultWrap {
+  position: relative;
+  max-height: 92vh;
+  overflow-y: auto;
+  border-radius: 16px;
+}
+.resultClose {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #000000aa;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.resultClose:hover {
+  background: #000000;
+}
+
 /* ── Spectator overlay (full tournament view) ── */
 .specOverlay {
   position: fixed;

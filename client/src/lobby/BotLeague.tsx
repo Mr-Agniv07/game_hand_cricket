@@ -2,7 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { apiGet } from '../api';
 import styles from './BotLeague.module.css';
 import TournamentLobby from '../tournament/TournamentLobby';
-import type { BotLeagueData, BotLeagueActive, BotTournamentSummary } from '@cric/types';
+import TournamentResult from '../tournament/TournamentResult';
+import type {
+  BotLeagueData,
+  BotLeagueActive,
+  BotTournamentSummary,
+  TournamentState,
+} from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
 
@@ -237,19 +243,13 @@ export default function BotLeague({ socket, user, onClose }: Props) {
         </div>
       </div>
 
-      {watching && (
+      {/* Live spectating: the in-progress lobby view (groups, fixtures, live score). */}
+      {watching && watching.state.phase !== 'complete' && (
         <div className={styles.specOverlay} onClick={() => setWatchingId(null)}>
           <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
             <div className={styles.specHeader}>
               <h2>
-                {watching.state.phase === 'complete' ? (
-                  <>🏆 Bot League · {watching.format} Over — Final Result</>
-                ) : (
-                  <>
-                    <span className={styles.liveDot} /> Bot League · {watching.format} Over —
-                    Spectating
-                  </>
-                )}
+                <span className={styles.liveDot} /> Bot League · {watching.format} Over — Spectating
               </h2>
               <button
                 className={styles.close}
@@ -260,11 +260,6 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               </button>
             </div>
             <div className={styles.specBody}>
-              {championName(watching) && (
-                <div className={styles.champBanner}>
-                  🏆 Champion: <strong>{championName(watching)}</strong>
-                </div>
-              )}
               <TournamentLobby
                 tournamentState={watching.state}
                 myId={null}
@@ -276,7 +271,12 @@ export default function BotLeague({ socket, user, onClose }: Props) {
         </div>
       )}
 
-      {/* The watched league ended while spectating. */}
+      {/* Finished league just watched: full result summary (groups + knockouts). */}
+      {watching && watching.state.phase === 'complete' && (
+        <ResultOverlay state={watching.state} onClose={() => setWatchingId(null)} />
+      )}
+
+      {/* The watched league ended and is no longer in the feed. */}
       {watchingId && !watching && (
         <div className={styles.specOverlay} onClick={() => setWatchingId(null)}>
           <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
@@ -300,31 +300,28 @@ export default function BotLeague({ socket, user, onClose }: Props) {
         </div>
       )}
 
-      {/* Full detail of a past tournament (fixtures, groups, standings). */}
+      {/* Full detail of a past tournament: group standings + knockouts. */}
       {pastView?.state && (
-        <div className={styles.specOverlay} onClick={() => setPastView(null)}>
-          <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.specHeader}>
-              <h2>🏆 {pastView.format} Over Tournament — Final Result</h2>
-              <button className={styles.close} onClick={() => setPastView(null)} aria-label="Close">
-                ✕
-              </button>
-            </div>
-            <div className={styles.specBody}>
-              <div className={styles.champBanner}>
-                🏆 Champion: <strong>{pastView.champion}</strong>
-                {pastView.runnerUp ? ` · runner-up ${pastView.runnerUp}` : ''}
-              </div>
-              <TournamentLobby
-                tournamentState={pastView.state}
-                myId={null}
-                onLeave={noop}
-                onStartWithBots={noop}
-              />
-            </div>
-          </div>
-        </div>
+        <ResultOverlay state={pastView.state} onClose={() => setPastView(null)} />
       )}
+    </div>
+  );
+}
+
+/**
+ * A completed tournament's result summary in an overlay — reuses the player-facing
+ * TournamentResult (group standings + knockouts), with awards stripped (bot
+ * leagues don't surface achievements) and no "you" highlighting.
+ */
+function ResultOverlay({ state, onClose }: { state: TournamentState; onClose: () => void }) {
+  return (
+    <div className={styles.specOverlay} onClick={onClose}>
+      <button className={styles.resultClose} onClick={onClose} aria-label="Close">
+        ✕
+      </button>
+      <div className={styles.resultWrap} onClick={(e) => e.stopPropagation()}>
+        <TournamentResult tournamentState={{ ...state, awards: null }} myId={null} onLeave={onClose} />
+      </div>
     </div>
   );
 }
@@ -348,21 +345,10 @@ function PastCard({ t, onView }: { t: BotTournamentSummary; onView: () => void }
       </button>
       {!hasFull && open && (
         <div className={styles.pastBody}>
-          {t.standings.length === 0 ? (
-            <p className={styles.pastNote}>
-              Played before history tracking — only the champion was recorded.
-            </p>
-          ) : (
-            t.standings.map((s, i) => (
-              <div key={s.name} className={styles.pastRow}>
-                <span className={styles.pastRank}>{i + 1}</span>
-                <span className={styles.pastName}>{s.name}</span>
-                <span className={styles.pastWl}>
-                  {s.won}W · {s.lost}L
-                </span>
-              </div>
-            ))
-          )}
+          <p className={styles.pastNote}>
+            Group &amp; knockout detail wasn&apos;t recorded for this tournament — only the champion
+            is known. New tournaments show the full summary.
+          </p>
         </div>
       )}
     </div>
