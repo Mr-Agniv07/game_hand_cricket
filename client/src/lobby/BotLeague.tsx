@@ -30,6 +30,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const [starting, setStarting] = useState(false);
   const [msg, setMsg] = useState('');
   const [watchingId, setWatchingId] = useState<string | null>(null);
+  const [pastView, setPastView] = useState<BotTournamentSummary | null>(null);
 
   const load = useCallback(() => {
     apiGet<BotLeagueData>('/api/bot-league')
@@ -84,6 +85,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     ? [...(data?.active ?? []), ...(data?.recent ?? [])].find((a) => a.id === watchingId)
     : undefined;
   const pastForFormat = (data?.history ?? []).filter((t) => t.format === format);
+  // Reigning champion per format = the most recent completed tournament's winner.
+  const champ5 = data?.history.find((t) => t.format === 5)?.champion ?? null;
+  const champ10 = data?.history.find((t) => t.format === 10)?.champion ?? null;
 
   function handleStart() {
     if (starting || liveForFormat) return;
@@ -157,6 +161,18 @@ export default function BotLeague({ socket, user, onClose }: Props) {
             </div>
           ) : (
             <>
+              <div className={styles.currentChamps}>
+                <div className={styles.ccTitle}>👑 Current Champions</div>
+                <div className={styles.ccRow}>
+                  <span className={styles.ccFmt}>5 Over</span>
+                  <span className={styles.ccName}>{champ5 ?? '—'}</span>
+                </div>
+                <div className={styles.ccRow}>
+                  <span className={styles.ccFmt}>10 Over</span>
+                  <span className={styles.ccName}>{champ10 ?? '—'}</span>
+                </div>
+              </div>
+
               {liveForFormat && (
                 <LiveCard active={liveForFormat} onWatch={() => setWatchingId(liveForFormat.id)} />
               )}
@@ -212,7 +228,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                   here.
                 </p>
               ) : (
-                pastForFormat.map((t, i) => <PastCard key={`${t.finishedAt}-${i}`} t={t} />)
+                pastForFormat.map((t, i) => (
+                  <PastCard key={`${t.finishedAt}-${i}`} t={t} onView={() => setPastView(t)} />
+                ))
               )}
             </>
           )}
@@ -281,27 +299,54 @@ export default function BotLeague({ socket, user, onClose }: Props) {
           </div>
         </div>
       )}
+
+      {/* Full detail of a past tournament (fixtures, groups, standings). */}
+      {pastView?.state && (
+        <div className={styles.specOverlay} onClick={() => setPastView(null)}>
+          <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.specHeader}>
+              <h2>🏆 {pastView.format} Over Tournament — Final Result</h2>
+              <button className={styles.close} onClick={() => setPastView(null)} aria-label="Close">
+                ✕
+              </button>
+            </div>
+            <div className={styles.specBody}>
+              <div className={styles.champBanner}>
+                🏆 Champion: <strong>{pastView.champion}</strong>
+                {pastView.runnerUp ? ` · runner-up ${pastView.runnerUp}` : ''}
+              </div>
+              <TournamentLobby
+                tournamentState={pastView.state}
+                myId={null}
+                onLeave={noop}
+                onStartWithBots={noop}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function PastCard({ t }: { t: BotTournamentSummary }) {
+function PastCard({ t, onView }: { t: BotTournamentSummary; onView: () => void }) {
   const [open, setOpen] = useState(false);
+  const hasFull = !!t.state;
   const date = new Date(t.finishedAt).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
   });
   return (
     <div className={styles.pastCard}>
-      <button className={styles.pastHead} onClick={() => setOpen((o) => !o)}>
+      <button className={styles.pastHead} onClick={hasFull ? onView : () => setOpen((o) => !o)}>
         <span className={styles.pastTrophy}>🏆</span>
         <span className={styles.pastChamp}>{t.champion}</span>
         <span className={styles.pastMeta}>
           {t.runnerUp ? `def. ${t.runnerUp}` : ''} · {date}
         </span>
-        <span className={styles.pastToggle}>{open ? '▲' : '▼'}</span>
+        <span className={styles.pastToggle}>{hasFull ? '⤢' : open ? '▲' : '▼'}</span>
       </button>
-      {open && (
+      {!hasFull && open && (
         <div className={styles.pastBody}>
           {t.standings.length === 0 ? (
             <p className={styles.pastNote}>

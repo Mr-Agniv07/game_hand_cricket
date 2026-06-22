@@ -531,7 +531,13 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
         .sort((a, b) => b.points - a.points)
         .map(({ name, won, lost }) => ({ name, won, lost }));
 
-      recordBotTournament({ format: tournament.format, champion: champ.name, runnerUp, standings });
+      recordBotTournament({
+        format: tournament.format,
+        champion: champ.name,
+        runnerUp,
+        standings,
+        state: publicTournamentState(tournament),
+      });
     }
   }
   const state = publicTournamentState(tournament);

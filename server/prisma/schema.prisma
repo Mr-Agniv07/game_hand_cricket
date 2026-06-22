@@ -153,6 +153,7 @@ model BotTournament {
   champion   String // winning bot name
   runnerUp   String? // losing finalist bot name
   standings  Json // [{ name, won, lost }] ordered by group points
+  state      Json? // full final TournamentState (groups, fixtures, knockouts) for the detail view
   finishedAt DateTime @default(now())
 
   @@index([format])

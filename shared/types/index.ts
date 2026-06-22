@@ -201,6 +201,9 @@ export interface BotTournamentSummary {
   runnerUp: string | null;
   finishedAt: string;
   standings: BotTournamentStanding[];
+  /** Full final tournament state (groups, fixtures, knockouts) for the detail view;
+   *  null for tournaments played before full-detail recording (backfilled). */
+  state: TournamentState | null;
 }
 
 /** Response of GET /api/bot-league: rankings per format + live & just-finished leagues. */

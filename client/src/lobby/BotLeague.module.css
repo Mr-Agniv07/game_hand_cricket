@@ -192,6 +192,38 @@
   background: #ef444428;
 }
 
+/* ── Current Champions ── */
+.currentChamps {
+  background: linear-gradient(135deg, #fbbf2418, #f59e0b10);
+  border: 1px solid #fbbf2433;
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.7rem;
+}
+.ccTitle {
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fbbf24;
+  margin-bottom: 0.4rem;
+}
+.ccRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.18rem 0;
+}
+.ccFmt {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+.ccName {
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 /* ── Latest champion (panel) ── */
 .champ {
   display: flex;

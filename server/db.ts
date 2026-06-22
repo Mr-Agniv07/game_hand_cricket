@@ -15,6 +15,7 @@ import type {
   BotRankingEntry,
   BotTournamentSummary,
   BotTournamentStanding,
+  TournamentState,
 } from '@cric/types';
 import { isBotName, BOT_NAMES } from './game/bot.ts';
 import type { Prisma } from '@prisma/client';
@@ -328,6 +329,7 @@ export async function initDb(): Promise<void> {
         runnerUp: t.runnerUp,
         finishedAt: t.finishedAt.toISOString(),
         standings: (t.standings as unknown as BotTournamentStanding[]) ?? [],
+        state: (t.state as unknown as TournamentState) ?? null,
       });
   } catch (err) {
     console.error(
@@ -934,6 +936,7 @@ export function recordBotTournament(input: {
   champion: string;
   runnerUp: string | null;
   standings: BotTournamentStanding[];
+  state: TournamentState;
 }): void {
   const summary: BotTournamentSummary = {
     format: input.format,
@@ -941,6 +944,7 @@ export function recordBotTournament(input: {
     runnerUp: input.runnerUp,
     finishedAt: new Date().toISOString(),
     standings: input.standings,
+    state: input.state,
   };
   botTournaments.unshift(summary);
   if (botTournaments.length > BOT_HISTORY_CAP) botTournaments.length = BOT_HISTORY_CAP;
@@ -951,6 +955,7 @@ export function recordBotTournament(input: {
         champion: input.champion,
         runnerUp: input.runnerUp ?? undefined,
         standings: input.standings as unknown as Prisma.InputJsonValue,
+        state: input.state as unknown as Prisma.InputJsonValue,
         finishedAt: new Date(summary.finishedAt),
       },
     }),
