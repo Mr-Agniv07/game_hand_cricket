@@ -205,13 +205,14 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 ⬅ Top 8 by rating qualify for the next league.
               </p>
 
-              {pastForFormat.length > 0 && (
-                <>
-                  <div className={styles.sectionTitle}>Past {format}-Over Tournaments</div>
-                  {pastForFormat.map((t, i) => (
-                    <PastCard key={`${t.finishedAt}-${i}`} t={t} />
-                  ))}
-                </>
+              <div className={styles.sectionTitle}>Past {format}-Over Tournaments</div>
+              {pastForFormat.length === 0 ? (
+                <p className={styles.empty}>
+                  No {format}-over tournaments recorded yet — finish a league and the winner shows up
+                  here.
+                </p>
+              ) : (
+                pastForFormat.map((t, i) => <PastCard key={`${t.finishedAt}-${i}`} t={t} />)
               )}
             </>
           )}
@@ -302,15 +303,21 @@ function PastCard({ t }: { t: BotTournamentSummary }) {
       </button>
       {open && (
         <div className={styles.pastBody}>
-          {t.standings.map((s, i) => (
-            <div key={s.name} className={styles.pastRow}>
-              <span className={styles.pastRank}>{i + 1}</span>
-              <span className={styles.pastName}>{s.name}</span>
-              <span className={styles.pastWl}>
-                {s.won}W · {s.lost}L
-              </span>
-            </div>
-          ))}
+          {t.standings.length === 0 ? (
+            <p className={styles.pastNote}>
+              Played before history tracking — only the champion was recorded.
+            </p>
+          ) : (
+            t.standings.map((s, i) => (
+              <div key={s.name} className={styles.pastRow}>
+                <span className={styles.pastRank}>{i + 1}</span>
+                <span className={styles.pastName}>{s.name}</span>
+                <span className={styles.pastWl}>
+                  {s.won}W · {s.lost}L
+                </span>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>
