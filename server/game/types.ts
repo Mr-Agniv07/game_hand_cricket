@@ -8,4 +8,6 @@ export interface SocketData {
   tournamentId?: string;
   /** Timestamp of this socket's last emote, for server-side rate limiting. */
   lastEmoteAt?: number;
+  /** Matchmaking queue key (`overs|wickets`) this socket is currently waiting in. */
+  matchKey?: string;
 }

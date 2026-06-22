@@ -72,6 +72,23 @@
   }
 }
 
+.quick-searching {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1rem 0 0.4rem;
+}
+.quick-search-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.quick-search-mode {
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .mode-title {
   font-size: 1.05rem;
   font-weight: 800;

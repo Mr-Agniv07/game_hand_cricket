@@ -377,6 +377,12 @@ export default function App() {
       setFriendsOpen(false);
     });
 
+    // Quick Match paired us — drop straight into the game (toss_start follows).
+    socket.on('match_found', ({ roomId, myPlayerIdx }) => {
+      setRoomId(roomId);
+      setMyPlayerIdx(myPlayerIdx);
+    });
+
     socket.on('rematch_requested', () => setRematchState('opponent_wants'));
 
     socket.on('rematch_start', ({ roomId: rid, myPlayerIdx: pidx }) => {

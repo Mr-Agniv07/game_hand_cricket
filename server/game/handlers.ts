@@ -50,6 +50,26 @@ export const onlineUsers = new Map<string, string>(); // userId → socketId
 const pendingChallenges = new Map<string, PendingChallenge>();
 const rooms = new Map<string, Room>();
 
+// ─── Quick Match (random pairing) ─────────────────────────────────────────────
+
+interface QueueEntry {
+  socketId: string;
+  name: string;
+  userId: string | null;
+  clientId: string | null;
+}
+// Players waiting for a random opponent, keyed by mode (`overs|wickets`).
+const matchQueue = new Map<string, QueueEntry[]>();
+
+/** Drop a socket from whatever Quick Match queue it's sitting in (idempotent). */
+function removeFromQueue(socketId: string): void {
+  for (const [key, q] of matchQueue) {
+    const i = q.findIndex((e) => e.socketId === socketId);
+    if (i !== -1) q.splice(i, 1);
+    if (q.length === 0) matchQueue.delete(key);
+  }
+}
+
 // The taunt emojis players can send in a match (server validates against this).
 const ALLOWED_EMOTES = new Set(['😎', '🔥', '😂', '🧊', '👏', '😱', '🤡', '💪']);
 const EMOTE_COOLDOWN_MS = 800;
@@ -68,6 +88,7 @@ export function registerGameHandlers(io: GameServer): void {
     if (socket.data.userId) onlineUsers.set(socket.data.userId, socket.id);
 
     socket.on('create_room', ({ playerName, overs, wickets }) => {
+      removeFromQueue(socket.id);
       const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
       const room = createRoom(clampCount(overs, 1), clampCount(wickets, 1));
@@ -81,6 +102,7 @@ export function registerGameHandlers(io: GameServer): void {
     });
 
     socket.on('play_vs_bot', ({ playerName, overs, wickets }) => {
+      removeFromQueue(socket.id);
       const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
       const room = createRoom(clampCount(overs, 1), clampCount(wickets, 1));
@@ -104,7 +126,74 @@ export function registerGameHandlers(io: GameServer): void {
       driveBots(io, roomId, room, rooms);
     });
 
+    // Quick Match: pick a mode and get paired with whoever's waiting in it.
+    socket.on('find_match', ({ playerName, overs, wickets }) => {
+      if (socket.data.roomId && rooms.has(socket.data.roomId)) return; // already in a game
+      const name = cleanName(playerName);
+      const ov = clampCount(overs, 2);
+      const wk = clampCount(wickets, 2);
+      const key = `${ov}|${wk}`;
+
+      removeFromQueue(socket.id); // dedupe double-clicks / mode switches
+
+      // Find a still-valid opponent already waiting in this exact mode.
+      const q = matchQueue.get(key) ?? [];
+      let opp: { entry: QueueEntry; sock: GameSocket } | null = null;
+      while (q.length) {
+        const cand = q.shift()!;
+        if (cand.socketId === socket.id) continue;
+        const cs = io.sockets.sockets.get(cand.socketId) as GameSocket | undefined;
+        if (!cs || cs.data.roomId) continue; // gone, or already pulled into a game
+        if (cand.userId && cand.userId === socket.data.userId) continue; // same account, two tabs
+        opp = { entry: cand, sock: cs };
+        break;
+      }
+      if (q.length === 0) matchQueue.delete(key);
+      else matchQueue.set(key, q);
+
+      if (!opp) {
+        // No one waiting — join the queue and sit tight.
+        const list = matchQueue.get(key) ?? [];
+        list.push({ socketId: socket.id, name, userId: socket.data.userId, clientId: socket.data.clientId });
+        matchQueue.set(key, list);
+        socket.data.matchKey = key;
+        socket.emit('match_waiting', { overs: ov, wickets: wk });
+        return;
+      }
+
+      // Pair them up and start the toss (mirrors challenge accept).
+      socket.data.matchKey = undefined;
+      opp.sock.data.matchKey = undefined;
+      const roomId = makeRoomId(rooms);
+      const room = createRoom(ov, wk);
+      room.players.push({ id: opp.entry.socketId, name: opp.entry.name, userId: opp.entry.userId, clientId: opp.entry.clientId });
+      room.players.push({ id: socket.id, name, userId: socket.data.userId, clientId: socket.data.clientId });
+      rooms.set(roomId, room);
+
+      opp.sock.join(roomId);
+      opp.sock.data.roomId = roomId;
+      opp.sock.data.playerName = opp.entry.name;
+      socket.join(roomId);
+      socket.data.roomId = roomId;
+      socket.data.playerName = name;
+
+      opp.sock.emit('match_found', { roomId, myPlayerIdx: 0 });
+      socket.emit('match_found', { roomId, myPlayerIdx: 1 });
+
+      const callerIdx = Math.floor(Math.random() * 2);
+      room.tossCallerId = room.players[callerIdx].id;
+      room.phase = 'toss_call';
+      io.to(roomId).emit('state', publicState(room, roomId));
+      io.to(roomId).emit('toss_start', { callerId: room.tossCallerId, callerName: room.players[callerIdx].name });
+    });
+
+    socket.on('cancel_match', () => {
+      removeFromQueue(socket.id);
+      socket.data.matchKey = undefined;
+    });
+
     socket.on('join_room', ({ roomId, playerName }) => {
+      removeFromQueue(socket.id);
       const room = rooms.get(roomId);
       if (!room) return socket.emit('error', { message: 'Room not found.' });
       if (room.players.length >= 2) return socket.emit('error', { message: 'Room is full.' });
@@ -419,6 +508,7 @@ export function registerGameHandlers(io: GameServer): void {
       // mapping and make the user look offline (and unchallengeable).
       if (socket.data.userId && onlineUsers.get(socket.data.userId) === socket.id)
         onlineUsers.delete(socket.data.userId);
+      removeFromQueue(socket.id);
       for (const [id, ch] of pendingChallenges) {
         if (ch.challengerSocketId === socket.id) {
           clearTimeout(ch.timeout);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { apiGet } from '../api';
 import styles from './Lobby.module.css';
@@ -13,7 +13,7 @@ import type { ClientUser } from '../types';
 const OVER_OPTIONS = [1, 2, 3, 5, 10];
 const WICKET_OPTIONS = [1, 2, 3, 5, 10];
 
-type LobbyTab = 'create' | 'join' | 'tournament';
+type LobbyTab = 'quick' | 'create' | 'join' | 'tournament';
 
 interface LobbyProps {
   socket: AppSocket;
@@ -39,8 +39,39 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const [showBotLeague, setShowBotLeague] = useState(false);
   const [leagueLive, setLeagueLive] = useState(false);
+  const [qOvers, setQOvers] = useState(2);
+  const [qWickets, setQWickets] = useState(2);
+  const [searching, setSearching] = useState(false);
+  const searchingRef = useRef(false);
 
   const loggedIn = !!user;
+
+  // ── Quick Match ──────────────────────────────────────────────────────────
+  function setSearchingState(on: boolean) {
+    searchingRef.current = on;
+    setSearching(on);
+  }
+  function handleFindMatch() {
+    const playerName = user ? user.username : name.trim();
+    if (!playerName) return;
+    socket.emit('find_match', { playerName, overs: qOvers, wickets: qWickets });
+    setSearchingState(true);
+  }
+  function cancelMatch() {
+    socket.emit('cancel_match');
+    setSearchingState(false);
+  }
+  /** Switching tabs (or unmounting) leaves the queue, so we never search invisibly. */
+  function switchTab(next: LobbyTab) {
+    if (searchingRef.current) cancelMatch();
+    setTab(next);
+  }
+  // Leave the queue if the lobby unmounts while still searching (e.g. logout).
+  useEffect(() => {
+    return () => {
+      if (searchingRef.current) socket.emit('cancel_match');
+    };
+  }, [socket]);
 
   // Poll for an in-progress bot league so the homepage button can glow "live".
   useEffect(() => {
@@ -100,17 +131,23 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
     <div className={styles['lobby']}>
       <div className="tabs">
         <button
+          className={tab === 'quick' ? 'tab active' : 'tab'}
+          onClick={() => switchTab('quick')}
+        >
+          ⚡ Quick
+        </button>
+        <button
           className={tab === 'create' ? 'tab active' : 'tab'}
-          onClick={() => setTab('create')}
+          onClick={() => switchTab('create')}
         >
           Create
         </button>
-        <button className={tab === 'join' ? 'tab active' : 'tab'} onClick={() => setTab('join')}>
+        <button className={tab === 'join' ? 'tab active' : 'tab'} onClick={() => switchTab('join')}>
           Join
         </button>
         <button
           className={tab === 'tournament' ? 'tab active' : 'tab'}
-          onClick={() => setTab('tournament')}
+          onClick={() => switchTab('tournament')}
         >
           Tournament
         </button>
@@ -146,6 +183,81 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           🏆 Bot League{leagueLive ? ' · LIVE' : ''}
         </button>
       </div>
+
+      {tab === 'quick' && (
+        <div className="card form">
+          {searching ? (
+            <div className={styles['quick-searching']}>
+              <div className="spinner" />
+              <div className={styles['quick-search-title']}>Searching for an opponent…</div>
+              <div className={styles['quick-search-mode']}>
+                {qOvers} over{qOvers !== 1 ? 's' : ''} · {qWickets} wicket{qWickets !== 1 ? 's' : ''}
+              </div>
+              <p style={{ fontSize: '.8rem', color: 'var(--muted)', textAlign: 'center' }}>
+                You'll be paired the moment someone else picks this mode.
+              </p>
+              <button type="button" className={styles['bot-btn']} onClick={cancelMatch}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <>
+              {!loggedIn && (
+                <>
+                  <label>Your Name</label>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your name"
+                    maxLength={20}
+                    autoFocus
+                    required
+                  />
+                </>
+              )}
+              <h3 className={styles['mode-title']}>Find a random opponent</h3>
+              <label>Number of Overs</label>
+              <div className="over-options">
+                {OVER_OPTIONS.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    className={qOvers === o ? 'over-btn selected' : 'over-btn'}
+                    onClick={() => setQOvers(o)}
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
+              <label>Number of Wickets</label>
+              <div className="over-options">
+                {WICKET_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className={qWickets === w ? 'over-btn selected' : 'over-btn'}
+                    onClick={() => setQWickets(w)}
+                  >
+                    {w}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0' }}>
+                You'll be matched with anyone else searching for {qOvers} over
+                {qOvers !== 1 ? 's' : ''} · {qWickets} wicket{qWickets !== 1 ? 's' : ''}.
+              </p>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleFindMatch}
+                disabled={!loggedIn && !name.trim()}
+              >
+                ⚡ Find Match
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {tab === 'create' && (
         <form className="card form" onSubmit={handleCreate}>

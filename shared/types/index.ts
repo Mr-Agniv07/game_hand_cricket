@@ -512,6 +512,8 @@ export interface ServerToClientEvents {
   emote_received: (p: EmoteReceivedPayload) => void;
   bot_league_started: (p: { id: string; format: number }) => void;
   bot_rankings_reset: () => void;
+  match_found: (p: MatchFoundPayload) => void;
+  match_waiting: (p: MatchWaitingPayload) => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────
@@ -551,6 +553,22 @@ export interface SendChallengePayload {
   wickets: number | string;
 }
 
+export interface FindMatchPayload {
+  playerName: string;
+  overs: number | string;
+  wickets: number | string;
+}
+
+export interface MatchFoundPayload {
+  roomId: string;
+  myPlayerIdx: number;
+}
+
+export interface MatchWaitingPayload {
+  overs: number;
+  wickets: number;
+}
+
 export interface RespondChallengePayload {
   challengeId: string;
   accept: boolean;
@@ -580,4 +598,6 @@ export interface ClientToServerEvents {
   send_emote: (p: SendEmotePayload) => void;
   start_bot_league: (p: { format: number }) => void;
   reset_bot_rankings: () => void;
+  find_match: (p: FindMatchPayload) => void;
+  cancel_match: () => void;
 }
