@@ -99,6 +99,8 @@ export interface Tournament {
   isBotLeague?: boolean;
   /** Ranked format (5 or 10 overs) — only set for bot-league tournaments. */
   format?: number;
+  /** Spectator bids on the champion: userId → backed bot name (bot leagues only). */
+  bids?: Record<string, string>;
 }
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -556,6 +558,16 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
     }
   }
 
+  // Pay out spectator bids: anyone who backed the winning bot earns coins.
+  if (tournament.isBotLeague && tournament.bids && tournament.champion) {
+    const champName = tournament.players.find((p) => p.id === tournament.champion)?.name;
+    if (champName) {
+      for (const [userId, botName] of Object.entries(tournament.bids)) {
+        if (botName === champName) addCoins(userId, COIN_REWARDS.bidWin);
+      }
+    }
+  }
+
   // Coin reward: a registered champion earns coins for winning a (non-bot-league)
   // tournament that included at least one of their friends.
   if (!tournament.isBotLeague && tournament.champion) {
@@ -867,13 +879,38 @@ export function startBotLeague(
   return tournament;
 }
 
-/** In-progress bot leagues, as lightweight spectator summaries. */
-export function activeBotLeagues(): { id: string; format: number; state: TournamentState }[] {
-  const out: { id: string; format: number; state: TournamentState }[] = [];
+/** In-progress bot leagues, as lightweight spectator summaries (incl. the viewer's bid). */
+export function activeBotLeagues(
+  userId?: string | null
+): { id: string; format: number; state: TournamentState; myBid: string | null }[] {
+  const out: { id: string; format: number; state: TournamentState; myBid: string | null }[] = [];
   for (const t of tournaments.values())
     if (t.isBotLeague && t.phase !== 'complete')
-      out.push({ id: t.id, format: t.format ?? t.overs, state: publicTournamentState(t) });
+      out.push({
+        id: t.id,
+        format: t.format ?? t.overs,
+        state: publicTournamentState(t),
+        myBid: (userId && t.bids?.[userId]) || null,
+      });
   return out;
+}
+
+/**
+ * Place (or confirm) a spectator's bid on a bot to win an in-progress league.
+ * One bid per user per league; can't change once set. Returns the backed bot or null.
+ */
+export function placeBotLeagueBid(
+  userId: string,
+  tournamentId: string,
+  botName: string
+): string | null {
+  const t = [...tournaments.values()].find((x) => x.id === tournamentId);
+  if (!t || !t.isBotLeague || t.phase !== 'in_progress') return null;
+  if (!t.players.some((p) => p.name === botName)) return null; // not a participant
+  t.bids ??= {};
+  if (t.bids[userId]) return t.bids[userId]; // already bid — locked in
+  t.bids[userId] = botName;
+  return botName;
 }
 
 /**
@@ -1048,6 +1085,16 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         });
       resetBotRankings();
       socket.emit('bot_rankings_reset');
+    });
+
+    // Back a bot to win an in-progress league. Free, one pick per league; pays
+    // out coins at finalize if the backed bot is champion.
+    socket.on('place_bid', ({ tournamentId, botName }) => {
+      if (!socket.data.userId) return socket.emit('error', { message: 'Log in to place a bid.' });
+      if (typeof botName !== 'string' || typeof tournamentId !== 'string') return;
+      const backed = placeBotLeagueBid(socket.data.userId, tournamentId, botName);
+      if (!backed) return socket.emit('error', { message: 'Could not place that bid.' });
+      socket.emit('bid_placed', { tournamentId, botName: backed });
     });
   });
 }

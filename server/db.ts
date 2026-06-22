@@ -436,8 +436,9 @@ export function saveToken(userId: string, token: string): void {
 
 // ─── Economy (coins + unlocks) ───────────────────────────────────────────────
 
-/** The store catalogue. Longer formats cost more; 1–3 over & 4-player are free. */
+/** The store catalogue. Longer formats cost more; 1–2 over & 4-player are free. */
 export const STORE_ITEMS: StoreItem[] = [
+  { id: 'over3', label: '3-Over Matches', description: 'Play the 3-over format (casual & tournaments).', price: 25 },
   { id: 'over5', label: '5-Over Matches', description: 'Play the 5-over format (casual & tournaments).', price: 50 },
   { id: 'over10', label: '10-Over Matches', description: 'Play the 10-over format (casual & tournaments).', price: 150 },
   { id: 'tourney8', label: '8-Player Tournaments', description: 'Host & join the bigger 8-player bracket.', price: 100 },
@@ -445,23 +446,37 @@ export const STORE_ITEMS: StoreItem[] = [
 ];
 
 /** Coins awarded for various actions. */
-export const COIN_REWARDS = { quickMatch: 5, tournamentMatch: 5, tournamentWinWithFriend: 20 };
+export const COIN_REWARDS = {
+  quickMatch: 5,
+  tournamentMatch: 5,
+  tournamentWinWithFriend: 20,
+  bidWin: 50,
+};
+
+/** The admin account (ADMIN_USERNAME) gets everything for free. */
+function isAdminUser(u: DbUser | null | undefined): boolean {
+  return !!process.env.ADMIN_USERNAME && u?.username === process.env.ADMIN_USERNAME;
+}
 
 export function getEconomy(userId: string): { coins: number; unlocks: string[] } {
   const u = load().users.find((x) => x.id === userId);
-  return { coins: u?.coins ?? 0, unlocks: u?.unlocks ?? [] };
+  if (!u) return { coins: 0, unlocks: [] };
+  // Admin owns everything (so the client shows no locks); others get their list.
+  return { coins: u.coins ?? 0, unlocks: isAdminUser(u) ? STORE_ITEMS.map((s) => s.id) : (u.unlocks ?? []) };
 }
 
-/** Whether a user owns a given unlock. Guests (no id) own nothing but the free tier. */
+/** Whether a user owns a given unlock. Guests own nothing; the admin owns all. */
 export function hasUnlock(userId: string | null | undefined, itemId: string): boolean {
   if (!userId) return false;
   const u = load().users.find((x) => x.id === userId);
-  return !!u?.unlocks?.includes(itemId);
+  if (!u) return false;
+  if (isAdminUser(u)) return true;
+  return !!u.unlocks?.includes(itemId);
 }
 
-/** The unlock id required to play a given over count, or null if it's free (1–3). */
+/** The unlock id required to play a given over count, or null if it's free (1–2). */
 export function overUnlockId(overs: number): string | null {
-  return overs === 5 ? 'over5' : overs === 10 ? 'over10' : null;
+  return overs === 3 ? 'over3' : overs === 5 ? 'over5' : overs === 10 ? 'over10' : null;
 }
 
 /** Credit (or debit) coins; clamped at 0. No-op for guests. */

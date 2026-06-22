@@ -39,10 +39,10 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const [pastView, setPastView] = useState<BotTournamentSummary | null>(null);
 
   const load = useCallback(() => {
-    apiGet<BotLeagueData>('/api/bot-league')
+    apiGet<BotLeagueData>('/api/bot-league', user?.token)
       .then(setData)
       .catch(() => {});
-  }, []);
+  }, [user?.token]);
 
   // Initial load + poll every 3s so live tournaments stay current.
   useEffect(() => {
@@ -72,13 +72,24 @@ export default function BotLeague({ socket, user, onClose }: Props) {
       load();
       setTimeout(() => setMsg(''), 4000);
     }
+    function onBid({ botName }: { botName: string }) {
+      setMsg(`Backed ${botName} — win 50 🪙 if they're champion!`);
+      load();
+      setTimeout(() => setMsg(''), 4000);
+    }
     socket.on('bot_league_started', onStarted);
     socket.on('bot_rankings_reset', onReset);
+    socket.on('bid_placed', onBid);
     return () => {
       socket.off('bot_league_started', onStarted);
       socket.off('bot_rankings_reset', onReset);
+      socket.off('bid_placed', onBid);
     };
   }, [socket, load]);
+
+  function handleBid(tournamentId: string, botName: string) {
+    socket.emit('place_bid', { tournamentId, botName });
+  }
 
   const rankings = data?.rankings[format] ?? [];
   const liveForFormat: BotLeagueActive | undefined = data?.active.find((a) => a.format === format);
@@ -180,7 +191,14 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               </div>
 
               {liveForFormat && (
-                <LiveCard active={liveForFormat} onWatch={() => setWatchingId(liveForFormat.id)} />
+                <>
+                  <LiveCard active={liveForFormat} onWatch={() => setWatchingId(liveForFormat.id)} />
+                  <BidPanel
+                    active={liveForFormat}
+                    user={user}
+                    onBid={(b) => handleBid(liveForFormat.id, b)}
+                  />
+                </>
               )}
 
               {!liveForFormat && recentForFormat && championName(recentForFormat) && (
@@ -363,6 +381,41 @@ function PastCard({ t, onView }: { t: BotTournamentSummary; onView: () => void }
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function BidPanel({
+  active,
+  user,
+  onBid,
+}: {
+  active: BotLeagueActive;
+  user: ClientUser | null;
+  onBid: (botName: string) => void;
+}) {
+  if (!user) {
+    return (
+      <div className={styles.bidNote}>🎟️ Log in to back a bot — win 50 🪙 if they take the title.</div>
+    );
+  }
+  if (active.myBid) {
+    return (
+      <div className={styles.bidNote}>
+        🎟️ You backed <strong>{active.myBid}</strong> — 50 🪙 if they win the league!
+      </div>
+    );
+  }
+  return (
+    <div className={styles.bidBox}>
+      <div className={styles.bidTitle}>🎟️ Back the champion — free · win 50 🪙</div>
+      <div className={styles.bidGrid}>
+        {active.state.players.map((p) => (
+          <button key={p.id} className={styles.bidBtn} onClick={() => onBid(p.name)}>
+            {p.name}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -54,7 +54,9 @@ export default function Lobby({
   const loggedIn = !!user;
   const unlocks = user?.unlocks ?? [];
   const overLocked = (o: number) =>
-    (o === 5 && !unlocks.includes('over5')) || (o === 10 && !unlocks.includes('over10'));
+    (o === 3 && !unlocks.includes('over3')) ||
+    (o === 5 && !unlocks.includes('over5')) ||
+    (o === 10 && !unlocks.includes('over10'));
 
   /** Render the overs selector with locks on premium formats (5/10). */
   function renderOvers(selected: number, set: (n: number) => void) {

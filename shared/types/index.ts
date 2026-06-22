@@ -187,6 +187,8 @@ export interface BotLeagueActive {
   id: string;
   format: number;
   state: TournamentState;
+  /** The requesting user's backed bot (bid) for this league, if any. */
+  myBid?: string | null;
 }
 
 /** One bot's group-stage line in a finished tournament's standings snapshot. */
@@ -530,6 +532,7 @@ export interface ServerToClientEvents {
   bot_rankings_reset: () => void;
   match_found: (p: MatchFoundPayload) => void;
   match_waiting: (p: MatchWaitingPayload) => void;
+  bid_placed: (p: { tournamentId: string; botName: string }) => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────
@@ -616,4 +619,5 @@ export interface ClientToServerEvents {
   reset_bot_rankings: () => void;
   find_match: (p: FindMatchPayload) => void;
   cancel_match: () => void;
+  place_bid: (p: { tournamentId: string; botName: string }) => void;
 }

@@ -176,6 +176,52 @@
   color: var(--muted);
   margin-top: 0.15rem;
 }
+/* ── Bidding ── */
+.bidNote {
+  background: #6366f118;
+  border: 1px solid #6366f144;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.82rem;
+  color: var(--text);
+  margin-bottom: 0.6rem;
+}
+.bidBox {
+  background: var(--surface2);
+  border: 1px solid #6366f144;
+  border-radius: 12px;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.6rem;
+}
+.bidTitle {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #a5b4fc;
+  margin-bottom: 0.45rem;
+}
+.bidGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+.bidBtn {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #6366f155;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bidBtn:hover {
+  background: #6366f128;
+  border-color: #6366f1;
+}
+
 .watchBtn {
   margin-top: 0.55rem;
   width: 100%;
