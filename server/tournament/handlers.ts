@@ -472,6 +472,8 @@ export function pushLiveScore(
     target: room.currentInnings === 1 ? room.innings[0].score + 1 : null,
     currentInnings: room.currentInnings + 1,
     lastBall,
+    tossWinnerName: room.tossWinnerName ?? '',
+    tossDecision: room.tossDecision ?? 'bat',
   };
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 }

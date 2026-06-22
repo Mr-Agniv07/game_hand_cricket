@@ -52,6 +52,14 @@
   gap: 1rem;
 }
 
+.toss-line {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-align: center;
+  margin-top: -0.2rem;
+}
+
 .innings {
   background: var(--surface2);
   border-radius: 10px;

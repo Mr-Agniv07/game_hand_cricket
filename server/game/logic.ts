@@ -81,6 +81,8 @@ function buildScorecard(room: Room): MatchScorecard {
       buildInningsCard(room.innings[0], inn1Batter, inn2Batter),
       buildInningsCard(room.innings[1], inn2Batter, inn1Batter),
     ],
+    ...(room.tossWinnerName ? { tossWinnerName: room.tossWinnerName } : {}),
+    ...(room.tossDecision ? { tossDecision: room.tossDecision } : {}),
   };
 }
 
@@ -639,6 +641,9 @@ export function applyBatBowlChoice(
     room.bowlerIdx = winnerIdx;
     room.batsmanIdx = otherIdx;
   }
+  // Remember the toss outcome for spectator/scorecard display.
+  room.tossWinnerName = room.players[winnerIdx].name;
+  room.tossDecision = choice;
 
   room.phase = 'innings';
   io.to(roomId).emit('innings_start', {

@@ -290,6 +290,10 @@ export interface InningsScorecard {
 
 export interface MatchScorecard {
   innings: InningsScorecard[];
+  /** Toss winner's name (absent on matches recorded before toss was captured). */
+  tossWinnerName?: string;
+  /** What the toss winner elected to do. */
+  tossDecision?: 'bat' | 'bowl';
 }
 
 export interface GameOverPayload {
@@ -402,6 +406,9 @@ export interface LiveMatchScore {
   target: number | null;
   currentInnings: number;
   lastBall: { scored: number; isOut: boolean; batsmanMove: number; bowlerMove: number } | null;
+  /** Who won the toss and what they chose, e.g. "Auto Sachin won the toss and elected to bat". */
+  tossWinnerName: string;
+  tossDecision: 'bat' | 'bowl';
 }
 
 export interface TournamentAwards {

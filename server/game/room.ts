@@ -40,6 +40,9 @@ export interface Room {
   tossWinnerId: string | null;
   batsmanIdx: number | null;
   bowlerIdx: number | null;
+  /** Toss winner's name and what they elected, captured once for spectator/scorecard display. */
+  tossWinnerName?: string;
+  tossDecision?: 'bat' | 'bowl';
   innings: [RoomInnings, RoomInnings];
   currentInnings: number;
   pendingMoves: Record<string, number>;

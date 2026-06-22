@@ -84,6 +84,11 @@ export default function Scorecard({
           </button>
         </div>
         <div className={styles.body}>
+          {scorecard.tossWinnerName && (
+            <div className={styles['toss-line']}>
+              🪙 {scorecard.tossWinnerName} won the toss and elected to {scorecard.tossDecision}
+            </div>
+          )}
           {scorecard.innings.map((inn, i) => (
             <Innings key={i} inn={inn} label={`Innings ${i + 1}`} />
           ))}

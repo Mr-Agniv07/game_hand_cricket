@@ -175,7 +175,7 @@ function PlaceholderRow({ label, p1, p2 }: { label: string; p1: string; p2: stri
 }
 
 function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
-  const { batsmanName, bowlerName, score, balls, wicketsLost, target, currentInnings, lastBall } =
+  const { batsmanName, bowlerName, score, balls, wicketsLost, target, currentInnings, lastBall, tossWinnerName, tossDecision } =
     liveScore;
   const oversDisplay = `${Math.floor(balls / 6)}.${balls % 6}`;
   const runsNeeded = target !== null ? target - score : null;
@@ -183,6 +183,11 @@ function SpectatorScore({ liveScore }: { liveScore: LiveMatchScore }) {
   return (
     <div className={`${styles['t-section']} ${styles['t-spectator']}`}>
       <div className={styles['t-section-title']}>Live — Innings {currentInnings}</div>
+      {tossWinnerName && (
+        <div className={styles['t-spec-toss']}>
+          🪙 {tossWinnerName} won the toss and elected to {tossDecision}
+        </div>
+      )}
       <div className={styles['t-spec-score']}>
         <span className={styles['t-spec-runs']}>{score}</span>
         <span className={styles['t-spec-sep']}>/</span>

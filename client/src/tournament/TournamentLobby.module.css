@@ -682,6 +682,13 @@
   font-weight: 600;
 }
 
+.t-spec-toss {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
 .t-spec-players {
   display: flex;
   gap: 1rem;
