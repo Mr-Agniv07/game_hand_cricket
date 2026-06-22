@@ -408,11 +408,20 @@ export function generateFixture(tournament: Tournament): void {
   });
 
   if (tournament.size === 8) {
-    // Randomly split the 8 into two groups of 4, single round-robin per group,
-    // interleaved so both groups progress together.
-    const order = shuffled(tournament.players.map((_, i) => i));
-    const groupA = order.slice(0, 4);
-    const groupB = order.slice(4, 8);
+    // Split the 8 into two groups of 4, single round-robin per group, interleaved
+    // so both groups progress together. Human tournaments draw randomly; a bot
+    // league seeds by rank (players arrive in rank order) — 1st/3rd/5th/7th to
+    // Group A, 2nd/4th/6th/8th to Group B, so the top seeds are kept apart.
+    let groupA: number[];
+    let groupB: number[];
+    if (tournament.isBotLeague) {
+      groupA = [0, 2, 4, 6];
+      groupB = [1, 3, 5, 7];
+    } else {
+      const order = shuffled(tournament.players.map((_, i) => i));
+      groupA = order.slice(0, 4);
+      groupB = order.slice(4, 8);
+    }
     tournament.groups = [groupA, groupB];
     const aPairs = doubleRoundRobin(groupA); // 12 (each pair twice)
     const bPairs = doubleRoundRobin(groupB); // 12
