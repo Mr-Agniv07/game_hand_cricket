@@ -192,6 +192,49 @@
   background: #ef444428;
 }
 
+/* ── Latest champion (panel) ── */
+.champ {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #fbbf2422, #f59e0b18);
+  border: 1px solid #fbbf2444;
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.86rem;
+}
+.champ strong {
+  color: #fbbf24;
+}
+.viewBtn {
+  flex-shrink: 0;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #fbbf2466;
+  border-radius: 8px;
+  background: transparent;
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+.viewBtn:hover {
+  background: #fbbf2418;
+}
+
+/* ── Champion banner (spectator overlay) ── */
+.champBanner {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #2a1a00;
+  font-weight: 800;
+  font-size: 1rem;
+  text-align: center;
+  padding: 0.6rem;
+  border-radius: 10px;
+  margin-bottom: 0.6rem;
+}
+
 /* ── Spectator overlay (full tournament view) ── */
 .specOverlay {
   position: fixed;

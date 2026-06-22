@@ -187,10 +187,13 @@ export interface BotLeagueActive {
   state: TournamentState;
 }
 
-/** Response of GET /api/bot-league: rankings per format + any live tournaments. */
+/** Response of GET /api/bot-league: rankings per format + live & just-finished leagues. */
 export interface BotLeagueData {
   rankings: { 5: BotRankingEntry[]; 10: BotRankingEntry[] };
+  /** In-progress bot leagues (drives the "LIVE" glow + live card). */
   active: BotLeagueActive[];
+  /** Recently-completed bot leagues still in memory, so the winner can be shown. */
+  recent: BotLeagueActive[];
 }
 
 // ─── Server → client event payloads ─────────────────────────────────────────

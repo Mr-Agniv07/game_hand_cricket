@@ -819,6 +819,19 @@ export function activeBotLeagues(): { id: string; format: number; state: Tournam
   return out;
 }
 
+/**
+ * Recently-completed bot leagues still held in memory (finalized tournaments are
+ * reaped after a grace window). Lets the client show the final standings and the
+ * champion's name after a league ends, instead of it vanishing instantly.
+ */
+export function recentBotLeagues(): { id: string; format: number; state: TournamentState }[] {
+  const out: { id: string; format: number; state: TournamentState }[] = [];
+  for (const t of tournaments.values())
+    if (t.isBotLeague && t.phase === 'complete')
+      out.push({ id: t.id, format: t.format ?? t.overs, state: publicTournamentState(t) });
+  return out;
+}
+
 // ─── Socket handlers ──────────────────────────────────────────────────────────
 
 export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Room>): void {

@@ -8,6 +8,13 @@ import type { ClientUser } from '../types';
 
 const noop = () => {};
 
+/** The champion bot's name for a finished league, or null if not decided yet. */
+function championName(a: BotLeagueActive): string | null {
+  const id = a.state.champion;
+  if (!id) return null;
+  return a.state.players.find((p) => p.id === id)?.name ?? null;
+}
+
 type Format = 5 | 10;
 
 interface Props {
@@ -68,8 +75,14 @@ export default function BotLeague({ socket, user, onClose }: Props) {
 
   const rankings = data?.rankings[format] ?? [];
   const liveForFormat: BotLeagueActive | undefined = data?.active.find((a) => a.format === format);
-  // The league being watched, refreshed from the latest poll (null once it ends).
-  const watching = watchingId ? data?.active.find((a) => a.id === watchingId) : undefined;
+  // Most recently finished league for this format (shows the winner once a league ends).
+  const recentForFormat: BotLeagueActive | undefined = data?.recent
+    .filter((a) => a.format === format)
+    .slice(-1)[0];
+  // The league being watched — live OR just-finished — refreshed from each poll.
+  const watching = watchingId
+    ? [...(data?.active ?? []), ...(data?.recent ?? [])].find((a) => a.id === watchingId)
+    : undefined;
 
   function handleStart() {
     if (starting || liveForFormat) return;
@@ -147,6 +160,21 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 <LiveCard active={liveForFormat} onWatch={() => setWatchingId(liveForFormat.id)} />
               )}
 
+              {!liveForFormat && recentForFormat && championName(recentForFormat) && (
+                <div className={styles.champ}>
+                  <span>
+                    🏆 <strong>{championName(recentForFormat)}</strong> won the latest {format}-over
+                    league
+                  </span>
+                  <button
+                    className={styles.viewBtn}
+                    onClick={() => setWatchingId(recentForFormat.id)}
+                  >
+                    View result
+                  </button>
+                </div>
+              )}
+
               <div className={styles.sectionTitle}>{format}-Over Rankings</div>
               <div className={styles.tableHead}>
                 <span className={styles.rank}>#</span>
@@ -185,7 +213,14 @@ export default function BotLeague({ socket, user, onClose }: Props) {
           <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
             <div className={styles.specHeader}>
               <h2>
-                <span className={styles.liveDot} /> Bot League · {watching.format} Over — Spectating
+                {watching.state.phase === 'complete' ? (
+                  <>🏆 Bot League · {watching.format} Over — Final Result</>
+                ) : (
+                  <>
+                    <span className={styles.liveDot} /> Bot League · {watching.format} Over —
+                    Spectating
+                  </>
+                )}
               </h2>
               <button
                 className={styles.close}
@@ -196,6 +231,11 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               </button>
             </div>
             <div className={styles.specBody}>
+              {championName(watching) && (
+                <div className={styles.champBanner}>
+                  🏆 Champion: <strong>{championName(watching)}</strong>
+                </div>
+              )}
               <TournamentLobby
                 tournamentState={watching.state}
                 myId={null}
