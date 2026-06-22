@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { apiGet } from '../api';
 import styles from './BotLeague.module.css';
 import TournamentLobby from '../tournament/TournamentLobby';
-import type { BotLeagueData, BotLeagueActive } from '@cric/types';
+import type { BotLeagueData, BotLeagueActive, BotTournamentSummary } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
 
@@ -83,6 +83,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const watching = watchingId
     ? [...(data?.active ?? []), ...(data?.recent ?? [])].find((a) => a.id === watchingId)
     : undefined;
+  const pastForFormat = (data?.history ?? []).filter((t) => t.format === format);
 
   function handleStart() {
     if (starting || liveForFormat) return;
@@ -203,6 +204,15 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               <p className={styles.qualNote}>
                 ⬅ Top 8 by rating qualify for the next league.
               </p>
+
+              {pastForFormat.length > 0 && (
+                <>
+                  <div className={styles.sectionTitle}>Past {format}-Over Tournaments</div>
+                  {pastForFormat.map((t, i) => (
+                    <PastCard key={`${t.finishedAt}-${i}`} t={t} />
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>
@@ -268,6 +278,39 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               </p>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PastCard({ t }: { t: BotTournamentSummary }) {
+  const [open, setOpen] = useState(false);
+  const date = new Date(t.finishedAt).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+  return (
+    <div className={styles.pastCard}>
+      <button className={styles.pastHead} onClick={() => setOpen((o) => !o)}>
+        <span className={styles.pastTrophy}>🏆</span>
+        <span className={styles.pastChamp}>{t.champion}</span>
+        <span className={styles.pastMeta}>
+          {t.runnerUp ? `def. ${t.runnerUp}` : ''} · {date}
+        </span>
+        <span className={styles.pastToggle}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className={styles.pastBody}>
+          {t.standings.map((s, i) => (
+            <div key={s.name} className={styles.pastRow}>
+              <span className={styles.pastRank}>{i + 1}</span>
+              <span className={styles.pastName}>{s.name}</span>
+              <span className={styles.pastWl}>
+                {s.won}W · {s.lost}L
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

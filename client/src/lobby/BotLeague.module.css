@@ -223,6 +223,75 @@
   background: #fbbf2418;
 }
 
+/* ── Past tournament cards ── */
+.pastCard {
+  background: var(--surface2);
+  border-radius: 10px;
+  margin-top: 0.4rem;
+  overflow: hidden;
+}
+.pastHead {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.pastTrophy {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.pastChamp {
+  font-weight: 800;
+  color: #fbbf24;
+  white-space: nowrap;
+}
+.pastMeta {
+  flex: 1;
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pastToggle {
+  font-size: 0.7rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.pastBody {
+  padding: 0.2rem 0.65rem 0.55rem;
+  border-top: 1px solid #ffffff10;
+}
+.pastRow {
+  display: grid;
+  grid-template-columns: 1.4rem 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0;
+  font-size: 0.78rem;
+}
+.pastRank {
+  text-align: center;
+  color: var(--muted);
+  font-weight: 700;
+}
+.pastName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pastWl {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Champion banner (spectator overlay) ── */
 .champBanner {
   background: linear-gradient(135deg, #fbbf24, #f59e0b);

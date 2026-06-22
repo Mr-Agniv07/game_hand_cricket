@@ -19,6 +19,7 @@ import {
   incrementAchievements,
   getBotRankings,
   recordBotTrophy,
+  recordBotTournament,
   resetBotRankings,
   findById,
 } from '../db.ts';
@@ -506,10 +507,32 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
   }
   tournament.awards = computeAwards(tournament);
   recordTournamentAchievements(tournament);
-  // Bot league: credit the champion bot a trophy in this format's rankings.
+  // Bot league: credit the champion a trophy and save a durable history record
+  // (champion, runner-up, final standings) so past winners survive restarts.
   if (tournament.isBotLeague && tournament.format && tournament.champion) {
     const champ = tournament.players.find((p) => p.id === tournament.champion);
-    if (champ) recordBotTrophy(champ.name, tournament.format);
+    if (champ) {
+      recordBotTrophy(champ.name, tournament.format);
+
+      const finalFix = tournament.fixtures.find((f) => f.stage === 'final');
+      let runnerUp: string | null = null;
+      if (finalFix) {
+        const fp1 = tournament.players[finalFix.player1Idx];
+        const fp2 = tournament.players[finalFix.player2Idx];
+        const loser = champ.id === fp1?.id ? fp2 : fp1;
+        runnerUp = loser?.name ?? null;
+      }
+
+      const standings = tournament.players
+        .map((p) => {
+          const e = tournament.pointsTable[p.id];
+          return { name: p.name, won: e?.won ?? 0, lost: e?.lost ?? 0, points: e?.points ?? 0 };
+        })
+        .sort((a, b) => b.points - a.points)
+        .map(({ name, won, lost }) => ({ name, won, lost }));
+
+      recordBotTournament({ format: tournament.format, champion: champ.name, runnerUp, standings });
+    }
   }
   const state = publicTournamentState(tournament);
   io.to('t:' + tournament.id).emit('tournament_state', state);

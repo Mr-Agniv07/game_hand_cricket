@@ -13,6 +13,8 @@ import type {
   GameRecord,
   HeadToHeadRecord,
   BotRankingEntry,
+  BotTournamentSummary,
+  BotTournamentStanding,
 } from '@cric/types';
 import { isBotName, BOT_NAMES } from './game/bot.ts';
 import type { Prisma } from '@prisma/client';
@@ -308,6 +310,28 @@ export async function initDb(): Promise<void> {
   } catch (err) {
     console.error(
       '[db] bot rankings unavailable (is the BotRanking migration applied?):',
+      (err as Error)?.message ?? err
+    );
+  }
+
+  // Past bot-league tournaments (history cards). Guarded like the rankings above.
+  try {
+    const past = await prisma.botTournament.findMany({
+      orderBy: { finishedAt: 'desc' },
+      take: BOT_HISTORY_CAP,
+    });
+    botTournaments.length = 0;
+    for (const t of past)
+      botTournaments.push({
+        format: t.format,
+        champion: t.champion,
+        runnerUp: t.runnerUp,
+        finishedAt: t.finishedAt.toISOString(),
+        standings: (t.standings as unknown as BotTournamentStanding[]) ?? [],
+      });
+  } catch (err) {
+    console.error(
+      '[db] bot tournament history unavailable (is the BotTournament migration applied?):',
       (err as Error)?.message ?? err
     );
   }
@@ -897,6 +921,46 @@ export function recordBotTrophy(botName: string, format: number): void {
   const row = getOrCreateBotRow(botName, format);
   row.trophies++;
   persistBotRow(row);
+}
+
+// Durable history of completed bot-league tournaments, newest first. Loaded at
+// boot and appended on each finalize; capped in memory (DB keeps everything).
+const botTournaments: BotTournamentSummary[] = [];
+const BOT_HISTORY_CAP = 50;
+
+/** Persist one completed bot-league tournament and cache it for the history view. */
+export function recordBotTournament(input: {
+  format: number;
+  champion: string;
+  runnerUp: string | null;
+  standings: BotTournamentStanding[];
+}): void {
+  const summary: BotTournamentSummary = {
+    format: input.format,
+    champion: input.champion,
+    runnerUp: input.runnerUp,
+    finishedAt: new Date().toISOString(),
+    standings: input.standings,
+  };
+  botTournaments.unshift(summary);
+  if (botTournaments.length > BOT_HISTORY_CAP) botTournaments.length = BOT_HISTORY_CAP;
+  persist(
+    prisma.botTournament.create({
+      data: {
+        format: input.format,
+        champion: input.champion,
+        runnerUp: input.runnerUp ?? undefined,
+        standings: input.standings as unknown as Prisma.InputJsonValue,
+        finishedAt: new Date(summary.finishedAt),
+      },
+    }),
+    'recordBotTournament'
+  );
+}
+
+/** Past completed bot tournaments (newest first), optionally filtered by format. */
+export function getBotTournaments(format?: number): BotTournamentSummary[] {
+  return format ? botTournaments.filter((t) => t.format === format) : botTournaments;
 }
 
 /** Ranked standings for a format: every roster bot, highest rating first. */

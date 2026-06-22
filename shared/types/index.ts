@@ -187,6 +187,22 @@ export interface BotLeagueActive {
   state: TournamentState;
 }
 
+/** One bot's group-stage line in a finished tournament's standings snapshot. */
+export interface BotTournamentStanding {
+  name: string;
+  won: number;
+  lost: number;
+}
+
+/** A durable record of one completed bot-league tournament (for the history cards). */
+export interface BotTournamentSummary {
+  format: number;
+  champion: string;
+  runnerUp: string | null;
+  finishedAt: string;
+  standings: BotTournamentStanding[];
+}
+
 /** Response of GET /api/bot-league: rankings per format + live & just-finished leagues. */
 export interface BotLeagueData {
   rankings: { 5: BotRankingEntry[]; 10: BotRankingEntry[] };
@@ -194,6 +210,8 @@ export interface BotLeagueData {
   active: BotLeagueActive[];
   /** Recently-completed bot leagues still in memory, so the winner can be shown. */
   recent: BotLeagueActive[];
+  /** Durable history of past completed tournaments (newest first), both formats. */
+  history: BotTournamentSummary[];
 }
 
 // ─── Server → client event payloads ─────────────────────────────────────────
