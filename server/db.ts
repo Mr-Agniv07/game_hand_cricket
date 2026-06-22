@@ -916,6 +916,9 @@ export function recordBotLeagueMatch(input: {
 export function resetBotRankings(): void {
   botRankings.clear();
   seedBotRankings(); // recreate every (bot, format) row at base + persist base values
+  // Also wipe past-tournament history — a ranking reset means a clean slate.
+  botTournaments.length = 0;
+  persist(prisma.botTournament.deleteMany({}), 'resetBotTournaments');
 }
 
 /** Award a bot-league trophy (a tournament title) to the winning bot for a format. */

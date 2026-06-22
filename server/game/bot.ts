@@ -87,21 +87,32 @@ const PERSONALITIES: Record<string, Personality> = {
   Hunter: { aggression: 0.6, adaptability: 0.95, volatility: 0.25, riskTolerance: 0.55, situationalIq: 0.7, memory: 1.0 },
   // 🧠 The scoreboard decides everything — cold, calculated, situational.
   Strategist: { aggression: 0.5, adaptability: 0.9, volatility: 0.2, riskTolerance: 0.5, situationalIq: 1.0, memory: 0.8, situational: true },
-  // 🧱 Lives at 1/2/3 — survival first, miserable to dislodge.
-  Wall: { aggression: 0.12, adaptability: 0.45, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.6, memory: 0.55 },
-  // 🛡️ Doesn't make mistakes — consistent, disciplined, low variance.
-  Guardian: { aggression: 0.3, adaptability: 0.6, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.8, memory: 0.7 },
+  // 🧱 Lives at 1/2/3 — survival first, miserable to dislodge. Now reads the
+  //    match a bit sharper (higher situationalIq) so it lifts the tempo when a
+  //    chase demands it, without abandoning its low-risk core.
+  Wall: { aggression: 0.12, adaptability: 0.45, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.78, memory: 0.55 },
+  // 🛡️ Doesn't make mistakes — consistent, disciplined, low variance. Tuned to
+  //    think more strategically (higher situationalIq) while staying patient.
+  Guardian: { aggression: 0.3, adaptability: 0.6, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.92, memory: 0.7 },
 };
 const STYLE_LABELS = Object.keys(PERSONALITIES);
 
+// Explicit name→style assignments that override the hash. Used to guarantee
+// coverage of styles the hash happens to skip: the hash left Guardian unused and
+// made three Aggressors, so the (aptly named) Wall-E Willow is pinned to Guardian.
+const STYLE_OVERRIDES: Record<string, string> = {
+  'Wall-E Willow': 'Guardian',
+};
+
 /**
- * Each bot name maps to ONE fixed personality, derived from a hash of the name.
- * Deterministic (a given bot always plays the same way, so players can learn it)
- * but opaque — the assignment isn't written down anywhere, so it stays a
- * surprise to discover through play. With more names than styles, some bots
- * share a style.
+ * Each bot name maps to ONE fixed personality. A few names are pinned explicitly
+ * (STYLE_OVERRIDES) to guarantee style coverage; the rest derive from a hash of
+ * the name — deterministic (a given bot always plays the same way, so players can
+ * learn it) but opaque, so it stays a surprise to discover through play.
  */
 function styleForName(name: string): string {
+  const pinned = STYLE_OVERRIDES[name];
+  if (pinned) return pinned;
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return STYLE_LABELS[h % STYLE_LABELS.length];
