@@ -22,6 +22,10 @@ import {
   recordBotTournament,
   resetBotRankings,
   findById,
+  hasUnlock,
+  overUnlockId,
+  addCoins,
+  COIN_REWARDS,
 } from '../db.ts';
 import type { UserAchievements } from '@cric/types';
 
@@ -551,6 +555,19 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
       });
     }
   }
+
+  // Coin reward: a registered champion earns coins for winning a (non-bot-league)
+  // tournament that included at least one of their friends.
+  if (!tournament.isBotLeague && tournament.champion) {
+    const champPlayer = tournament.players.find((p) => p.id === tournament.champion);
+    if (champPlayer?.userId) {
+      const friendIds = new Set(findById(champPlayer.userId)?.friends ?? []);
+      const hadFriend = tournament.players.some(
+        (p) => p.id !== champPlayer.id && p.userId && friendIds.has(p.userId)
+      );
+      if (hadFriend) addCoins(champPlayer.userId, COIN_REWARDS.tournamentWinWithFriend);
+    }
+  }
   const state = publicTournamentState(tournament);
   io.to('t:' + tournament.id).emit('tournament_state', state);
   io.to('t:' + tournament.id).emit('tournament_complete', {
@@ -877,6 +894,15 @@ export function recentBotLeagues(): { id: string; format: number; state: Tournam
 export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Room>): void {
   io.on('connection', (socket) => {
     socket.on('create_tournament', ({ playerName, overs, wickets, size }) => {
+      const ov = clampCount(overs, 2);
+      const sz = size === 8 ? 8 : 4;
+      // Economy gates: longer formats and the 8-player bracket must be unlocked.
+      const fmtItem = overUnlockId(ov);
+      if (fmtItem && !hasUnlock(socket.data.userId, fmtItem))
+        return socket.emit('error', { message: `Unlock the ${ov}-over format in the Store first.` });
+      if (sz === 8 && !hasUnlock(socket.data.userId, 'tourney8'))
+        return socket.emit('error', { message: 'Unlock 8-player tournaments in the Store first.' });
+
       // Reap a waiting lobby this socket abandoned (created one, went back, then
       // created another). Left behind, it lingers in the map with the same host
       // socket.id and shadows lookups for the new tournament. Only drop a solo
@@ -890,9 +916,9 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       const tournament: Tournament = {
         id: tournamentId,
         code,
-        overs: clampCount(overs, 2),
+        overs: ov,
         wickets: clampCount(wickets, 2),
-        size: size === 8 ? 8 : 4, // only 4 or 8 supported
+        size: sz, // only 4 or 8 supported
         groups: [],
         players: [
           {

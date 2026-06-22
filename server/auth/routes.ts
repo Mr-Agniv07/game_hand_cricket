@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { findByUsername, findById, createUser, getPlayerProfile, getAchievements } from '../db.ts';
+import {
+  findByUsername,
+  findById,
+  createUser,
+  getPlayerProfile,
+  getAchievements,
+  getEconomy,
+} from '../db.ts';
 import { hashPassword, verifyPassword, createToken, verifyTokenGetUserId } from './auth.ts';
 
 export const authRouter = Router();
@@ -16,7 +23,7 @@ authRouter.post('/api/signup', (req: Request, res: Response) => {
   const user = createUser(username.trim(), hashPassword(password));
   if (!user) return res.status(409).json({ error: 'Username already taken.' });
   const token = createToken(user.id);
-  res.json({ id: user.id, username: user.username, token, stats: user.stats });
+  res.json({ id: user.id, username: user.username, token, stats: user.stats, ...getEconomy(user.id) });
 });
 
 authRouter.post('/api/login', (req: Request, res: Response) => {
@@ -28,7 +35,7 @@ authRouter.post('/api/login', (req: Request, res: Response) => {
   if (!verifyPassword(password, user.passwordHash))
     return res.status(401).json({ error: 'Invalid username or password.' });
   const token = createToken(user.id);
-  res.json({ id: user.id, username: user.username, token, stats: user.stats });
+  res.json({ id: user.id, username: user.username, token, stats: user.stats, ...getEconomy(user.id) });
 });
 
 export interface AuthRequest extends Request {
@@ -55,6 +62,7 @@ authRouter.get('/api/me', requireAuth, (req: Request, res: Response) => {
     achievements: getAchievements(user.id),
     createdAt: user.createdAt,
     isAdmin: !!process.env.ADMIN_USERNAME && user.username === process.env.ADMIN_USERNAME,
+    ...getEconomy(user.id),
   });
 });
 

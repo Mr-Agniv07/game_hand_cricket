@@ -219,6 +219,20 @@ export interface BotLeagueData {
   history: BotTournamentSummary[];
 }
 
+/** A purchasable unlock in the coin store. */
+export interface StoreItem {
+  id: string;
+  label: string;
+  description: string;
+  price: number;
+}
+
+/** A player's coin balance + the store items they've unlocked. */
+export interface EconomyState {
+  coins: number;
+  unlocks: string[];
+}
+
 // ─── Server → client event payloads ─────────────────────────────────────────
 
 export interface RoomCreatedPayload {

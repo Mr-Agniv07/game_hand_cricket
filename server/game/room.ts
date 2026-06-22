@@ -53,6 +53,8 @@ export interface Room {
   tournamentMatchIdx?: number;
   /** Set when at least one player is a bot — enables bot driving + move tracking. */
   hasBot?: boolean;
+  /** Set for a Quick Match (random-pair) casual game — awards coins on completion. */
+  isQuickMatch?: boolean;
   /** Per-player-index frequency of each number played, for bot adaptation. */
   botMoveCounts?: Record<number, number[]>;
   /** Per-player-index live "brain" state a bot carries through the match:

@@ -43,6 +43,10 @@ model User {
   mostSixesAwards    Int @default(0)
   playerOfTournament Int @default(0)
 
+  // ── Economy ──
+  coins   Int      @default(0)
+  unlocks String[] @default([]) // store item ids the player has bought (e.g. "over5")
+
   matchHistory MatchHistory[]
   friendships  Friendship[]   @relation("UserFriendships")
 }

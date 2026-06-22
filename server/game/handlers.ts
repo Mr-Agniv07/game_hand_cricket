@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { Server, Socket, DefaultEventsMap } from 'socket.io';
 import type { ServerToClientEvents, ClientToServerEvents, RoomCreatedPayload } from '@cric/types';
-import { findById } from '../db.ts';
+import { findById, hasUnlock, overUnlockId, addCoins, COIN_REWARDS } from '../db.ts';
 import { verifyTokenGetUserId } from '../auth/auth.ts';
 import {
   type Room,
@@ -70,8 +70,20 @@ function removeFromQueue(socketId: string): void {
   }
 }
 
+/** True (and emits an error) if this socket hasn't unlocked the requested over count. */
+function formatLocked(socket: GameSocket, overs: number): boolean {
+  const item = overUnlockId(overs);
+  if (item && !hasUnlock(socket.data.userId, item)) {
+    socket.emit('error', { message: `Unlock the ${overs}-over format in the Store to play it.` });
+    return true;
+  }
+  return false;
+}
+
 // The taunt emojis players can send in a match (server validates against this).
 const ALLOWED_EMOTES = new Set(['😎', '🔥', '😂', '🧊', '👏', '😱', '🤡', '💪']);
+// Free to everyone; the rest need the 'emotes' unlock.
+const FREE_EMOTES = new Set(['😎', '🔥', '😂', '🧊']);
 const EMOTE_COOLDOWN_MS = 800;
 
 export function registerGameHandlers(io: GameServer): void {
@@ -89,9 +101,11 @@ export function registerGameHandlers(io: GameServer): void {
 
     socket.on('create_room', ({ playerName, overs, wickets }) => {
       removeFromQueue(socket.id);
+      const ov = clampCount(overs, 1);
+      if (formatLocked(socket, ov)) return;
       const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
-      const room = createRoom(clampCount(overs, 1), clampCount(wickets, 1));
+      const room = createRoom(ov, clampCount(wickets, 1));
       room.players.push({ id: socket.id, name, userId: socket.data.userId, clientId: socket.data.clientId });
       rooms.set(roomId, room);
       socket.join(roomId);
@@ -103,9 +117,11 @@ export function registerGameHandlers(io: GameServer): void {
 
     socket.on('play_vs_bot', ({ playerName, overs, wickets }) => {
       removeFromQueue(socket.id);
+      const ov = clampCount(overs, 1);
+      if (formatLocked(socket, ov)) return;
       const name = cleanName(playerName);
       const roomId = makeRoomId(rooms);
-      const room = createRoom(clampCount(overs, 1), clampCount(wickets, 1));
+      const room = createRoom(ov, clampCount(wickets, 1));
       room.hasBot = true;
       room.players.push({ id: socket.id, name, userId: socket.data.userId, clientId: socket.data.clientId });
       room.players.push(makeBotPlayer([name]));
@@ -132,6 +148,7 @@ export function registerGameHandlers(io: GameServer): void {
       const name = cleanName(playerName);
       const ov = clampCount(overs, 2);
       const wk = clampCount(wickets, 2);
+      if (formatLocked(socket, ov)) return;
       const key = `${ov}|${wk}`;
 
       removeFromQueue(socket.id); // dedupe double-clicks / mode switches
@@ -166,6 +183,7 @@ export function registerGameHandlers(io: GameServer): void {
       opp.sock.data.matchKey = undefined;
       const roomId = makeRoomId(rooms);
       const room = createRoom(ov, wk);
+      room.isQuickMatch = true; // earns coins on completion
       room.players.push({ id: opp.entry.socketId, name: opp.entry.name, userId: opp.entry.userId, clientId: opp.entry.clientId });
       room.players.push({ id: socket.id, name, userId: socket.data.userId, clientId: socket.data.clientId });
       rooms.set(roomId, room);
@@ -259,6 +277,8 @@ export function registerGameHandlers(io: GameServer): void {
 
     socket.on('send_emote', ({ emote }) => {
       if (typeof emote !== 'string' || !ALLOWED_EMOTES.has(emote)) return;
+      // Premium emotes require the unlock (the client hides them otherwise).
+      if (!FREE_EMOTES.has(emote) && !hasUnlock(socket.data.userId, 'emotes')) return;
       const roomId = socket.data.roomId;
       if (!roomId || !rooms.has(roomId)) return;
       // Per-socket rate limit so a custom client can't spam the room.

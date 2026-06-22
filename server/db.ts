@@ -16,6 +16,7 @@ import type {
   BotTournamentSummary,
   BotTournamentStanding,
   TournamentState,
+  StoreItem,
 } from '@cric/types';
 import { isBotName, BOT_NAMES } from './game/bot.ts';
 import type { Prisma } from '@prisma/client';
@@ -149,6 +150,8 @@ export interface DbUser {
   matchHistory: MatchHistoryEntry[];
   friends?: string[];
   createdAt: string;
+  coins: number;
+  unlocks: string[];
 }
 
 interface CacheShape {
@@ -187,6 +190,8 @@ function rowToDbUser(u: {
   purpleCaps: number;
   mostSixesAwards: number;
   playerOfTournament: number;
+  coins: number;
+  unlocks: string[];
   matchHistory?: Array<{
     opponent: string;
     result: string;
@@ -242,6 +247,8 @@ function rowToDbUser(u: {
       }))
       .reverse(),
     friends: (u.friendships ?? []).map((f) => f.friendId),
+    coins: u.coins,
+    unlocks: u.unlocks ?? [],
   };
 }
 
@@ -407,6 +414,8 @@ export function createUser(username: string, passwordHash: string): DbUser | nul
     matchHistory: [],
     friends: [],
     createdAt: new Date().toISOString(),
+    coins: 0,
+    unlocks: [],
   };
   db.users.push(user);
   persist(
@@ -423,6 +432,66 @@ export function saveToken(userId: string, token: string): void {
   if (!user) return;
   user.token = token;
   persist(prisma.user.update({ where: { id: userId }, data: { token } }), 'saveToken');
+}
+
+// ─── Economy (coins + unlocks) ───────────────────────────────────────────────
+
+/** The store catalogue. Longer formats cost more; 1–3 over & 4-player are free. */
+export const STORE_ITEMS: StoreItem[] = [
+  { id: 'over5', label: '5-Over Matches', description: 'Play the 5-over format (casual & tournaments).', price: 50 },
+  { id: 'over10', label: '10-Over Matches', description: 'Play the 10-over format (casual & tournaments).', price: 150 },
+  { id: 'tourney8', label: '8-Player Tournaments', description: 'Host & join the bigger 8-player bracket.', price: 100 },
+  { id: 'emotes', label: 'Full Emote Pack', description: 'Unlock every in-match taunt emote.', price: 40 },
+];
+
+/** Coins awarded for various actions. */
+export const COIN_REWARDS = { quickMatch: 5, tournamentMatch: 5, tournamentWinWithFriend: 20 };
+
+export function getEconomy(userId: string): { coins: number; unlocks: string[] } {
+  const u = load().users.find((x) => x.id === userId);
+  return { coins: u?.coins ?? 0, unlocks: u?.unlocks ?? [] };
+}
+
+/** Whether a user owns a given unlock. Guests (no id) own nothing but the free tier. */
+export function hasUnlock(userId: string | null | undefined, itemId: string): boolean {
+  if (!userId) return false;
+  const u = load().users.find((x) => x.id === userId);
+  return !!u?.unlocks?.includes(itemId);
+}
+
+/** The unlock id required to play a given over count, or null if it's free (1–3). */
+export function overUnlockId(overs: number): string | null {
+  return overs === 5 ? 'over5' : overs === 10 ? 'over10' : null;
+}
+
+/** Credit (or debit) coins; clamped at 0. No-op for guests. */
+export function addCoins(userId: string | null | undefined, amount: number): void {
+  if (!userId || amount === 0) return;
+  const u = load().users.find((x) => x.id === userId);
+  if (!u) return;
+  u.coins = Math.max(0, (u.coins ?? 0) + amount);
+  persist(prisma.user.update({ where: { id: userId }, data: { coins: u.coins } }), 'addCoins');
+}
+
+/** Buy a store item: validates balance + ownership, then deducts and records it. */
+export function unlockItem(
+  userId: string,
+  itemId: string
+): { ok: boolean; error?: string; coins: number; unlocks: string[] } {
+  const u = load().users.find((x) => x.id === userId);
+  if (!u) return { ok: false, error: 'User not found.', coins: 0, unlocks: [] };
+  const item = STORE_ITEMS.find((s) => s.id === itemId);
+  if (!item) return { ok: false, error: 'Unknown item.', coins: u.coins, unlocks: u.unlocks };
+  if (u.unlocks.includes(itemId)) return { ok: true, coins: u.coins, unlocks: u.unlocks };
+  if ((u.coins ?? 0) < item.price)
+    return { ok: false, error: 'Not enough coins.', coins: u.coins, unlocks: u.unlocks };
+  u.coins -= item.price;
+  u.unlocks = [...u.unlocks, itemId];
+  persist(
+    prisma.user.update({ where: { id: userId }, data: { coins: u.coins, unlocks: u.unlocks } }),
+    'unlockItem'
+  );
+  return { ok: true, coins: u.coins, unlocks: u.unlocks };
 }
 
 // ─── Friends ────────────────────────────────────────────────────────────────────

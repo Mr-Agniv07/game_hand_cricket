@@ -9,6 +9,7 @@ import { friendsRouter } from './friends/routes.ts';
 import { leaderboardRouter } from './leaderboard/routes.ts';
 import { recordsRouter } from './records/routes.ts';
 import { botLeagueRouter } from './botleague/routes.ts';
+import { economyRouter } from './economy/routes.ts';
 import { registerGameHandlers } from './game/handlers.ts';
 import { initDb } from './db.ts';
 import type { SocketData } from './game/types.ts';
@@ -32,6 +33,7 @@ app.use(friendsRouter);
 app.use(leaderboardRouter);
 app.use(recordsRouter);
 app.use(botLeagueRouter);
+app.use(economyRouter);
 registerGameHandlers(io);
 
 const PORT = process.env.PORT || 3001;

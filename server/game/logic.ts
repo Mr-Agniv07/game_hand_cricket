@@ -7,7 +7,14 @@ import type {
   InningsScorecard,
   MatchScorecard,
 } from '@cric/types';
-import { updateGameStats, recordBalls, recordInnings, recordBotLeagueMatch } from '../db.ts';
+import {
+  updateGameStats,
+  recordBalls,
+  recordInnings,
+  recordBotLeagueMatch,
+  addCoins,
+  COIN_REWARDS,
+} from '../db.ts';
 import {
   type Room,
   type RoomInnings,
@@ -394,6 +401,12 @@ export function endInnings(
       },
     ]);
 
+    // Quick Match reward: both human players earn coins for finishing a random
+    // online game (random pairing makes this hard to farm).
+    if (room.isQuickMatch) {
+      for (const p of room.players) if (!isBot(p)) addCoins(p.userId, COIN_REWARDS.quickMatch);
+    }
+
     // Update tournament if this is a tournament match.
     // At game over: room.bowlerIdx batted in innings 1; room.batsmanIdx batted in innings 2.
     if (room.tournamentId !== undefined && room.tournamentMatchIdx !== undefined) {
@@ -428,6 +441,14 @@ export function endInnings(
               bScore: fixture.p2Score,
               result: fixture.result === 'p1' ? 'a' : fixture.result === 'p2' ? 'b' : 'tie',
             });
+          }
+
+          // Tournament coins: each registered human earns coins for a match played
+          // against another human (bot opponents skipped, to deter farming).
+          const [pa, pb] = room.players;
+          if (!isBot(pa) && !isBot(pb)) {
+            addCoins(pa.userId, COIN_REWARDS.tournamentMatch);
+            addCoins(pb.userId, COIN_REWARDS.tournamentMatch);
           }
 
           // Feed the global record book — tournament matches only, and never the
