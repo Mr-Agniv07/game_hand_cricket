@@ -197,6 +197,8 @@ export interface BotTournamentStanding {
 /** A durable record of one completed bot-league tournament (for the history cards). */
 export interface BotTournamentSummary {
   format: number;
+  /** Sequential display name per format, e.g. "Bot League 5#3". */
+  name: string;
   champion: string;
   runnerUp: string | null;
   finishedAt: string;

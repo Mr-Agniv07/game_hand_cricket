@@ -279,18 +279,37 @@
   font-size: 1rem;
   flex-shrink: 0;
 }
-.pastChamp {
+.pastInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.pastTitle {
   font-weight: 800;
-  color: #fbbf24;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pastChamp {
+  font-weight: 700;
+  color: #fbbf24;
+}
 .pastMeta {
-  flex: 1;
   font-size: 0.72rem;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.resultTitle {
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #fbbf24;
+  padding: 0.5rem 0 0.2rem;
 }
 .pastToggle {
   font-size: 0.7rem;

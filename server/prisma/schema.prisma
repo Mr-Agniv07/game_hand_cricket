@@ -150,6 +150,7 @@ model BotRanking {
 model BotTournament {
   id         Int      @id @default(autoincrement())
   format     Int // 5 or 10 (overs)
+  name       String? // sequential display name, e.g. "Bot League 5#3" (backfilled at boot)
   champion   String // winning bot name
   runnerUp   String? // losing finalist bot name
   standings  Json // [{ name, won, lost }] ordered by group points

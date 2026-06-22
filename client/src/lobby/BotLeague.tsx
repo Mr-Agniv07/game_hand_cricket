@@ -302,7 +302,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
 
       {/* Full detail of a past tournament: group standings + knockouts. */}
       {pastView?.state && (
-        <ResultOverlay state={pastView.state} onClose={() => setPastView(null)} />
+        <ResultOverlay state={pastView.state} title={pastView.name} onClose={() => setPastView(null)} />
       )}
     </div>
   );
@@ -313,13 +313,22 @@ export default function BotLeague({ socket, user, onClose }: Props) {
  * TournamentResult (group standings + knockouts), with awards stripped (bot
  * leagues don't surface achievements) and no "you" highlighting.
  */
-function ResultOverlay({ state, onClose }: { state: TournamentState; onClose: () => void }) {
+function ResultOverlay({
+  state,
+  title,
+  onClose,
+}: {
+  state: TournamentState;
+  title?: string;
+  onClose: () => void;
+}) {
   return (
     <div className={styles.specOverlay} onClick={onClose}>
       <button className={styles.resultClose} onClick={onClose} aria-label="Close">
         ✕
       </button>
       <div className={styles.resultWrap} onClick={(e) => e.stopPropagation()}>
+        {title && <div className={styles.resultTitle}>🏆 {title}</div>}
         <TournamentResult tournamentState={{ ...state, awards: null }} myId={null} onLeave={onClose} />
       </div>
     </div>
@@ -337,9 +346,12 @@ function PastCard({ t, onView }: { t: BotTournamentSummary; onView: () => void }
     <div className={styles.pastCard}>
       <button className={styles.pastHead} onClick={hasFull ? onView : () => setOpen((o) => !o)}>
         <span className={styles.pastTrophy}>🏆</span>
-        <span className={styles.pastChamp}>{t.champion}</span>
-        <span className={styles.pastMeta}>
-          {t.runnerUp ? `def. ${t.runnerUp}` : ''} · {date}
+        <span className={styles.pastInfo}>
+          <span className={styles.pastTitle}>{t.name}</span>
+          <span className={styles.pastMeta}>
+            <span className={styles.pastChamp}>{t.champion}</span>
+            {t.runnerUp ? ` def. ${t.runnerUp}` : ''} · {date}
+          </span>
         </span>
         <span className={styles.pastToggle}>{hasFull ? '⤢' : open ? '▲' : '▼'}</span>
       </button>

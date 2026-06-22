@@ -316,15 +316,28 @@ export async function initDb(): Promise<void> {
   }
 
   // Past bot-league tournaments (history cards). Guarded like the rankings above.
+  // Load oldest-first to (re)derive each format's sequential name + count, then
+  // keep the newest BOT_HISTORY_CAP for the in-memory cache. Names missing or
+  // wrong are backfilled in place — this self-heals legacy rows on first boot.
   try {
-    const past = await prisma.botTournament.findMany({
-      orderBy: { finishedAt: 'desc' },
-      take: BOT_HISTORY_CAP,
-    });
+    const all = await prisma.botTournament.findMany({ orderBy: { finishedAt: 'asc' } });
+    for (const f of BOT_FORMATS) botTournamentCount[f] = 0;
+    for (const t of all) {
+      const seq = (botTournamentCount[t.format] = (botTournamentCount[t.format] ?? 0) + 1);
+      const want = botLeagueName(t.format, seq);
+      if (t.name !== want) {
+        t.name = want; // fix the local copy used below
+        persist(
+          prisma.botTournament.update({ where: { id: t.id }, data: { name: want } }),
+          'backfillBotTournamentName'
+        );
+      }
+    }
     botTournaments.length = 0;
-    for (const t of past)
+    for (const t of [...all].reverse().slice(0, BOT_HISTORY_CAP))
       botTournaments.push({
         format: t.format,
+        name: t.name ?? botLeagueName(t.format, 0),
         champion: t.champion,
         runnerUp: t.runnerUp,
         finishedAt: t.finishedAt.toISOString(),
@@ -916,8 +929,10 @@ export function recordBotLeagueMatch(input: {
 export function resetBotRankings(): void {
   botRankings.clear();
   seedBotRankings(); // recreate every (bot, format) row at base + persist base values
-  // Also wipe past-tournament history — a ranking reset means a clean slate.
+  // Also wipe past-tournament history — a ranking reset means a clean slate, and
+  // the per-format sequence restarts from #1.
   botTournaments.length = 0;
+  for (const f of BOT_FORMATS) botTournamentCount[f] = 0;
   persist(prisma.botTournament.deleteMany({}), 'resetBotTournaments');
 }
 
@@ -932,6 +947,11 @@ export function recordBotTrophy(botName: string, format: number): void {
 // boot and appended on each finalize; capped in memory (DB keeps everything).
 const botTournaments: BotTournamentSummary[] = [];
 const BOT_HISTORY_CAP = 50;
+// Total completed tournaments per format (the sequence number for naming, e.g.
+// "Bot League 5#3"). Loaded at boot, incremented per finalize, reset on reset.
+const botTournamentCount: Record<number, number> = {};
+
+const botLeagueName = (format: number, seq: number) => `Bot League ${format}#${seq}`;
 
 /** Persist one completed bot-league tournament and cache it for the history view. */
 export function recordBotTournament(input: {
@@ -941,8 +961,10 @@ export function recordBotTournament(input: {
   standings: BotTournamentStanding[];
   state: TournamentState;
 }): void {
+  const seq = (botTournamentCount[input.format] = (botTournamentCount[input.format] ?? 0) + 1);
   const summary: BotTournamentSummary = {
     format: input.format,
+    name: botLeagueName(input.format, seq),
     champion: input.champion,
     runnerUp: input.runnerUp,
     finishedAt: new Date().toISOString(),
@@ -955,6 +977,7 @@ export function recordBotTournament(input: {
     prisma.botTournament.create({
       data: {
         format: input.format,
+        name: summary.name,
         champion: input.champion,
         runnerUp: input.runnerUp ?? undefined,
         standings: input.standings as unknown as Prisma.InputJsonValue,
