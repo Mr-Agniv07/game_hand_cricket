@@ -37,6 +37,13 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const [msg, setMsg] = useState('');
   const [watchingId, setWatchingId] = useState<string | null>(null);
   const [pastView, setPastView] = useState<BotTournamentSummary | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  // Tick once a second for the bidding countdown.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const load = useCallback(() => {
     apiGet<BotLeagueData>('/api/bot-league', user?.token)
@@ -190,16 +197,34 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 </div>
               </div>
 
-              {liveForFormat && (
-                <>
-                  <LiveCard active={liveForFormat} onWatch={() => setWatchingId(liveForFormat.id)} />
-                  <BidPanel
-                    active={liveForFormat}
-                    user={user}
-                    onBid={(b) => handleBid(liveForFormat.id, b)}
-                  />
-                </>
-              )}
+              {liveForFormat &&
+                (liveForFormat.state.phase === 'waiting' ? (
+                  <>
+                    <div className={styles.bidWindow}>
+                      ⏳ Bidding open — {format}-over league starts in{' '}
+                      <strong>{fmtCountdown(liveForFormat.bidsCloseAt, now)}</strong>
+                    </div>
+                    <BidPanel
+                      active={liveForFormat}
+                      user={user}
+                      biddingOpen
+                      onBid={(b) => handleBid(liveForFormat.id, b)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <LiveCard
+                      active={liveForFormat}
+                      onWatch={() => setWatchingId(liveForFormat.id)}
+                    />
+                    <BidPanel
+                      active={liveForFormat}
+                      user={user}
+                      biddingOpen={false}
+                      onBid={(b) => handleBid(liveForFormat.id, b)}
+                    />
+                  </>
+                ))}
 
               {!liveForFormat && recentForFormat && championName(recentForFormat) && (
                 <div className={styles.champ}>
@@ -385,25 +410,36 @@ function PastCard({ t, onView }: { t: BotTournamentSummary; onView: () => void }
   );
 }
 
+/** mm:ss until `closeAt`, or 0:00. */
+function fmtCountdown(closeAt: number | null | undefined, now: number): string {
+  const s = closeAt ? Math.max(0, Math.floor((closeAt - now) / 1000)) : 0;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 function BidPanel({
   active,
   user,
+  biddingOpen,
   onBid,
 }: {
   active: BotLeagueActive;
   user: ClientUser | null;
+  biddingOpen: boolean;
   onBid: (botName: string) => void;
 }) {
-  if (!user) {
-    return (
-      <div className={styles.bidNote}>🎟️ Log in to back a bot — win 50 🪙 if they take the title.</div>
-    );
-  }
   if (active.myBid) {
     return (
       <div className={styles.bidNote}>
         🎟️ You backed <strong>{active.myBid}</strong> — 50 🪙 if they win the league!
       </div>
+    );
+  }
+  if (!biddingOpen) {
+    return <div className={styles.bidNote}>🎟️ Bidding closed — the league is underway.</div>;
+  }
+  if (!user) {
+    return (
+      <div className={styles.bidNote}>🎟️ Log in to back a bot — win 50 🪙 if they take the title.</div>
     );
   }
   return (

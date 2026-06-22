@@ -101,6 +101,8 @@ export interface Tournament {
   format?: number;
   /** Spectator bids on the champion: userId → backed bot name (bot leagues only). */
   bids?: Record<string, string>;
+  /** Epoch ms when the pre-match bidding window closes (bot leagues only). */
+  bidsCloseAt?: number;
 }
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -837,10 +839,14 @@ function beginTournamentMatch(
 
 // ─── Bot league ───────────────────────────────────────────────────────────────
 
+/** How long bidding stays open before a started bot league actually plays. */
+const BOT_LEAGUE_BID_WINDOW_MS = 5 * 60_000;
+
 /**
  * Launch an admin-triggered all-bot league for a format (5 or 10 overs): field
- * the current top-8 ranked bots into an 8-team tournament that runs itself (no
- * human host). Spectators watch via the polled public state. Returns the new
+ * the current top-8 ranked bots into an 8-team tournament. The teams are decided
+ * up front and the league sits in a 5-minute BIDDING window before any match is
+ * played; when the window closes it runs itself (no human host). Returns the new
  * tournament, or null if one for this format is already running / not enough bots.
  */
 export function startBotLeague(
@@ -849,7 +855,7 @@ export function startBotLeague(
   format: number
 ): Tournament | null {
   const fmt = Number(format) === 10 ? 10 : 5;
-  // Only one live league per format at a time.
+  // Only one live league per format at a time (incl. the bidding window).
   for (const t of tournaments.values())
     if (t.isBotLeague && t.format === fmt && t.phase !== 'complete') return null;
 
@@ -864,26 +870,41 @@ export function startBotLeague(
     size: 8,
     groups: [],
     players: top8.map((r) => makeBotPlayerNamed(r.botName)),
-    phase: 'in_progress',
+    phase: 'waiting', // bidding window — no matches yet
     fixtures: [],
     currentMatchIndex: 0,
     pointsTable: {},
     liveScore: null,
     isBotLeague: true,
     format: fmt,
+    bidsCloseAt: Date.now() + BOT_LEAGUE_BID_WINDOW_MS,
   };
   tournaments.set(tournament.code, tournament);
-  generateFixture(tournament);
+  generateFixture(tournament); // teams + groups known up front, so spectators can bid
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
-  startTournamentMatch(io, rooms, tournament, 0);
+
+  // After the bidding window, kick the matches off.
+  setTimeout(() => {
+    if (tournaments.get(tournament.code) !== tournament || tournament.phase !== 'waiting') return;
+    tournament.phase = 'in_progress';
+    io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+    startTournamentMatch(io, rooms, tournament, 0);
+  }, BOT_LEAGUE_BID_WINDOW_MS);
+
   return tournament;
 }
 
-/** In-progress bot leagues, as lightweight spectator summaries (incl. the viewer's bid). */
-export function activeBotLeagues(
-  userId?: string | null
-): { id: string; format: number; state: TournamentState; myBid: string | null }[] {
-  const out: { id: string; format: number; state: TournamentState; myBid: string | null }[] = [];
+type ActiveBotLeague = {
+  id: string;
+  format: number;
+  state: TournamentState;
+  myBid: string | null;
+  bidsCloseAt: number | null;
+};
+
+/** Live + bidding-window bot leagues, as spectator summaries (incl. the viewer's bid). */
+export function activeBotLeagues(userId?: string | null): ActiveBotLeague[] {
+  const out: ActiveBotLeague[] = [];
   for (const t of tournaments.values())
     if (t.isBotLeague && t.phase !== 'complete')
       out.push({
@@ -891,13 +912,15 @@ export function activeBotLeagues(
         format: t.format ?? t.overs,
         state: publicTournamentState(t),
         myBid: (userId && t.bids?.[userId]) || null,
+        bidsCloseAt: t.bidsCloseAt ?? null,
       });
   return out;
 }
 
 /**
- * Place (or confirm) a spectator's bid on a bot to win an in-progress league.
- * One bid per user per league; can't change once set. Returns the backed bot or null.
+ * Place (or confirm) a spectator's bid on a bot to win a league. Only allowed
+ * during the pre-match bidding window (phase 'waiting'); one bid per user per
+ * league, locked in once set. Returns the backed bot, or null if not allowed.
  */
 export function placeBotLeagueBid(
   userId: string,
@@ -905,7 +928,7 @@ export function placeBotLeagueBid(
   botName: string
 ): string | null {
   const t = [...tournaments.values()].find((x) => x.id === tournamentId);
-  if (!t || !t.isBotLeague || t.phase !== 'in_progress') return null;
+  if (!t || !t.isBotLeague || t.phase !== 'waiting') return null; // window closed / not a league
   if (!t.players.some((p) => p.name === botName)) return null; // not a participant
   t.bids ??= {};
   if (t.bids[userId]) return t.bids[userId]; // already bid — locked in

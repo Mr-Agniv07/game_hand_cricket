@@ -189,6 +189,8 @@ export interface BotLeagueActive {
   state: TournamentState;
   /** The requesting user's backed bot (bid) for this league, if any. */
   myBid?: string | null;
+  /** Epoch ms when bidding closes & matches begin; null once underway. */
+  bidsCloseAt?: number | null;
 }
 
 /** One bot's group-stage line in a finished tournament's standings snapshot. */

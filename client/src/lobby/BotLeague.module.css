@@ -177,6 +177,20 @@
   margin-top: 0.15rem;
 }
 /* ── Bidding ── */
+.bidWindow {
+  background: linear-gradient(135deg, #6366f128, #818cf818);
+  border: 1px solid #6366f155;
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.6rem;
+}
+.bidWindow strong {
+  color: #a5b4fc;
+  font-variant-numeric: tabular-nums;
+}
 .bidNote {
   background: #6366f118;
   border: 1px solid #6366f144;
