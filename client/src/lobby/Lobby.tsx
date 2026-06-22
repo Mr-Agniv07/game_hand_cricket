@@ -20,9 +20,16 @@ interface LobbyProps {
   onJoinRoom: (code: string, playerName: string) => void;
   defaultName?: string;
   user?: ClientUser | null;
+  onOpenStore: () => void;
 }
 
-export default function Lobby({ socket, onJoinRoom, defaultName = '', user = null }: LobbyProps) {
+export default function Lobby({
+  socket,
+  onJoinRoom,
+  defaultName = '',
+  user = null,
+  onOpenStore,
+}: LobbyProps) {
   const [tab, setTab] = useState<LobbyTab>('create');
   const [name, setName] = useState(defaultName);
   const [overs, setOvers] = useState(2);
@@ -45,6 +52,28 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
   const searchingRef = useRef(false);
 
   const loggedIn = !!user;
+  const unlocks = user?.unlocks ?? [];
+  const overLocked = (o: number) =>
+    (o === 5 && !unlocks.includes('over5')) || (o === 10 && !unlocks.includes('over10'));
+
+  /** Render the overs selector with locks on premium formats (5/10). */
+  function renderOvers(selected: number, set: (n: number) => void) {
+    return OVER_OPTIONS.map((o) => {
+      const locked = overLocked(o);
+      return (
+        <button
+          key={o}
+          type="button"
+          className={`over-btn${selected === o ? ' selected' : ''}${locked ? ' over-locked' : ''}`}
+          onClick={() => (locked ? onOpenStore() : set(o))}
+          title={locked ? 'Unlock this format in the Store' : ''}
+        >
+          {o}
+          {locked ? ' 🔒' : ''}
+        </button>
+      );
+    });
+  }
 
   // ── Quick Match ──────────────────────────────────────────────────────────
   function setSearchingState(on: boolean) {
@@ -217,18 +246,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               )}
               <h3 className={styles['mode-title']}>Find a random opponent</h3>
               <label>Number of Overs</label>
-              <div className="over-options">
-                {OVER_OPTIONS.map((o) => (
-                  <button
-                    key={o}
-                    type="button"
-                    className={qOvers === o ? 'over-btn selected' : 'over-btn'}
-                    onClick={() => setQOvers(o)}
-                  >
-                    {o}
-                  </button>
-                ))}
-              </div>
+              <div className="over-options">{renderOvers(qOvers, setQOvers)}</div>
               <label>Number of Wickets</label>
               <div className="over-options">
                 {WICKET_OPTIONS.map((w) => (
@@ -276,18 +294,7 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
           )}
           <h3 className={styles['mode-title']}>Choose your game mode</h3>
           <label>Number of Overs</label>
-          <div className="over-options">
-            {OVER_OPTIONS.map((o) => (
-              <button
-                key={o}
-                type="button"
-                className={overs === o ? 'over-btn selected' : 'over-btn'}
-                onClick={() => setOvers(o)}
-              >
-                {o}
-              </button>
-            ))}
-          </div>
+          <div className="over-options">{renderOvers(overs, setOvers)}</div>
 
           <label>Number of Wickets</label>
           <div className="over-options">
@@ -389,30 +396,24 @@ export default function Lobby({ socket, onJoinRoom, defaultName = '', user = nul
               )}
               <label>Players</label>
               <div className="over-options">
-                {([4, 8] as const).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    className={tSize === n ? 'over-btn selected' : 'over-btn'}
-                    onClick={() => setTSize(n)}
-                  >
-                    {n}
-                  </button>
-                ))}
+                {([4, 8] as const).map((n) => {
+                  const locked = n === 8 && !unlocks.includes('tourney8');
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`over-btn${tSize === n ? ' selected' : ''}${locked ? ' over-locked' : ''}`}
+                      onClick={() => (locked ? onOpenStore() : setTSize(n))}
+                      title={locked ? 'Unlock 8-player tournaments in the Store' : ''}
+                    >
+                      {n}
+                      {locked ? ' 🔒' : ''}
+                    </button>
+                  );
+                })}
               </div>
               <label>Overs per Match</label>
-              <div className="over-options">
-                {OVER_OPTIONS.map((o) => (
-                  <button
-                    key={o}
-                    type="button"
-                    className={tOvers === o ? 'over-btn selected' : 'over-btn'}
-                    onClick={() => setTOvers(o)}
-                  >
-                    {o}
-                  </button>
-                ))}
-              </div>
+              <div className="over-options">{renderOvers(tOvers, setTOvers)}</div>
               <label>Wickets per Match</label>
               <div className="over-options">
                 {WICKET_OPTIONS.map((w) => (

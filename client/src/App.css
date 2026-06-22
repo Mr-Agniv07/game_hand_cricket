@@ -235,6 +235,25 @@ body {
   margin-left: auto;
 }
 
+.coins-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: linear-gradient(135deg, #fbbf2422, #f59e0b18);
+  border: 1px solid #fbbf24aa;
+  color: #fbbf24;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0.35rem 0.7rem;
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.coins-btn:hover {
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.35);
+}
+
 .friends-toggle-btn {
   display: flex;
   align-items: center;
@@ -563,6 +582,16 @@ body {
   border-color: var(--accent);
   background: #16a34a22;
   color: var(--accent);
+}
+.over-btn.over-locked {
+  color: var(--muted);
+  border-color: #fbbf2455;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+.over-btn.over-locked:hover {
+  border-color: #fbbf24;
+  color: #fbbf24;
 }
 
 /* ─── Shared back/leave button (used in ResultScreen, TournamentLobby, TournamentResult) ─── */

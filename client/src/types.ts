@@ -6,6 +6,8 @@ export interface ClientUser {
   username: string;
   token: string;
   stats: UserStats;
+  coins: number;
+  unlocks: string[];
 }
 
 /** The client's own screen state machine, driven by server events. */

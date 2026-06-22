@@ -12,6 +12,7 @@ const NUMBERS = [1, 2, 3, 4, 5, 6];
 // Taunt emojis players can fling at each other mid-match (must match the
 // server's allow-list in game/handlers.ts).
 const EMOTES = ['😎', '🔥', '😂', '🧊', '👏', '😱', '🤡', '💪'];
+const FREE_EMOTES = ['😎', '🔥', '😂', '🧊']; // the rest need the 'emotes' unlock
 
 interface FloatingEmote {
   id: number;
@@ -29,6 +30,7 @@ interface GameScreenProps {
   trainEvent: { move: number; role: OppRole; seq: number } | null;
   isAutoPlay: boolean;
   userToken: string | null;
+  emotesUnlocked: boolean;
   onDeclare: () => void;
 }
 
@@ -40,8 +42,10 @@ export default function GameScreen({
   trainEvent,
   isAutoPlay,
   userToken,
+  emotesUnlocked,
   onDeclare,
 }: GameScreenProps) {
+  const usableEmotes = emotesUnlocked ? EMOTES : FREE_EMOTES;
   const [myMove, setMyMove] = useState<number | null>(null);
   const myMoveRef = useRef<number | null>(null);
   const [ballAnim, setBallAnim] = useState<BallPlayedPayload | null>(null);
@@ -319,7 +323,7 @@ export default function GameScreen({
 
       {myPlayerIdx !== null && (
         <div className={styles['emote-bar']}>
-          {EMOTES.map((e) => (
+          {usableEmotes.map((e) => (
             <button
               key={e}
               className={styles['emote-btn']}

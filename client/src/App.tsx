@@ -4,6 +4,7 @@ import { apiGet } from './api';
 import AuthScreen from './auth/AuthScreen';
 import FriendsPanel from './friends/FriendsPanel';
 import ProfilePanel from './profile/ProfilePanel';
+import Store from './store/Store';
 import Lobby from './lobby/Lobby';
 import TossScreen from './toss/TossScreen';
 import BatBowlScreen from './game/BatBowlScreen';
@@ -115,6 +116,11 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
+
+  function updateEconomy(coins: number, unlocks: string[]) {
+    setUser((u) => (u ? { ...u, coins, unlocks } : u));
+  }
   const [incomingChallenge, setIncomingChallenge] = useState<ChallengeReceivedPayload | null>(null);
   const [rematchState, setRematchState] = useState<RematchState>(null);
   const [tournamentState, setTournamentState] = useState<TournamentState | null>(null);
@@ -555,7 +561,12 @@ export default function App() {
     if (stored?.token) {
       apiGet('/api/me', stored.token)
         .then((data) => {
-          const restored: ClientUser = { ...stored, stats: data.stats };
+          const restored: ClientUser = {
+            ...stored,
+            stats: data.stats,
+            coins: data.coins ?? 0,
+            unlocks: data.unlocks ?? [],
+          };
           setUser(restored);
           userRef.current = restored;
           // Not already connected for recovery → normal connect into the lobby.
@@ -586,6 +597,8 @@ export default function App() {
       username: data.username,
       token: data.token,
       stats: data.stats,
+      coins: data.coins ?? 0,
+      unlocks: data.unlocks ?? [],
     };
     setUser(userData);
     localStorage.setItem(
@@ -661,7 +674,18 @@ export default function App() {
     const stored = JSON.parse(localStorage.getItem(STORED_KEY) || 'null');
     if (stored?.token) {
       apiGet('/api/me', stored.token)
-        .then((data) => setUser((u) => (u ? { ...u, stats: data.stats } : u)))
+        .then((data) =>
+          setUser((u) =>
+            u
+              ? {
+                  ...u,
+                  stats: data.stats,
+                  coins: data.coins ?? u.coins,
+                  unlocks: data.unlocks ?? u.unlocks,
+                }
+              : u
+          )
+        )
         .catch(() => {});
     }
   }
@@ -721,6 +745,13 @@ export default function App() {
         )}
         {user && phase !== 'auth' && phase !== 'loading' && (
           <div className="header-user">
+            <button
+              className="coins-btn"
+              onClick={() => setStoreOpen(true)}
+              title="Open the Store"
+            >
+              🪙 {user.coins}
+            </button>
             <button className="friends-toggle-btn" onClick={() => setFriendsOpen((o) => !o)}>
               <svg
                 width="14"
@@ -785,6 +816,10 @@ export default function App() {
 
       {profileOpen && user && (
         <ProfilePanel user={user} onClose={() => setProfileOpen(false)} />
+      )}
+
+      {storeOpen && user && (
+        <Store user={user} onClose={() => setStoreOpen(false)} onEconomyChange={updateEconomy} />
       )}
 
       {incomingChallenge && (
@@ -854,6 +889,7 @@ export default function App() {
           onJoinRoom={handleJoinRoom}
           defaultName={user?.username ?? ''}
           user={user}
+          onOpenStore={() => setStoreOpen(true)}
         />
       )}
 
@@ -895,6 +931,7 @@ export default function App() {
           trainEvent={trainEvent}
           isAutoPlay={isAutoPlay}
           userToken={user?.token ?? null}
+          emotesUnlocked={user?.unlocks.includes('emotes') ?? false}
           onDeclare={handleDeclare}
         />
       )}

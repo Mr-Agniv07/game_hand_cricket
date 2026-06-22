@@ -108,6 +108,8 @@ export interface AuthResponse {
   username: string;
   token: string;
   stats: UserStats;
+  coins: number;
+  unlocks: string[];
 }
 
 export interface PublicUser {
