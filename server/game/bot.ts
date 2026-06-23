@@ -90,7 +90,7 @@ const PERSONALITIES: Record<string, Personality> = {
   // 🧱 Lives at 1/2/3 — survival first, miserable to dislodge. Now reads the
   //    match a bit sharper (higher situationalIq) so it lifts the tempo when a
   //    chase demands it, without abandoning its low-risk core.
-  Wall: { aggression: 0.12, adaptability: 0.45, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.78, memory: 0.55 },
+  Wall: { aggression: 0.12, adaptability: 0.45, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.9, memory: 0.8 },
   // 🛡️ Doesn't make mistakes — consistent, disciplined, low variance. Tuned to
   //    think more strategically (higher situationalIq) while staying patient.
   Guardian: { aggression: 0.3, adaptability: 0.6, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.92, memory: 0.7 },
