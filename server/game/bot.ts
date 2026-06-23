@@ -97,18 +97,30 @@ const PERSONALITIES: Record<string, Personality> = {
 };
 const STYLE_LABELS = Object.keys(PERSONALITIES);
 
-// Explicit name→style assignments that override the hash. Used to guarantee
-// coverage of styles the hash happens to skip: the hash left Guardian unused and
-// made three Aggressors, so the (aptly named) Wall-E Willow is pinned to Guardian.
+// Every roster bot is pinned to ONE fixed personality here. This is the permanent,
+// authoritative mapping — it freezes the current pairing so it can NEVER reshuffle,
+// even if the PERSONALITIES set is later renamed, reordered, added to or removed
+// from (any of which would change the name-hash). Do not edit these assignments:
+// the whole point is that a given bot always plays the same way, forever.
 const STYLE_OVERRIDES: Record<string, string> = {
+  Botinho: 'Chaos',
+  'Sir Bot-a-lot': 'Chaos',
+  RoboHitter: 'Aggressor',
+  'Bot Kohli': 'Aggressor',
+  'Captain Circuit': 'Strategist',
+  'Glitch Gabbar': 'Wall',
+  'Auto Sachin': 'Gambler',
+  'Pixel Pacer': 'Strategist',
+  'MS Droid': 'All-Rounder',
   'Wall-E Willow': 'Guardian',
+  'Binary Bumrah': 'Wall',
+  'Turbo Tendulkar': 'Hunter',
 };
 
 /**
- * Each bot name maps to ONE fixed personality. A few names are pinned explicitly
- * (STYLE_OVERRIDES) to guarantee style coverage; the rest derive from a hash of
- * the name — deterministic (a given bot always plays the same way, so players can
- * learn it) but opaque, so it stays a surprise to discover through play.
+ * The bot's fixed personality. Roster bots are pinned in STYLE_OVERRIDES (the
+ * permanent mapping); any other name (shouldn't happen) falls back to a stable
+ * name-hash so it's still deterministic.
  */
 function styleForName(name: string): string {
   const pinned = STYLE_OVERRIDES[name];
