@@ -11,6 +11,10 @@ const TRAITS: { icon: string; name: string; line: string }[] = [
   { icon: '🧠', name: 'Strategist', line: 'The scoreboard decides everything. Cold, calculated, ice in the veins.' },
   { icon: '🧱', name: 'Wall', line: 'Lives at 1, 2, 3. Good luck getting one past it.' },
   { icon: '🛡️', name: 'Guardian', line: '“I don’t make mistakes.” Boring, disciplined, brutally effective.' },
+  { icon: '🏁', name: 'Finisher', line: 'Most dangerous when chasing — don’t relax at the death.' },
+  { icon: '🃏', name: 'Trickster', line: 'Learns the numbers you like and dodges them. Never the obvious move.' },
+  { icon: '🎓', name: 'Maestro', line: 'Reads your habits and the match situation at the same time. The complete player.' },
+  { icon: '🥊', name: 'Counter-Puncher', line: 'Punishes you the moment you get predictable.' },
 ];
 
 const ROSTER = [

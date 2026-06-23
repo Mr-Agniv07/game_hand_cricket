@@ -94,27 +94,34 @@ const PERSONALITIES: Record<string, Personality> = {
   // 🛡️ Doesn't make mistakes — consistent, disciplined, low variance. Tuned to
   //    think more strategically (higher situationalIq) while staying patient.
   Guardian: { aggression: 0.35, adaptability: 0.6, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.92, memory: 0.7 },
+  // 🏁 Most dangerous when chasing — don't relax at the death.
+  Finisher: { aggression: 0.4, adaptability: 0.5, volatility: 0.35, riskTolerance: 0.65, situationalIq: 0.95, memory: 0.5 },
+  // 🃏 Learns the numbers you like and dodges them.
+  Trickster: { aggression: 0.55, adaptability: 0.85, volatility: 0.65, riskTolerance: 0.5, situationalIq: 0.5, memory: 0.85 },
+  // 🎓 Reads your habits and the match situation at the same time.
+  Maestro: { aggression: 0.55, adaptability: 0.9, volatility: 0.25, riskTolerance: 0.5, situationalIq: 0.9, memory: 1.0 },
+  // 🥊 Punishes you the moment you get predictable.
+  'Counter-Puncher': { aggression: 0.35, adaptability: 0.85, volatility: 0.2, riskTolerance: 0.45, situationalIq: 0.7, memory: 0.8 },
 };
 const STYLE_LABELS = Object.keys(PERSONALITIES);
 
-// Every roster bot is pinned to ONE fixed personality here. This is the permanent,
-// authoritative mapping — it freezes the current pairing so it can NEVER reshuffle,
-// even if the PERSONALITIES set is later renamed, reordered, added to or removed
-// from (any of which would change the name-hash). Do not edit these assignments:
-// the whole point is that a given bot always plays the same way, forever.
+// The permanent 1:1 bot→personality mapping: 12 bots, 12 personalities, each used
+// exactly once. This is the authoritative, frozen pairing — a given bot always
+// plays the same way, forever. Do NOT edit these assignments (and it's meant to
+// stay a secret players discover through play, so don't surface it in the UI).
 const STYLE_OVERRIDES: Record<string, string> = {
-  Botinho: 'Chaos',
-  'Sir Bot-a-lot': 'Chaos',
-  RoboHitter: 'Aggressor',
-  'Bot Kohli': 'Aggressor',
-  'Captain Circuit': 'Strategist',
-  'Glitch Gabbar': 'Wall',
-  'Auto Sachin': 'Gambler',
-  'Pixel Pacer': 'Strategist',
-  'MS Droid': 'All-Rounder',
-  'Wall-E Willow': 'Guardian',
-  'Binary Bumrah': 'Wall',
-  'Turbo Tendulkar': 'Hunter',
+  Botinho: 'Maestro',
+  'Sir Bot-a-lot': 'Trickster',
+  RoboHitter: 'Wall',
+  'Bot Kohli': 'Strategist',
+  'Captain Circuit': 'Counter-Puncher',
+  'Glitch Gabbar': 'Aggressor',
+  'Auto Sachin': 'Hunter',
+  'Pixel Pacer': 'Gambler',
+  'MS Droid': 'Finisher',
+  'Wall-E Willow': 'All-Rounder',
+  'Binary Bumrah': 'Guardian',
+  'Turbo Tendulkar': 'Chaos',
 };
 
 /**
