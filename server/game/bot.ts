@@ -80,7 +80,7 @@ const PERSONALITIES: Record<string, Personality> = {
   // 🎲 Big risks, big rewards — streaky and wildly unpredictable.
   Gambler: { aggression: 0.7, adaptability: 0.3, volatility: 0.95, riskTolerance: 1.0, situationalIq: 0.4, memory: 0.2 },
   // ⚖️ Balanced across everything — the "default human".
-  'All-Rounder': { aggression: 0.5, adaptability: 0.5, volatility: 0.45, riskTolerance: 0.5, situationalIq: 0.55, memory: 0.5 },
+  'All-Rounder': { aggression: 0.5, adaptability: 0.5, volatility: 0.5, riskTolerance: 0.5, situationalIq: 0.6, memory: 0.5 },
   // 🌀 No plan, no pattern — reinvents itself every few balls.
   Chaos: { aggression: 0.55, adaptability: 0.2, volatility: 1.0, riskTolerance: 0.7, situationalIq: 0.2, memory: 0.1, chaos: true },
   // 🎯 Plays against YOU — obsessed with learning and countering your habits.
