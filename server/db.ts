@@ -329,9 +329,16 @@ export async function initDb(): Promise<void> {
   try {
     const all = await prisma.botTournament.findMany({ orderBy: { finishedAt: 'asc' } });
     for (const f of BOT_FORMATS) botTournamentCount[f] = 0;
+    botSuperLeagueCount = 0;
     for (const t of all) {
-      const seq = (botTournamentCount[t.format] = (botTournamentCount[t.format] ?? 0) + 1);
-      const want = botLeagueName(t.format, seq);
+      // Super Leagues (12-team final state) get their own running sequence and are
+      // kept out of the per-format count, matching how new ones are named.
+      const want = isSuperLeagueState(t.state as unknown as TournamentState | null)
+        ? botSuperLeagueName((botSuperLeagueCount += 1))
+        : botLeagueName(
+            t.format,
+            (botTournamentCount[t.format] = (botTournamentCount[t.format] ?? 0) + 1)
+          );
       if (t.name !== want) {
         t.name = want; // fix the local copy used below
         persist(
@@ -1017,6 +1024,7 @@ export function resetBotRankings(): void {
   // the per-format sequence restarts from #1.
   botTournaments.length = 0;
   for (const f of BOT_FORMATS) botTournamentCount[f] = 0;
+  botSuperLeagueCount = 0;
   persist(prisma.botTournament.deleteMany({}), 'resetBotTournaments');
 }
 
@@ -1033,9 +1041,16 @@ const botTournaments: BotTournamentSummary[] = [];
 const BOT_HISTORY_CAP = 50;
 // Total completed tournaments per format (the sequence number for naming, e.g.
 // "Bot League 5#3"). Loaded at boot, incremented per finalize, reset on reset.
+// The 12-bot Super League has its own sequence ("Bot Super League 3") and is kept
+// out of the per-format count, so the normal 10-over numbering stays unbroken.
 const botTournamentCount: Record<number, number> = {};
+let botSuperLeagueCount = 0;
 
 const botLeagueName = (format: number, seq: number) => `Bot League ${format}#${seq}`;
+const botSuperLeagueName = (seq: number) => `Bot Super League ${seq}`;
+
+/** A completed bot tournament is a Super League iff its final state had 12 teams. */
+const isSuperLeagueState = (state: TournamentState | null | undefined) => state?.size === 12;
 
 /** Persist one completed bot-league tournament and cache it for the history view. */
 export function recordBotTournament(input: {
@@ -1045,10 +1060,15 @@ export function recordBotTournament(input: {
   standings: BotTournamentStanding[];
   state: TournamentState;
 }): void {
-  const seq = (botTournamentCount[input.format] = (botTournamentCount[input.format] ?? 0) + 1);
+  const name = isSuperLeagueState(input.state)
+    ? botSuperLeagueName((botSuperLeagueCount += 1))
+    : botLeagueName(
+        input.format,
+        (botTournamentCount[input.format] = (botTournamentCount[input.format] ?? 0) + 1)
+      );
   const summary: BotTournamentSummary = {
     format: input.format,
-    name: botLeagueName(input.format, seq),
+    name,
     champion: input.champion,
     runnerUp: input.runnerUp,
     finishedAt: new Date().toISOString(),
