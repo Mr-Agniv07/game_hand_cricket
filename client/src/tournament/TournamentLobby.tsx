@@ -29,8 +29,6 @@ function nrrColor(nrr: number): string {
   return 'var(--muted)';
 }
 
-const RANK_MEDALS = ['🥇', '🥈', '🥉', '4'];
-
 type PT = Record<string, PointsTableEntry>;
 
 function sortByStandings(players: TournamentPlayer[], pt: PT): TournamentPlayer[] {
@@ -64,7 +62,7 @@ function StandingsTable({ rows, pt, myId }: { rows: TournamentPlayer[]; pt: PT; 
             const isMe = p.id === myId;
             return (
               <tr key={p.id} className={isMe ? styles['t-tr-me'] : ''}>
-                <td className={styles['t-td-rank']}>{RANK_MEDALS[rank] ?? rank + 1}</td>
+                <td className={styles['t-td-rank']}>{rank + 1}</td>
                 <td className={styles['t-td-player']}>
                   {p.name}
                   {isMe ? <span className={styles['t-you']}> (You)</span> : null}
@@ -162,21 +160,18 @@ function FixtureRow({
   );
 }
 
-/** A placeholder knockout row shown before the real participants are known. */
+/** A placeholder knockout row shown before the real participants are known.
+ * Uses a single wrapping line (not the truncating two-column team layout) so the
+ * matchup text — e.g. "Group A #1 vs Group B #4" — is always fully visible. */
 function PlaceholderRow({ badge, p1, p2 }: { badge: 'QF' | 'SF' | 'Final'; p1: string; p2: string }) {
   return (
     <div className={`${styles['t-fixture-row']} ${styles.upcoming} ${styles['final-row']}`}>
       <span className={`${styles['t-match-badge']} ${styles.upcoming}`}>
         {badge === 'Final' ? '🏆' : badge}
       </span>
-      <div className={styles['t-fixture-teams']}>
-        <span>{p1}</span>
-        <span className={styles['t-vs']}>vs</span>
-        <span>{p2}</span>
-      </div>
-      <div className={styles['t-fixture-result']}>
-        <span className={styles['t-upcoming-tag']}>{badge === 'Final' ? 'FINAL' : badge}</span>
-      </div>
+      <span className={styles['t-ph-text']}>
+        {p1} <span className={styles['t-vs']}>vs</span> {p2}
+      </span>
     </div>
   );
 }

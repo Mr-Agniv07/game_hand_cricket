@@ -26,7 +26,13 @@ function championName(a: BotLeagueActive): string | null {
   return a.state.players.find((p) => p.id === id)?.name ?? null;
 }
 
-type Format = 5 | 10;
+type Tab = '5' | '10' | 'super';
+
+/** A live/just-finished league is the Super League iff it fielded 12 teams. */
+const isSuperActive = (a: BotLeagueActive) => a.state.size === 12;
+/** A history record is a Super League iff its final state had 12 teams (or by name, for safety). */
+const isSuperSummary = (t: BotTournamentSummary) =>
+  t.state?.size === 12 || t.name.startsWith('Bot Super League');
 
 interface Props {
   socket: AppSocket;
@@ -35,7 +41,7 @@ interface Props {
 }
 
 export default function BotLeague({ socket, user, onClose }: Props) {
-  const [format, setFormat] = useState<Format>(5);
+  const [tab, setTab] = useState<Tab>('5');
   const [data, setData] = useState<BotLeagueData | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -103,23 +109,39 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     socket.emit('place_bid', { tournamentId, botName });
   }
 
+  const isSuper = tab === 'super';
+  // Both the 10-over and Super League tabs read the 10-over rating pool.
+  const format: 5 | 10 = tab === '5' ? 5 : 10;
+
+  // Tab → which active/recent/history rows belong here. The Super League is a
+  // 10-over event, so it's filtered OUT of the 10-over tab and INTO its own.
+  const activeForTab = (a: BotLeagueActive) =>
+    isSuper ? isSuperActive(a) : a.format === format && !isSuperActive(a);
+  const summaryForTab = (t: BotTournamentSummary) =>
+    isSuper ? isSuperSummary(t) : t.format === format && !isSuperSummary(t);
+
   const rankings = data?.rankings[format] ?? [];
-  const liveForFormat: BotLeagueActive | undefined = data?.active.find((a) => a.format === format);
-  // Most recently finished league for this format (shows the winner once a league ends).
+  const liveForFormat: BotLeagueActive | undefined = data?.active.find(activeForTab);
+  // Most recently finished league for this tab (shows the winner once it ends).
   const recentForFormat: BotLeagueActive | undefined = data?.recent
-    .filter((a) => a.format === format)
+    .filter(activeForTab)
     .slice(-1)[0];
   // The league being watched — live OR just-finished — refreshed from each poll.
   const watching = watchingId
     ? [...(data?.active ?? []), ...(data?.recent ?? [])].find((a) => a.id === watchingId)
     : undefined;
-  const pastForFormat = (data?.history ?? []).filter((t) => t.format === format);
-  // Reigning champion per format = the most recent completed tournament's winner.
-  const champ5 = data?.history.find((t) => t.format === 5)?.champion ?? null;
-  const champ10 = data?.history.find((t) => t.format === 10)?.champion ?? null;
+  const pastForFormat = (data?.history ?? []).filter(summaryForTab);
+  // Reigning champion per bucket = the most recent completed tournament's winner.
+  const champ5 = data?.history.find((t) => t.format === 5 && !isSuperSummary(t))?.champion ?? null;
+  const champ10 = data?.history.find((t) => t.format === 10 && !isSuperSummary(t))?.champion ?? null;
+  const champSuper = data?.history.find(isSuperSummary)?.champion ?? null;
+  // A 10-over event (regular OR super) is live → both share the 10-over rankings,
+  // so the server allows only one at a time. Disable the other tab's start button.
+  const tenOverBusy = !!data?.active.some((a) => a.format === 10);
+  const startBusy = isSuper ? tenOverBusy : !!data?.active.some((a) => a.format === format);
 
   function handleStart() {
-    if (starting || liveForFormat) return;
+    if (starting || startBusy) return;
     setStarting(true);
     setMsg('');
     socket.emit('start_bot_league', { format });
@@ -128,7 +150,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   }
 
   function handleStartSuper() {
-    if (starting || liveForFormat) return;
+    if (starting || tenOverBusy) return;
     setStarting(true);
     setMsg('');
     socket.emit('start_bot_super_league');
@@ -155,13 +177,13 @@ export default function BotLeague({ socket, user, onClose }: Props) {
         </div>
 
         <div className={styles.tabs}>
-          {([5, 10] as const).map((f) => (
+          {(['5', '10', 'super'] as const).map((tk) => (
             <button
-              key={f}
-              className={format === f ? `${styles.tab} ${styles.active}` : styles.tab}
-              onClick={() => setFormat(f)}
+              key={tk}
+              className={tab === tk ? `${styles.tab} ${styles.active}` : styles.tab}
+              onClick={() => setTab(tk)}
             >
-              {f} Over
+              {tk === 'super' ? '🏆 Super' : `${tk} Over`}
             </button>
           ))}
         </div>
@@ -169,17 +191,32 @@ export default function BotLeague({ socket, user, onClose }: Props) {
         <div className={styles.body}>
           {isAdmin && (
             <div className={styles.adminBar}>
-              <button
-                className={styles.startBtn}
-                onClick={handleStart}
-                disabled={starting || !!liveForFormat}
-              >
-                {liveForFormat
-                  ? `${format}-Over league in progress…`
-                  : starting
-                    ? 'Starting…'
-                    : `▶ Start ${format}-Over League`}
-              </button>
+              {isSuper ? (
+                <button
+                  className={styles.superBtn}
+                  onClick={handleStartSuper}
+                  disabled={starting || startBusy}
+                  title="All 12 bots, two groups of 6, quarters → semis → final"
+                >
+                  {startBusy
+                    ? '10-Over event in progress…'
+                    : starting
+                      ? 'Starting…'
+                      : '🏆 Start Super League — all 12 bots'}
+                </button>
+              ) : (
+                <button
+                  className={styles.startBtn}
+                  onClick={handleStart}
+                  disabled={starting || startBusy}
+                >
+                  {startBusy
+                    ? `${format}-Over event in progress…`
+                    : starting
+                      ? 'Starting…'
+                      : `▶ Start ${format}-Over League`}
+                </button>
+              )}
               <button
                 className={styles.resetBtn}
                 onClick={handleReset}
@@ -189,20 +226,6 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 🔄 Reset
               </button>
             </div>
-          )}
-          {isAdmin && format === 10 && (
-            <button
-              className={styles.superBtn}
-              onClick={handleStartSuper}
-              disabled={starting || !!liveForFormat}
-              title="All 12 bots, two groups of 6, quarters → semis → final"
-            >
-              {liveForFormat
-                ? '10-Over event in progress…'
-                : starting
-                  ? 'Starting…'
-                  : '🏆 Start Super League — all 12 bots'}
-            </button>
           )}
           {msg && <div className={styles.msg}>{msg}</div>}
 
@@ -221,6 +244,10 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 <div className={styles.ccRow}>
                   <span className={styles.ccFmt}>10 Over</span>
                   <span className={styles.ccName}>{champ10 ?? '—'}</span>
+                </div>
+                <div className={styles.ccRow}>
+                  <span className={styles.ccFmt}>🏆 Super League</span>
+                  <span className={styles.ccName}>{champSuper ?? '—'}</span>
                 </div>
               </div>
 
@@ -268,7 +295,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 </div>
               )}
 
-              <div className={styles.sectionTitle}>{format}-Over Rankings</div>
+              <div className={styles.sectionTitle}>
+                {isSuper ? 'Bot Rankings (10-Over rating)' : `${format}-Over Rankings`}
+              </div>
               <div className={styles.tableHead}>
                 <span className={styles.rank}>#</span>
                 <span>Bot</span>
@@ -279,7 +308,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               {rankings.map((r) => (
                 <div
                   key={r.botName}
-                  className={r.rank <= 8 ? `${styles.row} ${styles.qualified}` : styles.row}
+                  className={
+                    !isSuper && r.rank <= 8 ? `${styles.row} ${styles.qualified}` : styles.row
+                  }
                 >
                   <span className={styles.rank}>{r.rank}</span>
                   <span className={styles.nameCell}>
@@ -294,14 +325,19 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 </div>
               ))}
               <p className={styles.qualNote}>
-                ⬅ Top 8 by rating qualify for the next league.
+                {isSuper
+                  ? '⬅ All 12 bots play the Super League — seeded by 10-over rating.'
+                  : '⬅ Top 8 by rating qualify for the next league.'}
               </p>
 
-              <div className={styles.sectionTitle}>Past {format}-Over Tournaments</div>
+              <div className={styles.sectionTitle}>
+                {isSuper ? 'Past Super Leagues' : `Past ${format}-Over Tournaments`}
+              </div>
               {pastForFormat.length === 0 ? (
                 <p className={styles.empty}>
-                  No {format}-over tournaments recorded yet — finish a league and the winner shows up
-                  here.
+                  {isSuper
+                    ? 'No Super Leagues recorded yet — finish one and the winner shows up here.'
+                    : `No ${format}-over tournaments recorded yet — finish a league and the winner shows up here.`}
                 </p>
               ) : (
                 pastForFormat.map((t, i) => (

@@ -607,6 +607,19 @@
   text-align: right;
 }
 
+/* Knockout placeholder matchup: a single wrapping line, always fully visible. */
+.t-ph-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: normal;
+  line-height: 1.3;
+}
+.t-ph-text .t-vs {
+  margin: 0 0.15rem;
+}
+
 .t-winner {
   font-weight: 800;
   color: var(--accent);

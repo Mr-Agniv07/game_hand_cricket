@@ -49,15 +49,16 @@
 }
 .tab {
   flex: 1;
-  padding: 0.5rem;
+  padding: 0.5rem 0.3rem;
   border: none;
   border-radius: 8px;
   background: transparent;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s;
+  white-space: nowrap;
 }
 .tab.active {
   background: var(--accent);
@@ -132,9 +133,8 @@
   cursor: not-allowed;
 }
 .superBtn {
-  width: 100%;
+  flex: 1;
   padding: 0.6rem;
-  margin-bottom: 0.4rem;
   border: none;
   border-radius: 9px;
   background: linear-gradient(135deg, #f59e0b, #d946ef);
