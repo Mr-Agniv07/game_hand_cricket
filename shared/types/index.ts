@@ -378,7 +378,7 @@ export interface TournamentPlayer {
   name: string;
 }
 
-export type FixtureStage = 'group' | 'semi' | 'final';
+export type FixtureStage = 'group' | 'quarter' | 'semi' | 'final';
 
 export interface FixtureMatch {
   matchNum: number;
@@ -447,7 +447,7 @@ export interface TournamentState {
   code: string;
   overs: number;
   wickets: number;
-  /** Number of players: 4 (single group) or 8 (two groups). */
+  /** Number of players: 4 (single group), 8 (two groups of 4), or 12 (two groups of 6 — the Super League). */
   size: number;
   /** Player-index arrays per group; e.g. [[0,2,5,7],[1,3,4,6]] for 8 players. Empty until assigned. */
   groups: number[][];
@@ -619,6 +619,7 @@ export interface ClientToServerEvents {
   start_tournament_with_bots: () => void;
   send_emote: (p: SendEmotePayload) => void;
   start_bot_league: (p: { format: number }) => void;
+  start_bot_super_league: () => void;
   reset_bot_rankings: () => void;
   find_match: (p: FindMatchPayload) => void;
   cancel_match: () => void;

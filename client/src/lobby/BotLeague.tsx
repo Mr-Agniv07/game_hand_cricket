@@ -14,6 +14,11 @@ import type { ClientUser } from '../types';
 
 const noop = () => {};
 
+/** Display label for a bot event: the 12-team Super League vs a normal N-over league. */
+function eventLabel(state: TournamentState, format: number): string {
+  return state.size === 12 ? 'Super League' : `${format} Over`;
+}
+
 /** The champion bot's name for a finished league, or null if not decided yet. */
 function championName(a: BotLeagueActive): string | null {
   const id = a.state.champion;
@@ -122,6 +127,14 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     setTimeout(() => setStarting(false), 4000);
   }
 
+  function handleStartSuper() {
+    if (starting || liveForFormat) return;
+    setStarting(true);
+    setMsg('');
+    socket.emit('start_bot_super_league');
+    setTimeout(() => setStarting(false), 4000);
+  }
+
   function handleReset() {
     if (data && data.active.length > 0) {
       setMsg('Finish the live league before resetting.');
@@ -177,6 +190,20 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               </button>
             </div>
           )}
+          {isAdmin && format === 10 && (
+            <button
+              className={styles.superBtn}
+              onClick={handleStartSuper}
+              disabled={starting || !!liveForFormat}
+              title="All 12 bots, two groups of 6, quarters → semis → final"
+            >
+              {liveForFormat
+                ? '10-Over event in progress…'
+                : starting
+                  ? 'Starting…'
+                  : '🏆 Start Super League — all 12 bots'}
+            </button>
+          )}
           {msg && <div className={styles.msg}>{msg}</div>}
 
           {data === null ? (
@@ -201,7 +228,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 (liveForFormat.state.phase === 'waiting' ? (
                   <>
                     <div className={styles.bidWindow}>
-                      ⏳ Bidding open — {format}-over league starts in{' '}
+                      ⏳ Bidding open — {eventLabel(liveForFormat.state, format)} starts in{' '}
                       <strong>{fmtCountdown(liveForFormat.bidsCloseAt, now)}</strong>
                     </div>
                     <BidPanel
@@ -229,8 +256,8 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               {!liveForFormat && recentForFormat && championName(recentForFormat) && (
                 <div className={styles.champ}>
                   <span>
-                    🏆 <strong>{championName(recentForFormat)}</strong> won the latest {format}-over
-                    league
+                    🏆 <strong>{championName(recentForFormat)}</strong> won the latest{' '}
+                    {recentForFormat.state.size === 12 ? 'Super League' : `${format}-over league`}
                   </span>
                   <button
                     className={styles.viewBtn}
@@ -292,7 +319,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
           <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
             <div className={styles.specHeader}>
               <h2>
-                <span className={styles.liveDot} /> Bot League · {watching.format} Over — Spectating
+                <span className={styles.liveDot} /> Bot League · {eventLabel(watching.state, watching.format)} — Spectating
               </h2>
               <button
                 className={styles.close}
@@ -464,7 +491,7 @@ function LiveCard({ active, onWatch }: { active: BotLeagueActive; onWatch: () =>
   return (
     <div className={styles.live}>
       <div className={styles.liveHead}>
-        <span className={styles.liveDot} /> Live · {active.format} Over
+        <span className={styles.liveDot} /> Live · {eventLabel(s, active.format)}
       </div>
       {ls ? (
         <>

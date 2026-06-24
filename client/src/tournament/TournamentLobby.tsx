@@ -64,7 +64,7 @@ function StandingsTable({ rows, pt, myId }: { rows: TournamentPlayer[]; pt: PT; 
             const isMe = p.id === myId;
             return (
               <tr key={p.id} className={isMe ? styles['t-tr-me'] : ''}>
-                <td className={styles['t-td-rank']}>{RANK_MEDALS[rank]}</td>
+                <td className={styles['t-td-rank']}>{RANK_MEDALS[rank] ?? rank + 1}</td>
                 <td className={styles['t-td-player']}>
                   {p.name}
                   {isMe ? <span className={styles['t-you']}> (You)</span> : null}
@@ -101,8 +101,15 @@ function FixtureRow({
   const fp1 = players[f.player1Idx];
   const fp2 = players[f.player2Idx];
   const isMyMatch = myId === fp1?.id || myId === fp2?.id;
-  const knockout = f.stage === 'semi' || f.stage === 'final';
-  const badge = f.stage === 'final' ? '🏆' : f.stage === 'semi' ? 'SF' : `M${f.matchNum}`;
+  const knockout = f.stage === 'quarter' || f.stage === 'semi' || f.stage === 'final';
+  const badge =
+    f.stage === 'final'
+      ? '🏆'
+      : f.stage === 'semi'
+        ? 'SF'
+        : f.stage === 'quarter'
+          ? 'QF'
+          : `M${f.matchNum}`;
   const clickable = f.status === 'done' && !!f.scorecard;
   const cls = `${styles['t-fixture-row']} ${styles[f.status]}${isMyMatch ? ` ${styles['my-match']}` : ''}${knockout ? ` ${styles['final-row']}` : ''}${clickable ? ` ${styles.clickable}` : ''}`;
   const open = clickable && f.scorecard ? () => onOpenCard?.(f.scorecard!) : undefined;
@@ -156,11 +163,11 @@ function FixtureRow({
 }
 
 /** A placeholder knockout row shown before the real participants are known. */
-function PlaceholderRow({ label, p1, p2 }: { label: string; p1: string; p2: string }) {
+function PlaceholderRow({ badge, p1, p2 }: { badge: 'QF' | 'SF' | 'Final'; p1: string; p2: string }) {
   return (
     <div className={`${styles['t-fixture-row']} ${styles.upcoming} ${styles['final-row']}`}>
       <span className={`${styles['t-match-badge']} ${styles.upcoming}`}>
-        {label === 'Final' ? '🏆' : 'SF'}
+        {badge === 'Final' ? '🏆' : badge}
       </span>
       <div className={styles['t-fixture-teams']}>
         <span>{p1}</span>
@@ -168,7 +175,7 @@ function PlaceholderRow({ label, p1, p2 }: { label: string; p1: string; p2: stri
         <span>{p2}</span>
       </div>
       <div className={styles['t-fixture-result']}>
-        <span className={styles['t-upcoming-tag']}>{label === 'Final' ? 'FINAL' : 'SF'}</span>
+        <span className={styles['t-upcoming-tag']}>{badge === 'Final' ? 'FINAL' : badge}</span>
       </div>
     </div>
   );
@@ -228,6 +235,8 @@ export default function TournamentLobby({
   const [card, setCard] = useState<MatchScorecard | null>(null);
 
   const is8 = size === 8;
+  const is12 = size === 12;
+  const isMultiGroup = is8 || is12;
   const isHost = players[0]?.id === myId;
 
   function copyCode() {
@@ -248,6 +257,7 @@ export default function TournamentLobby({
   const groupTotal = fixtures.filter((f) => f.stage === 'group').length || 12;
   const groupDone = fixtures.filter((f) => f.stage === 'group' && f.status === 'done').length;
 
+  const quarters = fixtures.filter((f) => f.stage === 'quarter');
   const semis = fixtures.filter((f) => f.stage === 'semi');
   const finalFix = fixtures.find((f) => f.stage === 'final');
 
@@ -256,7 +266,9 @@ export default function TournamentLobby({
       ? '🏆 Grand Final'
       : liveMatch?.stage === 'semi'
         ? (liveMatch.label ?? 'Semi Final')
-        : `Group Stage · ${Math.min(groupDone + 1, groupTotal)} of ${groupTotal}`;
+        : liveMatch?.stage === 'quarter'
+          ? (liveMatch.label ?? 'Quarter Final')
+          : `Group Stage · ${Math.min(groupDone + 1, groupTotal)} of ${groupTotal}`;
   const progressPct = Math.min(100, Math.round((groupDone / groupTotal) * 100));
 
   // Group standings + fixtures for the 8-player view.
@@ -365,7 +377,7 @@ export default function TournamentLobby({
             ? liveMatch.stage === 'final'
               ? '🏆 The FINAL is live — check the game above!'
               : 'Your match is live — check the game above!'
-            : `${liveMatch.stage === 'final' ? '🏆 FINAL' : liveMatch.stage === 'semi' ? `🏏 ${liveMatch.label}` : 'Live'} — ${liveP1.name} vs ${liveP2.name}`}
+            : `${liveMatch.stage === 'final' ? '🏆 FINAL' : liveMatch.stage === 'semi' || liveMatch.stage === 'quarter' ? `🏏 ${liveMatch.label}` : 'Live'} — ${liveP1.name} vs ${liveP2.name}`}
         </div>
       )}
 
@@ -374,8 +386,8 @@ export default function TournamentLobby({
         <SpectatorScore liveScore={tournamentState.liveScore} />
       )}
 
-      {/* ── 8-player: group tabs + playoffs ── */}
-      {phase === 'in_progress' && is8 && (
+      {/* ── 8/12-player: group tabs + playoffs ── */}
+      {phase === 'in_progress' && isMultiGroup && (
         <>
           <div className={styles['t-group-tabs']}>
             <button
@@ -409,6 +421,29 @@ export default function TournamentLobby({
           <div className={styles['t-section']}>
             <div className={styles['t-section-title']}>🏆 Playoffs</div>
             <div className={styles['t-fixture']}>
+              {/* Quarterfinals (Super League only): top 4 of each group cross over. */}
+              {is12 &&
+                (quarters.length > 0
+                  ? quarters.map((f) => (
+                      <div key={f.matchNum}>
+                        <div className={styles['t-playoff-label']}>{f.label}</div>
+                        <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
+                      </div>
+                    ))
+                  : (
+                      [
+                        ['Quarter Final 1', 'Group A #1', 'Group B #4'],
+                        ['Quarter Final 2', 'Group A #2', 'Group B #3'],
+                        ['Quarter Final 3', 'Group A #3', 'Group B #2'],
+                        ['Quarter Final 4', 'Group A #4', 'Group B #1'],
+                      ] as const
+                    ).map(([label, p1, p2]) => (
+                      <div key={label}>
+                        <div className={styles['t-playoff-label']}>{label}</div>
+                        <PlaceholderRow badge="QF" p1={p1} p2={p2} />
+                      </div>
+                    )))}
+
               {semis.length > 0 ? (
                 semis.map((f) => (
                   <div key={f.matchNum}>
@@ -416,15 +451,26 @@ export default function TournamentLobby({
                     <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
                   </div>
                 ))
+              ) : is12 ? (
+                <>
+                  <div>
+                    <div className={styles['t-playoff-label']}>Semi Final 1</div>
+                    <PlaceholderRow badge="SF" p1="QF1 winner" p2="QF4 winner" />
+                  </div>
+                  <div>
+                    <div className={styles['t-playoff-label']}>Semi Final 2</div>
+                    <PlaceholderRow badge="SF" p1="QF2 winner" p2="QF3 winner" />
+                  </div>
+                </>
               ) : (
                 <>
                   <div>
                     <div className={styles['t-playoff-label']}>Semi Final 1</div>
-                    <PlaceholderRow label="SF" p1="Group A #1" p2="Group B #2" />
+                    <PlaceholderRow badge="SF" p1="Group A #1" p2="Group B #2" />
                   </div>
                   <div>
                     <div className={styles['t-playoff-label']}>Semi Final 2</div>
-                    <PlaceholderRow label="SF" p1="Group B #1" p2="Group A #2" />
+                    <PlaceholderRow badge="SF" p1="Group B #1" p2="Group A #2" />
                   </div>
                 </>
               )}
@@ -433,7 +479,7 @@ export default function TournamentLobby({
                 {finalFix ? (
                   <FixtureRow f={finalFix} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
                 ) : (
-                  <PlaceholderRow label="Final" p1="SF1 winner" p2="SF2 winner" />
+                  <PlaceholderRow badge="Final" p1="SF1 winner" p2="SF2 winner" />
                 )}
               </div>
             </div>
@@ -442,7 +488,7 @@ export default function TournamentLobby({
       )}
 
       {/* ── 4-player: single table + fixtures ── */}
-      {phase === 'in_progress' && !is8 && (
+      {phase === 'in_progress' && !isMultiGroup && (
         <>
           <div className={styles['t-section']}>
             <div className={styles['t-section-title']}>Points Table</div>
@@ -458,7 +504,7 @@ export default function TournamentLobby({
               {!finalFix && (
                 <div>
                   <div className={styles['t-playoff-label']}>Final</div>
-                  <PlaceholderRow label="Final" p1="1st place" p2="2nd place" />
+                  <PlaceholderRow badge="Final" p1="1st place" p2="2nd place" />
                 </div>
               )}
             </div>

@@ -131,6 +131,22 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+.superBtn {
+  width: 100%;
+  padding: 0.6rem;
+  margin-bottom: 0.4rem;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #f59e0b, #d946ef);
+  color: #1a0033;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.superBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .msg {
   font-size: 0.78rem;
   color: var(--accent);

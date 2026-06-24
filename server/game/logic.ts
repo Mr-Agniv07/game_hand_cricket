@@ -334,7 +334,7 @@ export function endInnings(
     ) {
       const t = tournaments.get(room.tournamentId);
       const fx = t?.fixtures[room.tournamentMatchIdx];
-      if (fx && (fx.stage === 'semi' || fx.stage === 'final')) {
+      if (fx && (fx.stage === 'quarter' || fx.stage === 'semi' || fx.stage === 'final')) {
         startSuperOver(io, roomId, room, rooms);
         return;
       }

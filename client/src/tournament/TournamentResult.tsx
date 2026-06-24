@@ -91,7 +91,7 @@ function StandingsTable({
 export default function TournamentResult({ tournamentState, myId, onLeave }: TournamentResultProps) {
   const { size, groups, players, pointsTable, fixtures, champion, awards, overs, wickets } =
     tournamentState;
-  const is8 = size === 8;
+  const isMultiGroup = size === 8 || size === 12;
 
   const sortedAll = sortByStandings(players, pointsTable);
 
@@ -121,15 +121,17 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
   );
   const myRank = sortedAll.findIndex((p) => p.id === myId);
 
-  const knockouts = fixtures.filter((f) => f.stage === 'semi' || f.stage === 'final');
+  const knockouts = fixtures.filter(
+    (f) => f.stage === 'quarter' || f.stage === 'semi' || f.stage === 'final'
+  );
 
   let myBadge: { cls: string; text: string } | null = null;
   if (myId === winner?.id) myBadge = { cls: 'rank-0', text: '🏆 Champion!' };
   else if (myId === runnerUp?.id) myBadge = { cls: 'rank-1', text: '🥈 Runner-up' };
-  else if (is8 && iAmSemiFinalist) myBadge = { cls: 'rank-2', text: '🥉 Semi-finalist' };
-  else if (is8 && myRank >= 0) myBadge = { cls: 'rank-3', text: 'Group Stage' };
-  else if (!is8 && myRank === 2) myBadge = { cls: 'rank-2', text: '🥉 3rd Place' };
-  else if (!is8 && myRank === 3) myBadge = { cls: 'rank-3', text: '4th Place' };
+  else if (isMultiGroup && iAmSemiFinalist) myBadge = { cls: 'rank-2', text: '🥉 Semi-finalist' };
+  else if (isMultiGroup && myRank >= 0) myBadge = { cls: 'rank-3', text: 'Group Stage' };
+  else if (!isMultiGroup && myRank === 2) myBadge = { cls: 'rank-2', text: '🥉 3rd Place' };
+  else if (!isMultiGroup && myRank === 3) myBadge = { cls: 'rank-3', text: '4th Place' };
 
   return (
     <div className={styles['t-result-wrap']}>
@@ -195,7 +197,7 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
         )}
 
         {/* Standings */}
-        {is8 ? (
+        {isMultiGroup ? (
           <>
             <div className={styles['t-result-section-title']}>Group A — Final Standings</div>
             <StandingsTable
