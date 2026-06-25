@@ -60,6 +60,14 @@ export function randomBotName(taken: string[]): string {
 //   situationalIq — how much the match state (chase / required rate / wickets)
 //                   reshapes its aggression.
 //   memory        — how quickly and deeply it builds a read on the opponent.
+//   pressureHandling — composure when the moment is tense (close chase, death
+//                   overs, last wickets, Super Over). HIGH = executes its
+//                   computed move under fire; LOW = makes an emotional mistake
+//                   (panic hero-shot / timid freeze / loses the bowling read).
+//                   Unlike `volatility` (constant, uniform noise) this is GATED
+//                   by the match pressure and biased toward the WRONG move, and
+//                   unlike `situationalIq` (which sets the plan) it governs
+//                   whether the bot can EXECUTE that plan when it counts.
 //   chaos         — periodically reinvents its own sub-style mid-innings.
 //   situational   — aggression is driven entirely by the match state.
 
@@ -70,38 +78,39 @@ interface Personality {
   riskTolerance: number;
   situationalIq: number;
   memory: number;
+  pressureHandling: number;
   chaos?: boolean;
   situational?: boolean;
 }
 
 const PERSONALITIES: Record<string, Personality> = {
   // 🔥 Attacks constantly, hunts wickets, barely cares about getting out.
-  Aggressor: { aggression: 0.95, adaptability: 0.4, volatility: 0.45, riskTolerance: 0.95, situationalIq: 0.5, memory: 0.3 },
-  // 🎲 Big risks, big rewards — streaky and wildly unpredictable.
-  Gambler: { aggression: 0.7, adaptability: 0.3, volatility: 0.95, riskTolerance: 1.0, situationalIq: 0.4, memory: 0.2 },
+  //    Hot-headed — fearless but can over-attack at the worst moment.
+  Aggressor: { aggression: 0.95, adaptability: 0.2, volatility: 0.45, riskTolerance: 0.95, situationalIq: 0.5, memory: 0.3, pressureHandling: 0.28 },
+  // 🎲 Big risks, big rewards — streaky, wildly unpredictable, and prone to
+  //    cracking when the game is on the line (boom or bust).
+  Gambler: { aggression: 0.7, adaptability: 0.3, volatility: 0.95, riskTolerance: 1.0, situationalIq: 0.4, memory: 0.2, pressureHandling: 0.25 },
   // ⚖️ Balanced across everything — the "default human".
-  'All-Rounder': { aggression: 0.5, adaptability: 0.5, volatility: 0.5, riskTolerance: 0.5, situationalIq: 0.6, memory: 0.5 },
-  // 🌀 No plan, no pattern — reinvents itself every few balls.
-  Chaos: { aggression: 0.55, adaptability: 0.2, volatility: 1.0, riskTolerance: 0.7, situationalIq: 0.2, memory: 0.1, chaos: true },
+  'All-Rounder': { aggression: 0.5, adaptability: 0.5, volatility: 0.5, riskTolerance: 0.5, situationalIq: 0.6, memory: 0.5, pressureHandling: 0.5 },
+  // 🌀 No plan, no pattern — reinvents itself every few balls; no composure.
+  Chaos: { aggression: 0.55, adaptability: 0.2, volatility: 1.0, riskTolerance: 0.7, situationalIq: 0.2, memory: 0.1, pressureHandling: 0.15, chaos: true },
   // 🎯 Plays against YOU — obsessed with learning and countering your habits.
-  Hunter: { aggression: 0.6, adaptability: 0.95, volatility: 0.25, riskTolerance: 0.55, situationalIq: 0.7, memory: 1.0 },
-  // 🧠 The scoreboard decides everything — cold, calculated, situational.
-  Strategist: { aggression: 0.5, adaptability: 0.9, volatility: 0.2, riskTolerance: 0.5, situationalIq: 1.0, memory: 0.8, situational: true },
-  // 🧱 Lives at 1/2/3 — survival first, miserable to dislodge. Now reads the
-  //    match a bit sharper (higher situationalIq) so it lifts the tempo when a
-  //    chase demands it, without abandoning its low-risk core.
-  Wall: { aggression: 0.25, adaptability: 0.45, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.9, memory: 0.8 },
-  // 🛡️ Doesn't make mistakes — consistent, disciplined, low variance. Tuned to
-  //    think more strategically (higher situationalIq) while staying patient.
-  Guardian: { aggression: 0.35, adaptability: 0.6, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.92, memory: 0.7 },
-  // 🏁 Most dangerous when chasing — don't relax at the death.
-  Finisher: { aggression: 0.4, adaptability: 0.5, volatility: 0.35, riskTolerance: 0.65, situationalIq: 0.95, memory: 0.5 },
-  // 🃏 Learns the numbers you like and dodges them.
-  Trickster: { aggression: 0.55, adaptability: 0.85, volatility: 0.65, riskTolerance: 0.5, situationalIq: 0.5, memory: 0.85 },
-  // 🎓 Reads your habits and the match situation at the same time.
-  Maestro: { aggression: 0.55, adaptability: 0.9, volatility: 0.25, riskTolerance: 0.5, situationalIq: 0.9, memory: 1.0 },
-  // 🥊 Punishes you the moment you get predictable.
-  'Counter-Puncher': { aggression: 0.35, adaptability: 0.85, volatility: 0.2, riskTolerance: 0.45, situationalIq: 0.7, memory: 0.8 },
+  Hunter: { aggression: 0.6, adaptability: 0.95, volatility: 0.25, riskTolerance: 0.55, situationalIq: 0.7, memory: 1.0, pressureHandling: 0.75 },
+  // 🧠 The scoreboard decides everything — cold, calculated, ice in the veins.
+  Strategist: { aggression: 0.5, adaptability: 0.9, volatility: 0.2, riskTolerance: 0.5, situationalIq: 1.0, memory: 0.8, pressureHandling: 0.9, situational: true },
+  // 🧱 Lives at 1/2/3 — survival first, miserable to dislodge. Reads the match
+  //    sharply and stays calm under fire, without abandoning its low-risk core.
+  Wall: { aggression: 0.25, adaptability: 0.45, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.9, memory: 0.8, pressureHandling: 0.85 },
+  // 🛡️ Doesn't make mistakes — consistent, disciplined, low variance, unflappable.
+  Guardian: { aggression: 0.35, adaptability: 0.6, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.92, memory: 0.7, pressureHandling: 0.88 },
+  // 🏁 Most dangerous when chasing — the clutch closer who thrives at the death.
+  Finisher: { aggression: 0.4, adaptability: 0.5, volatility: 0.35, riskTolerance: 0.65, situationalIq: 0.95, memory: 0.5, pressureHandling: 0.95 },
+  // 🃏 Learns the numbers you like and dodges them; a touch flaky under pressure.
+  Trickster: { aggression: 0.55, adaptability: 0.85, volatility: 0.65, riskTolerance: 0.5, situationalIq: 0.5, memory: 0.85, pressureHandling: 0.55 },
+  // 🎓 Reads your habits and the match situation at the same time; composed.
+  Maestro: { aggression: 0.55, adaptability: 0.9, volatility: 0.25, riskTolerance: 0.5, situationalIq: 0.9, memory: 1.0, pressureHandling: 0.85 },
+  // 🥊 Punishes you the moment you get predictable; cool and opportunistic.
+  'Counter-Puncher': { aggression: 0.35, adaptability: 0.85, volatility: 0.2, riskTolerance: 0.45, situationalIq: 0.7, memory: 0.8, pressureHandling: 0.8 },
 };
 const STYLE_LABELS = Object.keys(PERSONALITIES);
 
@@ -269,11 +278,42 @@ function readOpponent(room: Room, oppIdx: number, isBowling: boolean, memory: nu
 }
 
 /**
+ * How tense THIS ball is, 0 (relaxed) → 1 (do-or-die). Stays near 0 for most of
+ * a match and ramps up only in the moments that decide games: a steep chase, the
+ * death overs, the last wickets, or a Super Over. This is the GATE that makes
+ * `pressureHandling` fundamentally different from `volatility` — a low-composure
+ * bot plays normally until this rises, then cracks.
+ */
+function pressure(room: Room): number {
+  if ((room.superOver ?? 0) > 0) return 1; // knockout Super Over — maximum stakes
+  const inn = room.innings[room.currentInnings];
+  const quota = totalBalls(room);
+  const ballsLeft = quota - inn.balls;
+  const wktsLeft = room.wickets - inn.wicketsLost;
+  if (ballsLeft <= 0 || wktsLeft <= 0) return 0;
+
+  const death = clamp01((inn.balls / quota - 0.55) / 0.45); // 0 until 55% bowled → 1 at the death
+  const wktScarcity = 1 - wktsLeft / room.wickets; // 0 fresh → 1 on the last wicket
+
+  if (room.currentInnings === 1) {
+    // Chasing — the real heat. Tension peaks when the ask is steep AND late AND thin.
+    const need = room.innings[0].score + 1 - inn.score;
+    if (need <= 0) return 0; // already won — relax
+    const reqRate = need / ballsLeft;
+    const chaseHeat = clamp01((reqRate - 0.8) / 1.7); // ≤0.8 rpb calm → ≥2.5 rpb max
+    return clamp01(0.55 * chaseHeat + 0.3 * death + 0.15 * wktScarcity);
+  }
+  // Setting a total — milder; mostly "don't get bowled out at the death".
+  return clamp01(0.6 * death * wktScarcity + 0.25 * death);
+}
+
+/**
  * Choose the bot's number (1–6). The shared core reads the opponent and reacts
  * to the match; each personality's parameters bias every step — how aggressive
  * it is, how much it trusts the read, how random it plays, and how much risk it
  * accepts. Momentum nudges aggression up on a hot streak; the Chaos style swaps
- * in a fresh random sub-style every few balls.
+ * in a fresh random sub-style every few balls. Under real pressure a low
+ * `pressureHandling` bot abandons all that for an emotional mistake.
  */
 export function pickBotMove(room: Room, botIdx: number): number {
   const p = PERSONALITIES[room.players[botIdx]?.botStyle ?? ''] ?? PERSONALITIES['All-Rounder'];
@@ -308,6 +348,21 @@ export function pickBotMove(room: Room, botIdx: number): number {
   aggression = clamp01(aggression + brain.momentum * 0.2);
 
   const hot = readOpponent(room, oppIdx, isBowling, p.memory);
+
+  // Pressure handling: in a tense moment a low-composure bot abandons its
+  // computed move for an EMOTIONAL mistake. The trigger is gated by pressure(room)
+  // (≈0 most of the match), and the mistake is the OPPOSITE of what the situation
+  // demands — so it punishes whoever lacks composure regardless of their style
+  // (an attacker freezes when it should swing; a blocker panics when it should
+  // hold). This is what separates it from `volatility` (constant, uniform noise).
+  const pr = pressure(room);
+  if (pr > 0 && Math.random() < (1 - p.pressureHandling) * pr * 0.8) {
+    if (isBowling) return rnd(); // nerves: drop the read, loose ball when a wicket was needed
+    const wantsAttack = situationalAggression(room, false) >= 0.5;
+    return wantsAttack
+      ? weightedBat(0.08, hot, brain.recent, 0) // needed runs → FREEZE (timid, can't chase)
+      : weightedBat(0.97, null, brain.recent, 0); // needed caution → PANIC (wild swing, holes out)
+  }
 
   if (isBowling) {
     const actOnRead = hot !== null && Math.random() < p.adaptability;
