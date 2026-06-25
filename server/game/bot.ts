@@ -330,6 +330,32 @@ export function pickBotMove(room: Room, botIdx: number): number {
 }
 
 /**
+ * Decide bat-or-bowl on winning the toss, flavoured by personality and the
+ * format (rather than a blind coin flip). Aggressive, risk-taking bots lean
+ * toward batting first and setting a target; sharp readers (high adaptability /
+ * situationalIq) lean toward bowling first and chasing a known target. Longer
+ * formats nudge toward batting first (more overs to build a total). It's always
+ * probabilistic and spread-clamped, so a given bot won't always pick the same
+ * thing — you'll see it choose to field too.
+ */
+export function pickBotTossDecision(room: Room, botIdx: number): 'bat' | 'bowl' {
+  const p = PERSONALITIES[room.players[botIdx]?.botStyle ?? ''] ?? PERSONALITIES['All-Rounder'];
+  let batBias =
+    0.5 +
+    (p.aggression - 0.5) * 0.7 + // attackers want to set the pace
+    (p.riskTolerance - 0.5) * 0.3 +
+    -(p.adaptability - 0.5) * 0.5 + // readers prefer to chase with information
+    -(p.situationalIq - 0.5) * 0.3;
+  // Longer formats reward batting first; shorter ones make chasing easier.
+  batBias += (room.overs - 6) * 0.012;
+  // High volatility (Chaos/Gambler) flattens the lean back toward a coin flip.
+  batBias = 0.5 + (batBias - 0.5) * (1 - p.volatility * 0.5);
+  // Keep spread so no bot is fully deterministic at the toss.
+  batBias = clamp01(Math.max(0.2, Math.min(0.8, batBias)));
+  return Math.random() < batBias ? 'bat' : 'bowl';
+}
+
+/**
  * Record both players' moves so bots can adapt, and update each bot's live brain
  * (recent moves + momentum/confidence). Cheap; only called for rooms with a bot.
  */

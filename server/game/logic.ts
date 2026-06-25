@@ -24,7 +24,7 @@ import {
   batsmanId,
   bowlerId,
 } from './room.ts';
-import { isBot, pickBotMove, recordMoveCounts } from './bot.ts';
+import { isBot, pickBotMove, pickBotTossDecision, recordMoveCounts } from './bot.ts';
 import type { SocketData } from './types.ts';
 import {
   tournaments,
@@ -710,11 +710,12 @@ export function driveBots(
   }
 
   if (room.phase === 'bat_bowl') {
-    const winner = room.players.find((p) => p.id === room.tossWinnerId);
+    const winnerIdx = room.players.findIndex((p) => p.id === room.tossWinnerId);
+    const winner = room.players[winnerIdx];
     if (winner && isBot(winner)) {
       botTimer(() => {
         if (roomAlive(rooms, roomId, room) && room.phase === 'bat_bowl') {
-          applyBatBowlChoice(io, roomId, room, rooms, Math.random() < 0.5 ? 'bat' : 'bowl');
+          applyBatBowlChoice(io, roomId, room, rooms, pickBotTossDecision(room, winnerIdx));
         }
       });
     }
