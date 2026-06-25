@@ -321,7 +321,8 @@ export function registerGameHandlers(io: GameServer): void {
       // (same as a disconnect), so the standings stay consistent.
       if (room.tournamentId !== undefined && room.tournamentMatchIdx !== undefined) {
         const tournament = tournaments.get(room.tournamentId);
-        if (tournament) forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
+        if (tournament)
+          forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id, undefined, room);
         rooms.delete(roomId);
         return;
       }
@@ -569,7 +570,8 @@ export function registerGameHandlers(io: GameServer): void {
         // on this fixture forever. ('result' means endInnings already advanced.)
         if (room.tournamentId && room.tournamentMatchIdx !== undefined && room.phase !== 'result') {
           const tournament = tournaments.get(room.tournamentId);
-          if (tournament) forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id);
+          if (tournament)
+            forfeitTournamentMatch(io, rooms, tournament, room.tournamentMatchIdx, socket.id, undefined, room);
         }
       }, GRACE_MS);
     });

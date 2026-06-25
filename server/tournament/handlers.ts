@@ -737,24 +737,37 @@ export function forfeitTournamentMatch(
   tournament: Tournament,
   matchIndex: number,
   loserId: string,
-  advanceDelayMs = 4000
+  advanceDelayMs = 4000,
+  loserRoom?: Room
 ): void {
   const fixture = tournament.fixtures[matchIndex];
   if (!fixture || fixture.status === 'done') return;
 
   fixture.status = 'done';
-  const p1Id = tournament.players[fixture.player1Idx].id;
-  const p2Id = tournament.players[fixture.player2Idx].id;
-  const p1Lost = p1Id === loserId;
+  const fp1 = tournament.players[fixture.player1Idx];
+  const fp2 = tournament.players[fixture.player2Idx];
+  // loserId is a socket id; resolve it to one of the fixture's tournament players
+  // by STABLE identity (userId/clientId), since a mid-match reconnect can desync
+  // the room's socket id from the tournament's. Keying the pointsTable off the raw
+  // socket id would otherwise miss the loser's entry (and could hand the result to
+  // the wrong side). Always pins the loss to one of the two fixture players.
+  const loserRp = loserRoom?.players.find((p) => p.id === loserId);
+  const isLoser = (tp: TournamentPlayerEntry) =>
+    tp.id === loserId ||
+    (loserRp != null &&
+      ((loserRp.userId != null && tp.userId === loserRp.userId) ||
+        (loserRp.clientId != null && tp.clientId === loserRp.clientId)));
+  const p1Lost = isLoser(fp1) && !isLoser(fp2);
   fixture.result = p1Lost ? 'p2' : 'p1';
-  const winnerId = p1Lost ? p2Id : p1Id;
+  const winnerId = p1Lost ? fp2.id : fp1.id;
+  const loserKey = p1Lost ? fp1.id : fp2.id;
 
   if (fixture.stage === 'final') {
     // A forfeited final: the surviving player is champion; no league points.
     tournament.champion = winnerId;
   } else if (fixture.stage === 'group') {
     const we = tournament.pointsTable[winnerId];
-    const le = tournament.pointsTable[loserId];
+    const le = tournament.pointsTable[loserKey];
     if (we) {
       we.played += 1;
       we.won += 1;

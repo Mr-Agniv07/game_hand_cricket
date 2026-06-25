@@ -423,17 +423,35 @@ export function endInnings(
         const fixture = tournament.fixtures[matchIdx];
         if (fixture) {
           fixture.status = 'done';
-          const p1Id = tournament.players[fixture.player1Idx].id;
-          const inn1PlayerId = room.players[room.bowlerIdx!].id;
+          const fp1 = tournament.players[fixture.player1Idx];
+          const fp2 = tournament.players[fixture.player2Idx];
+          // Map a room player to its tournament slot by STABLE identity (userId for
+          // registered players, clientId for guests, stable id for bots) — NOT the
+          // socket id. A reconnect mid-match can remap the room's socket id out of
+          // sync with the tournament's; keying scores/points off the socket id then
+          // files them onto a dead pointsTable key, silently dropping a player's
+          // win/loss (and could misassign the fixture's scores).
+          const toFixtureId = (rp: (typeof room.players)[number]): string => {
+            const match = (tp: typeof fp1) =>
+              (rp.userId != null && tp.userId === rp.userId) ||
+              (rp.clientId != null && tp.clientId === rp.clientId) ||
+              tp.id === rp.id;
+            return match(fp1) ? fp1.id : match(fp2) ? fp2.id : rp.id;
+          };
+          const inn1Pid = toFixtureId(room.players[room.bowlerIdx!]); // batted innings 1
+          const inn2Pid = toFixtureId(room.players[room.batsmanIdx!]); // batted innings 2
+          const winnerRp = winnerId === null ? null : room.players.find((p) => p.id === winnerId);
+          const winnerFixtureId = winnerRp ? toFixtureId(winnerRp) : null;
 
-          if (p1Id === inn1PlayerId) {
+          if (inn1Pid === fp1.id) {
             fixture.p1Score = inn1.score;
             fixture.p2Score = inn2.score;
           } else {
             fixture.p1Score = inn2.score;
             fixture.p2Score = inn1.score;
           }
-          fixture.result = winnerId === null ? 'tie' : winnerId === p1Id ? 'p1' : 'p2';
+          fixture.result =
+            winnerFixtureId === null ? 'tie' : winnerFixtureId === fp1.id ? 'p1' : 'p2';
           if (viaSuperOver) fixture.superOver = true;
           fixture.scorecard = scorecard;
 
@@ -501,14 +519,12 @@ export function endInnings(
             }
           };
 
-          const tied = winnerId === null;
-          const inn1PId = room.players[room.bowlerIdx!].id;
-          const inn2PId = room.players[room.batsmanIdx!].id;
+          const tied = winnerFixtureId === null;
 
           if (fixture.stage === 'final') {
             // The final decides the champion and does NOT count toward the league
             // table. A tied final goes to the higher seed (player1).
-            tournament.champion = winnerId ?? tournament.players[fixture.player1Idx].id;
+            tournament.champion = winnerFixtureId ?? fp1.id;
           } else if (fixture.stage === 'group') {
             // ICC-style NRR: a side that's all out is treated as having faced its
             // FULL over quota, regardless of how few balls it actually used. A side
@@ -519,8 +535,8 @@ export function endInnings(
             const eff1 = inn1.isOut ? quota : inn1.balls;
             const eff2 = inn2.isOut ? quota : inn2.balls;
 
-            updateEntry(inn1PId, inn1.score, eff1, inn2.score, eff2, !tied && winnerId === inn1PId, tied);
-            updateEntry(inn2PId, inn2.score, eff2, inn1.score, eff1, !tied && winnerId === inn2PId, tied);
+            updateEntry(inn1Pid, inn1.score, eff1, inn2.score, eff2, !tied && winnerFixtureId === inn1Pid, tied);
+            updateEntry(inn2Pid, inn2.score, eff2, inn1.score, eff1, !tied && winnerFixtureId === inn2Pid, tied);
           }
           // semi: no points table change; fixture.result (set above) decides who advances.
 
