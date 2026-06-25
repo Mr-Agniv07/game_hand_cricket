@@ -454,9 +454,11 @@ export const STORE_ITEMS: StoreItem[] = [
 
 /** Coins awarded for various actions. */
 export const COIN_REWARDS = {
+  // Finishing a Quick Match against a stranger (friends are excluded — no farming).
   quickMatch: 5,
-  tournamentMatch: 5,
+  // Winning a tournament that had at least one of your friends in it.
   tournamentWinWithFriend: 20,
+  // Backing the champion bot in a bot league.
   bidWin: 50,
 };
 
@@ -557,6 +559,21 @@ export function removeFriend(userId: string, friendId: string): void {
     }),
     'removeFriend'
   );
+}
+
+/**
+ * Whether two registered users are friends (mutual, so either direction works).
+ * Returns false if either id is missing — used to deny coin rewards between
+ * friends so they can't farm coins off each other.
+ */
+export function areFriends(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  if (!a || !b || a === b) return false;
+  const db = load();
+  const user = db.users.find((u) => u.id === a);
+  return !!user?.friends?.includes(b);
 }
 
 export function getFriends(userId: string): Friend[] {

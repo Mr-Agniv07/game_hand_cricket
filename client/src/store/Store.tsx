@@ -70,8 +70,9 @@ export default function Store({
 
         <div className={styles.body}>
           <p className={styles.hint}>
-            Earn coins by playing online Quick Matches and tournaments. Spend them here to unlock
-            longer formats, bigger tournaments and more emotes.
+            Earn coins by finishing online Quick Matches against strangers, and by winning a
+            tournament that has a friend in it. Spend them here to unlock longer formats, bigger
+            tournaments and more emotes.
           </p>
           {items === null ? (
             <div className={styles.loading}>

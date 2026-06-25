@@ -13,6 +13,7 @@ import {
   recordInnings,
   recordBotLeagueMatch,
   addCoins,
+  areFriends,
   COIN_REWARDS,
 } from '../db.ts';
 import {
@@ -402,9 +403,15 @@ export function endInnings(
     ]);
 
     // Quick Match reward: both human players earn coins for finishing a random
-    // online game (random pairing makes this hard to farm).
+    // online game — but NOT when they're friends. Random pairing can still match
+    // two friends (or they could queue together on purpose), and friends must not
+    // be able to farm coins off each other. Strangers are still rewarded.
     if (room.isQuickMatch) {
-      for (const p of room.players) if (!isBot(p)) addCoins(p.userId, COIN_REWARDS.quickMatch);
+      const [pa, pb] = room.players;
+      if (!isBot(pa) && !isBot(pb) && !areFriends(pa.userId, pb.userId)) {
+        addCoins(pa.userId, COIN_REWARDS.quickMatch);
+        addCoins(pb.userId, COIN_REWARDS.quickMatch);
+      }
     }
 
     // Update tournament if this is a tournament match.
@@ -443,13 +450,10 @@ export function endInnings(
             });
           }
 
-          // Tournament coins: each registered human earns coins for a match played
-          // against another human (bot opponents skipped, to deter farming).
-          const [pa, pb] = room.players;
-          if (!isBot(pa) && !isBot(pb)) {
-            addCoins(pa.userId, COIN_REWARDS.tournamentMatch);
-            addCoins(pb.userId, COIN_REWARDS.tournamentMatch);
-          }
+          // Tournament matches no longer pay per-match coins. The only tournament
+          // payout is winning a tournament that has at least one of your friends in
+          // it (handled in finalizeTournament) — so individual face-offs, including
+          // against a friend, can't be farmed for coins.
 
           // Feed the global record book — tournament matches only, and never the
           // 1-over Super Over innings (they'd pollute totals for the overs bucket).
