@@ -52,9 +52,13 @@ export function randomBotName(taken: string[]): string {
 // "what it does" cleanly separate from the "who it is", so styles are easy to
 // tune. There are fewer styles than bot names, so two bots can share a style.
 //
-//   aggression    — batting: lean toward big numbers (4/5/6);
-//                   bowling: how hard it commits to the wicket ball.
-//   adaptability  — how strongly it reads & acts on the opponent's habits.
+//   batAggression  — batting: lean toward big numbers (4/5/6).
+//   bowlAggression — bowling: how hard it commits to the wicket ball.
+//   batAdaptability  — batting: how strongly it avoids the bowler's danger number.
+//   bowlAdaptability — bowling: how strongly it acts on its read to hunt a wicket.
+//                   (Split per role so a bot can be e.g. a big-hitting batter but
+//                   a wayward bowler, or a wicket-reader with the ball who walks
+//                   into traps with the bat.)
 //   volatility    — how much pure randomness it injects (unpredictability).
 //   riskTolerance — willingness to risk the dismissal (low = plays it safe).
 //   situationalIq — how much the match state (chase / required rate / wickets)
@@ -72,8 +76,10 @@ export function randomBotName(taken: string[]): string {
 //   situational   — aggression is driven entirely by the match state.
 
 interface Personality {
-  aggression: number;
-  adaptability: number;
+  batAggression: number;
+  bowlAggression: number;
+  batAdaptability: number;
+  bowlAdaptability: number;
   volatility: number;
   riskTolerance: number;
   situationalIq: number;
@@ -85,32 +91,37 @@ interface Personality {
 
 const PERSONALITIES: Record<string, Personality> = {
   // 🔥 Attacks constantly, hunts wickets, barely cares about getting out.
-  //    Hot-headed — fearless but can over-attack at the worst moment.
-  Aggressor: { aggression: 0.95, adaptability: 0.2, volatility: 0.45, riskTolerance: 0.95, situationalIq: 0.5, memory: 0.3, pressureHandling: 0.28 },
+  //    Hot-headed — fearless but can over-attack at the worst moment. Hits hard
+  //    with the bat, comes hard with the ball; reads almost nothing either way.
+  Aggressor: { batAggression: 0.95, bowlAggression: 0.85, batAdaptability: 0.2, bowlAdaptability: 0.25, volatility: 0.45, riskTolerance: 0.95, situationalIq: 0.5, memory: 0.3, pressureHandling: 0.28 },
   // 🎲 Big risks, big rewards — streaky, wildly unpredictable, and prone to
   //    cracking when the game is on the line (boom or bust).
-  Gambler: { aggression: 0.7, adaptability: 0.3, volatility: 0.95, riskTolerance: 1.0, situationalIq: 0.4, memory: 0.2, pressureHandling: 0.25 },
-  // ⚖️ Balanced across everything — the "default human".
-  'All-Rounder': { aggression: 0.5, adaptability: 0.5, volatility: 0.5, riskTolerance: 0.5, situationalIq: 0.6, memory: 0.5, pressureHandling: 0.5 },
+  Gambler: { batAggression: 0.75, bowlAggression: 0.65, batAdaptability: 0.3, bowlAdaptability: 0.3, volatility: 0.95, riskTolerance: 1.0, situationalIq: 0.4, memory: 0.2, pressureHandling: 0.25 },
+  // ⚖️ Balanced across everything — the "default human"; a true all-rounder.
+  'All-Rounder': { batAggression: 0.5, bowlAggression: 0.5, batAdaptability: 0.5, bowlAdaptability: 0.5, volatility: 0.5, riskTolerance: 0.5, situationalIq: 0.6, memory: 0.5, pressureHandling: 0.5 },
   // 🌀 No plan, no pattern — reinvents itself every few balls; no composure.
-  Chaos: { aggression: 0.55, adaptability: 0.2, volatility: 1.0, riskTolerance: 0.7, situationalIq: 0.2, memory: 0.1, pressureHandling: 0.15, chaos: true },
-  // 🎯 Plays against YOU — obsessed with learning and countering your habits.
-  Hunter: { aggression: 0.6, adaptability: 0.95, volatility: 0.25, riskTolerance: 0.55, situationalIq: 0.7, memory: 1.0, pressureHandling: 0.75 },
+  Chaos: { batAggression: 0.55, bowlAggression: 0.55, batAdaptability: 0.2, bowlAdaptability: 0.2, volatility: 1.0, riskTolerance: 0.7, situationalIq: 0.2, memory: 0.1, pressureHandling: 0.15, chaos: true },
+  // 🎯 Plays against YOU — a BOWLING reader: hunts your wicket ball-by-ball, a
+  //    little less sharp with the bat in hand.
+  Hunter: { batAggression: 0.55, bowlAggression: 0.7, batAdaptability: 0.8, bowlAdaptability: 0.98, volatility: 0.25, riskTolerance: 0.55, situationalIq: 0.7, memory: 1.0, pressureHandling: 0.75 },
   // 🧠 The scoreboard decides everything — cold, calculated, ice in the veins.
-  Strategist: { aggression: 0.5, adaptability: 0.9, volatility: 0.2, riskTolerance: 0.5, situationalIq: 1.0, memory: 0.8, pressureHandling: 0.9, situational: true },
-  // 🧱 Lives at 1/2/3 — survival first, miserable to dislodge. Reads the match
-  //    sharply and stays calm under fire, without abandoning its low-risk core.
-  Wall: { aggression: 0.25, adaptability: 0.45, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.9, memory: 0.8, pressureHandling: 0.85 },
+  Strategist: { batAggression: 0.5, bowlAggression: 0.5, batAdaptability: 0.9, bowlAdaptability: 0.9, volatility: 0.2, riskTolerance: 0.5, situationalIq: 1.0, memory: 0.8, pressureHandling: 0.9, situational: true },
+  // 🧱 Lives at 1/2/3 — a defensive BATTING wall: blocks everything, reads to
+  //    survive; only modestly threatening with the ball.
+  Wall: { batAggression: 0.2, bowlAggression: 0.35, batAdaptability: 0.58, bowlAdaptability: 0.65, volatility: 0.12, riskTolerance: 0.12, situationalIq: 0.9, memory: 0.8, pressureHandling: 0.85 },
   // 🛡️ Doesn't make mistakes — consistent, disciplined, low variance, unflappable.
-  Guardian: { aggression: 0.35, adaptability: 0.6, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.92, memory: 0.7, pressureHandling: 0.88 },
-  // 🏁 Most dangerous when chasing — the clutch closer who thrives at the death.
-  Finisher: { aggression: 0.4, adaptability: 0.5, volatility: 0.35, riskTolerance: 0.65, situationalIq: 0.95, memory: 0.5, pressureHandling: 0.95 },
-  // 🃏 Learns the numbers you like and dodges them; a touch flaky under pressure.
-  Trickster: { aggression: 0.55, adaptability: 0.85, volatility: 0.65, riskTolerance: 0.5, situationalIq: 0.5, memory: 0.85, pressureHandling: 0.55 },
-  // 🎓 Reads your habits and the match situation at the same time; composed.
-  Maestro: { aggression: 0.55, adaptability: 0.9, volatility: 0.25, riskTolerance: 0.5, situationalIq: 0.9, memory: 1.0, pressureHandling: 0.85 },
-  // 🥊 Punishes you the moment you get predictable; cool and opportunistic.
-  'Counter-Puncher': { aggression: 0.35, adaptability: 0.85, volatility: 0.2, riskTolerance: 0.45, situationalIq: 0.7, memory: 0.8, pressureHandling: 0.8 },
+  Guardian: { batAggression: 0.35, bowlAggression: 0.4, batAdaptability: 0.6, bowlAdaptability: 0.62, volatility: 0.12, riskTolerance: 0.22, situationalIq: 0.92, memory: 0.7, pressureHandling: 0.88 },
+  // 🏁 Most dangerous when chasing — a BATTING closer who thrives at the death;
+  //    a gentler bowler.
+  Finisher: { batAggression: 0.5, bowlAggression: 0.35, batAdaptability: 0.55, bowlAdaptability: 0.45, volatility: 0.35, riskTolerance: 0.65, situationalIq: 0.95, memory: 0.5, pressureHandling: 0.95 },
+  // 🃏 Learns the numbers you like and dodges them — especially crafty with the
+  //    ball; a touch flaky under pressure.
+  Trickster: { batAggression: 0.55, bowlAggression: 0.55, batAdaptability: 0.8, bowlAdaptability: 0.9, volatility: 0.65, riskTolerance: 0.5, situationalIq: 0.5, memory: 0.85, pressureHandling: 0.55 },
+  // 🎓 Reads your habits and the match situation at the same time; composed both ways.
+  Maestro: { batAggression: 0.55, bowlAggression: 0.55, batAdaptability: 0.9, bowlAdaptability: 0.9, volatility: 0.25, riskTolerance: 0.5, situationalIq: 0.9, memory: 1.0, pressureHandling: 0.85 },
+  // 🥊 Punishes you the moment you get predictable; cool, opportunistic, a
+  //    sharper reader with the ball than the bat.
+  'Counter-Puncher': { batAggression: 0.35, bowlAggression: 0.4, batAdaptability: 0.82, bowlAdaptability: 0.88, volatility: 0.2, riskTolerance: 0.45, situationalIq: 0.7, memory: 0.8, pressureHandling: 0.8 },
 };
 const STYLE_LABELS = Object.keys(PERSONALITIES);
 
@@ -321,7 +332,9 @@ export function pickBotMove(room: Room, botIdx: number): number {
   const oppIdx = isBowling ? room.batsmanIdx! : room.bowlerIdx!;
   const brain = brainFor(room, botIdx);
 
-  let aggression = p.aggression;
+  // Role-split dials: a bot's batting and bowling skill are independent.
+  let aggression = isBowling ? p.bowlAggression : p.batAggression;
+  const adaptability = isBowling ? p.bowlAdaptability : p.batAdaptability;
   let volatility = p.volatility;
 
   // Chaos: adopt a brand-new random sub-style for a short burst, then switch.
@@ -365,7 +378,7 @@ export function pickBotMove(room: Room, botIdx: number): number {
   }
 
   if (isBowling) {
-    const actOnRead = hot !== null && Math.random() < p.adaptability;
+    const actOnRead = hot !== null && Math.random() < adaptability;
     // Unpredictable bowling: Chaos/Gambler vary wildly, Wall/Guardian stay steady.
     if (!actOnRead || Math.random() < volatility * 0.45) return rnd();
     // Commit to the wicket ball harder when more aggressive / risk-tolerant.
@@ -375,13 +388,13 @@ export function pickBotMove(room: Room, botIdx: number): number {
 
   // Batting. A pure free swing some of the time (scaled by volatility).
   if (Math.random() < volatility * 0.4) {
-    return weightedBat(aggression, null, brain.recent, p.adaptability);
+    return weightedBat(aggression, null, brain.recent, adaptability);
   }
   // Otherwise avoid the bowler's danger number — readers and cautious bots avoid
   // it more; risk-tolerant bots chance it.
-  const avoidProb = clamp01(p.adaptability * 0.6 + (1 - p.riskTolerance) * 0.5);
+  const avoidProb = clamp01(adaptability * 0.6 + (1 - p.riskTolerance) * 0.5);
   const avoid = hot !== null && Math.random() < avoidProb ? hot : null;
-  return weightedBat(aggression, avoid, brain.recent, p.adaptability);
+  return weightedBat(aggression, avoid, brain.recent, adaptability);
 }
 
 /**
@@ -395,11 +408,14 @@ export function pickBotMove(room: Room, botIdx: number): number {
  */
 export function pickBotTossDecision(room: Room, botIdx: number): 'bat' | 'bowl' {
   const p = PERSONALITIES[room.players[botIdx]?.botStyle ?? ''] ?? PERSONALITIES['All-Rounder'];
+  // The toss is a whole-disposition call, so use each split dial's bat/bowl mean.
+  const aggression = (p.batAggression + p.bowlAggression) / 2;
+  const adaptability = (p.batAdaptability + p.bowlAdaptability) / 2;
   let batBias =
     0.5 +
-    (p.aggression - 0.5) * 0.7 + // attackers want to set the pace
+    (aggression - 0.5) * 0.7 + // attackers want to set the pace
     (p.riskTolerance - 0.5) * 0.3 +
-    -(p.adaptability - 0.5) * 0.5 + // readers prefer to chase with information
+    -(adaptability - 0.5) * 0.5 + // readers prefer to chase with information
     -(p.situationalIq - 0.5) * 0.3;
   // Longer formats reward batting first; shorter ones make chasing easier.
   batBias += (room.overs - 6) * 0.012;
