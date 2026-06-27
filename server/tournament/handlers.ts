@@ -1282,6 +1282,21 @@ export function recentBotLeagues(): { id: string; format: number; state: Tournam
   return out;
 }
 
+/**
+ * Admin abort of a running bot league: drop it from the map and kill its live
+ * match room so the bots stop mid-over. Setting phase to 'complete' makes every
+ * pending timer (bidding window, match scheduling, advance) bail. Nothing is
+ * recorded (it didn't finish), so history/current-champions are untouched; Elo
+ * from matches already completed stays as-is.
+ */
+export function stopBotLeague(io: GameServer, rooms: Map<string, Room>, t: Tournament): void {
+  t.phase = 'complete';
+  tournaments.delete(t.code);
+  for (const [roomId, room] of rooms) if (room.tournamentId === t.code) rooms.delete(roomId);
+  t.liveScore = null;
+  io.to('t:' + t.id).emit('bot_league_stopped', { id: t.id });
+}
+
 // ─── Socket handlers ──────────────────────────────────────────────────────────
 
 export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Room>): void {
@@ -1458,6 +1473,24 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         });
       resetBotRankings();
       socket.emit('bot_rankings_reset');
+    });
+
+    // Admin-only: abort a running bot league (by id, else all running ones). Drops
+    // it without recording a result — for killing a league that shouldn't finish.
+    socket.on('stop_bot_league', ({ id } = {}) => {
+      const adminName = process.env.ADMIN_USERNAME;
+      const uid = socket.data.userId;
+      const user = uid ? findById(uid) : null;
+      if (!adminName || !user || user.username !== adminName)
+        return socket.emit('error', { message: 'Not authorized to stop a bot league.' });
+
+      const targets = [...tournaments.values()].filter(
+        (t) => t.isBotLeague && t.phase !== 'complete' && (!id || t.id === id)
+      );
+      if (targets.length === 0)
+        return socket.emit('error', { message: 'No running bot league to stop.' });
+      for (const t of targets) stopBotLeague(io, rooms, t);
+      socket.emit('bot_league_stopped', { id: id ?? null });
     });
 
     // Back a bot to win an in-progress league. Free, one pick per league; pays

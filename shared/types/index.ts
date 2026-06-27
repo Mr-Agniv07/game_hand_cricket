@@ -543,6 +543,7 @@ export interface ServerToClientEvents {
   tournament_complete: (p: TournamentCompletePayload) => void;
   emote_received: (p: EmoteReceivedPayload) => void;
   bot_league_started: (p: { id: string; format: number }) => void;
+  bot_league_stopped: (p: { id: string | null }) => void;
   bot_rankings_reset: () => void;
   match_found: (p: MatchFoundPayload) => void;
   match_waiting: (p: MatchWaitingPayload) => void;
@@ -632,6 +633,7 @@ export interface ClientToServerEvents {
   send_emote: (p: SendEmotePayload) => void;
   start_bot_league: (p: { format: number }) => void;
   start_bot_super_league: () => void;
+  stop_bot_league: (p: { id?: string }) => void;
   reset_bot_rankings: () => void;
   find_match: (p: FindMatchPayload) => void;
   cancel_match: () => void;

@@ -95,13 +95,20 @@ export default function BotLeague({ socket, user, onClose }: Props) {
       load();
       setTimeout(() => setMsg(''), 4000);
     }
+    function onStopped() {
+      setMsg('League stopped. ⏹');
+      load();
+      setTimeout(() => setMsg(''), 4000);
+    }
     socket.on('bot_league_started', onStarted);
     socket.on('bot_rankings_reset', onReset);
     socket.on('bid_placed', onBid);
+    socket.on('bot_league_stopped', onStopped);
     return () => {
       socket.off('bot_league_started', onStarted);
       socket.off('bot_rankings_reset', onReset);
       socket.off('bid_placed', onBid);
+      socket.off('bot_league_stopped', onStopped);
     };
   }, [socket, load]);
 
@@ -155,6 +162,12 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     setMsg('');
     socket.emit('start_bot_super_league');
     setTimeout(() => setStarting(false), 4000);
+  }
+
+  function handleStop() {
+    if (!liveForFormat) return;
+    if (!window.confirm('Stop the running league? It will be dropped without a result.')) return;
+    socket.emit('stop_bot_league', { id: liveForFormat.id });
   }
 
   function handleReset() {
@@ -215,6 +228,15 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                     : starting
                       ? 'Starting…'
                       : `▶ Start ${format}-Over League`}
+                </button>
+              )}
+              {liveForFormat && (
+                <button
+                  className={styles.stopBtn}
+                  onClick={handleStop}
+                  title="Abort the running league (drops it with no result)"
+                >
+                  ⏹ Stop
                 </button>
               )}
               <button
