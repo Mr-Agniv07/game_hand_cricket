@@ -322,6 +322,27 @@ export async function initDb(): Promise<void> {
     );
   }
 
+  // Lifetime bot-vs-bot head-to-head. Guarded like the rankings above so a server
+  // without the migration yet still boots (H2H simply stays empty until applied).
+  try {
+    const rows = await prisma.botHeadToHead.findMany();
+    botH2H.clear();
+    for (const r of rows)
+      botH2H.set(r.pair, {
+        pair: r.pair,
+        nameA: r.nameA,
+        nameB: r.nameB,
+        aWins: r.aWins,
+        bWins: r.bWins,
+        ties: r.ties,
+      });
+  } catch (err) {
+    console.error(
+      '[db] bot head-to-head unavailable (is the BotHeadToHead migration applied?):',
+      (err as Error)?.message ?? err
+    );
+  }
+
   // Past bot-league tournaments (history cards). Guarded like the rankings above.
   // Load oldest-first to (re)derive each format's sequential name + count, then
   // keep the newest BOT_HISTORY_CAP for the in-memory cache. Names missing or
@@ -924,6 +945,58 @@ interface BotRankingRow {
 const botRankings = new Map<string, BotRankingRow>(); // keyed by `${botName}|${format}`
 const botKey = (name: string, format: number) => `${name}|${format}`;
 
+// ─── Lifetime bot-vs-bot head-to-head ──────────────────────────────────────────
+// One row per unordered pair of bots, accumulated across every bot-league match
+// (both formats, group + knockouts). Keyed by the two names sorted into "A|B";
+// aWins/bWins follow nameA/nameB. Loaded at boot, updated per match, reset on reset.
+type BotH2HRow = { pair: string; nameA: string; nameB: string; aWins: number; bWins: number; ties: number };
+const botH2H = new Map<string, BotH2HRow>();
+
+/** Canonical (order-independent) key + name ordering for a bot pair. */
+function h2hPair(x: string, y: string): { pair: string; nameA: string; nameB: string } {
+  const [nameA, nameB] = x.localeCompare(y) <= 0 ? [x, y] : [y, x];
+  return { pair: `${nameA}|${nameB}`, nameA, nameB };
+}
+
+function persistBotH2H(row: BotH2HRow): void {
+  persist(
+    prisma.botHeadToHead.upsert({
+      where: { pair: row.pair },
+      create: { pair: row.pair, nameA: row.nameA, nameB: row.nameB, aWins: row.aWins, bWins: row.bWins, ties: row.ties },
+      update: { aWins: row.aWins, bWins: row.bWins, ties: row.ties },
+    }),
+    'botH2H'
+  );
+}
+
+/** Fold one finished bot-vs-bot match into the lifetime head-to-head record. */
+function recordBotH2H(aName: string, bName: string, winnerName: string | null): void {
+  if (aName === bName) return;
+  const { pair, nameA, nameB } = h2hPair(aName, bName);
+  let row = botH2H.get(pair);
+  if (!row) {
+    row = { pair, nameA, nameB, aWins: 0, bWins: 0, ties: 0 };
+    botH2H.set(pair, row);
+  }
+  if (winnerName === null) row.ties++;
+  else if (winnerName === row.nameA) row.aWins++;
+  else row.bWins++;
+  persistBotH2H(row);
+}
+
+/** Lifetime head-to-head between two bots, oriented to the requested (x, y). */
+export function getBotHeadToHead(
+  x: string,
+  y: string
+): { played: number; xWins: number; yWins: number; ties: number } {
+  const row = botH2H.get(h2hPair(x, y).pair);
+  if (!row) return { played: 0, xWins: 0, yWins: 0, ties: 0 };
+  const xIsA = row.nameA === x;
+  const xWins = xIsA ? row.aWins : row.bWins;
+  const yWins = xIsA ? row.bWins : row.aWins;
+  return { played: xWins + yWins + row.ties, xWins, yWins, ties: row.ties };
+}
+
 function freshBotRow(botName: string, format: number): BotRankingRow {
   return {
     botName,
@@ -1025,6 +1098,9 @@ export function recordBotLeagueMatch(input: {
 
   persistBotRow(a);
   persistBotRow(b);
+
+  // Lifetime head-to-head (format-agnostic): winner by the authoritative result.
+  recordBotH2H(aName, bName, result === 'a' ? aName : result === 'b' ? bName : null);
 }
 
 /**
@@ -1043,6 +1119,9 @@ export function resetBotRankings(): void {
   for (const f of BOT_FORMATS) botTournamentCount[f] = 0;
   botSuperLeagueCount = 0;
   persist(prisma.botTournament.deleteMany({}), 'resetBotTournaments');
+  // Lifetime head-to-head is part of the bot record — wipe it on a clean slate too.
+  botH2H.clear();
+  persist(prisma.botHeadToHead.deleteMany({}), 'resetBotH2H');
 }
 
 /** Award a bot-league trophy (a tournament title) to the winning bot for a format. */

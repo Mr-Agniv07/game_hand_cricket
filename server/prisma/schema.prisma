@@ -148,6 +148,20 @@ model BotRanking {
   @@unique([botName, format])
 }
 
+// Lifetime head-to-head between two specific bots, across all bot-league matches
+// (group + knockouts, both formats). One row per unordered pair, keyed by the two
+// names sorted into a stable "NameA|NameB" string; aWins/bWins follow nameA/nameB.
+model BotHeadToHead {
+  id        Int      @id @default(autoincrement())
+  pair      String   @unique
+  nameA     String
+  nameB     String
+  aWins     Int      @default(0)
+  bWins     Int      @default(0)
+  ties      Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 // One row per COMPLETED bot-league tournament — a durable history so past
 // winners survive server restarts (the in-memory tournament does not). Standings
 // is a compact JSON snapshot of how each bot finished.
