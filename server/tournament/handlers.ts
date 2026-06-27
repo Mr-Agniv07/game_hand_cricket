@@ -554,6 +554,36 @@ function scenarioLine(infos: TeamInfo[], me: number, opp: number, K: number, nam
   return null;
 }
 
+/**
+ * How urgently a team should chase a result in a GROUP match, from its live
+ * qualification picture: ~ -0.3 (dead rubber — already through or out) → +1
+ * (must win or be eliminated). Bots fold this lightly into their aggression
+ * (scaled by situationalIq) so the smart ones lift their game when it matters.
+ */
+function qualUrgency(infos: TeamInfo[], me: number, opp: number, K: number): number {
+  const cur = statusFromInfos(infos, me, K);
+  if (cur === 'Q' || cur === 'E') return -0.3; // nothing left to play for
+  if (statusFromInfos(withResult(infos, opp, me), me, K) === 'E') return 1.0; // lose = out
+  if (statusFromInfos(withResult(infos, me, opp), me, K) === 'Q') return 0.6; // win = through
+  return 0.2; // every win still helps the cause
+}
+
+/** Per-room-index qualification urgency for a group fixture (else undefined). */
+function groupStakesFor(t: Tournament, fixture: InternalFixtureMatch): Record<number, number> | undefined {
+  if (fixture.stage !== 'group') return undefined;
+  const K = qualifyCountFor(t.size);
+  const group = t.groups.find((g) => g.includes(fixture.player1Idx)) ?? [];
+  const infos: TeamInfo[] = group.map((idx) => ({
+    idx,
+    points: (t.players[idx]?.id && t.pointsTable[t.players[idx].id]?.points) || 0,
+    remaining: remainingGroupGames(t, idx),
+  }));
+  return {
+    0: qualUrgency(infos, fixture.player1Idx, fixture.player2Idx, K),
+    1: qualUrgency(infos, fixture.player2Idx, fixture.player1Idx, K),
+  };
+}
+
 /** Head-to-head + qualification stakes for the currently-live match (null if none). */
 function computeLiveInsights(t: Tournament): { headToHead: string | null; lines: string[] } | null {
   if (t.phase !== 'in_progress') return null;
@@ -1074,6 +1104,8 @@ function beginTournamentMatch(
   room.hasBot = isBot(p1) || isBot(p2);
   room.tournamentId = tournament.code;
   room.tournamentMatchIdx = matchIndex;
+  // Qualification stakes (group matches only) — bots fold this into their play.
+  room.qualStakes = groupStakesFor(tournament, fixture);
   rooms.set(roomId, room);
   fixture.roomId = roomId;
 

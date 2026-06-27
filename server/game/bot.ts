@@ -360,6 +360,12 @@ export function pickBotMove(room: Room, botIdx: number): number {
   // Confidence/momentum: a good streak makes it bolder, a wobble more cautious.
   aggression = clamp01(aggression + brain.momentum * 0.2);
 
+  // Tournament awareness: a smart bot lifts (or eases) its game by what the group
+  // match means for qualification — must-win → bolder, dead rubber → relaxed.
+  // Light and scaled by situationalIq, so only the sharp personalities really act on it.
+  const stake = room.qualStakes?.[botIdx];
+  if (stake !== undefined) aggression = clamp01(aggression + stake * p.situationalIq * 0.12);
+
   const hot = readOpponent(room, oppIdx, isBowling, p.memory);
 
   // Pressure handling: in a tense moment a low-composure bot abandons its

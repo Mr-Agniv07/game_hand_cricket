@@ -51,6 +51,10 @@ export interface Room {
   mlLastMoves?: Record<string, number>;
   tournamentId?: string;
   tournamentMatchIdx?: number;
+  /** Per-player-index qualification urgency for this group match (~ -0.3 dead
+   *  rubber → +1 must-win). A bot folds it lightly into its aggression, scaled by
+   *  situationalIq. Set only for group-stage tournament matches. */
+  qualStakes?: Record<number, number>;
   /** Set when at least one player is a bot — enables bot driving + move tracking. */
   hasBot?: boolean;
   /** Set for a Quick Match (random-pair) casual game — awards coins on completion. */
