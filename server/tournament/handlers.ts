@@ -484,15 +484,29 @@ function computeQualification(t: Tournament): Record<string, 'Q' | 'E'> {
   for (const group of t.groups) {
     const info = group.map((idx) => {
       const id = t.players[idx]?.id;
-      const points = (id && t.pointsTable[id]?.points) || 0;
+      const e = id ? t.pointsTable[id] : undefined;
+      const points = e?.points ?? 0;
       const remaining = remainingGroupGames(t, idx);
-      return { idx, id, floor: points, ceiling: points + 2 * remaining };
+      return { idx, id, points, nrr: e ? computeNRR(e) : 0, remaining, floor: points, ceiling: points + 2 * remaining };
     });
+
+    // Group finished → the table is final, so the tie-break (NRR) decides: the top
+    // N are through, the rest are out. Uses the same ordering the bracket advances by.
+    if (info.every((i) => i.remaining === 0)) {
+      [...info]
+        .sort((a, b) => b.points - a.points || b.nrr - a.nrr)
+        .forEach((r, pos) => {
+          if (r.id) out[r.id] = pos < K ? 'Q' : 'E';
+        });
+      continue;
+    }
+
+    // Group still in progress → sound points-based clinch (never marks wrongly;
+    // a team only tie-able on points is treated as a live threat since NRR could
+    // still swing either way).
     for (const me of info) {
       if (!me.id) continue;
-      // Teams that could still finish at or above my worst-case points.
       const threats = info.filter((o) => o.idx !== me.idx && o.ceiling >= me.floor).length;
-      // Teams already guaranteed to finish above my best-case points.
       const lockedAbove = info.filter((o) => o.idx !== me.idx && o.floor > me.ceiling).length;
       if (threats < K) out[me.id] = 'Q';
       else if (lockedAbove >= K) out[me.id] = 'E';
