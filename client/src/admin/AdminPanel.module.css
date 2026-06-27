@@ -1,0 +1,172 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 0.6rem;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid #ffffff14;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #ffffff12;
+}
+.header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.body {
+  padding: 0.8rem 1rem 1.2rem;
+  overflow-y: auto;
+}
+.section {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 1rem 0 0.5rem;
+}
+.section:first-child {
+  margin-top: 0;
+}
+.msg {
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+.err {
+  font-size: 0.8rem;
+  color: var(--danger);
+  margin-bottom: 0.5rem;
+}
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+}
+.empty {
+  font-size: 0.82rem;
+  color: var(--muted);
+  padding: 0.3rem 0;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.controls button {
+  flex: 1 1 30%;
+  padding: 0.55rem 0.4rem;
+  border: none;
+  border-radius: 9px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.start {
+  background: linear-gradient(135deg, var(--accent), #0ea5e9);
+  color: #00140a;
+}
+.super {
+  background: linear-gradient(135deg, #f59e0b, #d946ef);
+  color: #1a0033;
+}
+.stop {
+  background: var(--danger);
+  color: #1a0000;
+}
+.reset {
+  background: transparent;
+  border: 1px solid var(--danger) !important;
+  color: var(--danger);
+}
+
+/* Stats grid */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+.stat {
+  background: var(--surface2);
+  border: 1px solid #ffffff10;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.statVal {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.statLabel {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+/* Rows (matches / tournaments) */
+.row {
+  background: var(--surface2);
+  border: 1px solid #ffffff10;
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.4rem;
+}
+.rowTop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.badge {
+  font-size: 0.66rem;
+  font-weight: 800;
+  background: #ffffff14;
+  border-radius: 5px;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+}
+.rowTeams,
+.rowCode {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.rowMeta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+.rowSub {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}

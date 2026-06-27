@@ -1313,6 +1313,28 @@ export function stopBotLeague(io: GameServer, rooms: Map<string, Room>, t: Tourn
   io.to('t:' + t.id).emit('bot_league_stopped', { id: t.id });
 }
 
+/** Snapshot of every active tournament (bot + human) for the admin dashboard. */
+export function adminTournaments(): import('@cric/types').AdminTournament[] {
+  const out: import('@cric/types').AdminTournament[] = [];
+  for (const t of tournaments.values()) {
+    if (t.phase === 'complete') continue;
+    const done = t.fixtures.filter((f) => f.status === 'done').length;
+    out.push({
+      code: t.code,
+      kind: t.isSuperLeague ? 'super-league' : t.isBotLeague ? 'bot-league' : 'human',
+      format: t.format ?? null,
+      size: t.size,
+      phase: t.phase,
+      players: t.players.map((p) => p.name),
+      progress:
+        t.phase === 'waiting'
+          ? `${t.players.length}/${t.size} joined`
+          : `${done}/${t.fixtures.length} matches`,
+    });
+  }
+  return out;
+}
+
 // ─── Socket handlers ──────────────────────────────────────────────────────────
 
 export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Room>): void {

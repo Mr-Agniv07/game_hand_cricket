@@ -70,6 +70,40 @@ function removeFromQueue(socketId: string): void {
   }
 }
 
+/** Snapshot of every in-progress match (room) for the admin dashboard. */
+export function adminLiveMatches(): import('@cric/types').AdminLiveMatch[] {
+  const out: import('@cric/types').AdminLiveMatch[] = [];
+  for (const [roomId, room] of rooms) {
+    if (room.players.length < 2) continue; // skip half-open rooms
+    const inn = room.innings[room.currentInnings];
+    out.push({
+      roomId,
+      kind: room.tournamentId
+        ? 'tournament'
+        : room.isQuickMatch
+          ? 'quick'
+          : room.hasBot
+            ? 'vs-bot'
+            : 'casual',
+      phase: room.phase,
+      overs: room.overs,
+      wickets: room.wickets,
+      innings: room.currentInnings + 1,
+      score: `${inn.score}/${inn.wicketsLost} (${Math.floor(inn.balls / 6)}.${inn.balls % 6})`,
+      players: room.players.map((p) => ({ name: p.name, isBot: !!p.isBot })),
+      tournamentCode: room.tournamentId ?? null,
+    });
+  }
+  return out;
+}
+
+/** Total players currently waiting in the Quick Match queue (all modes). */
+export function queueWaitingCount(): number {
+  let n = 0;
+  for (const q of matchQueue.values()) n += q.length;
+  return n;
+}
+
 /** True (and emits an error) if this socket hasn't unlocked the requested over count. */
 function formatLocked(socket: GameSocket, overs: number): boolean {
   const item = overUnlockId(overs);

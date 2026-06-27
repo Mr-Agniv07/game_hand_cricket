@@ -43,8 +43,6 @@ interface Props {
 export default function BotLeague({ socket, user, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('5');
   const [data, setData] = useState<BotLeagueData | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [starting, setStarting] = useState(false);
   const [msg, setMsg] = useState('');
   const [watchingId, setWatchingId] = useState<string | null>(null);
   const [pastView, setPastView] = useState<BotTournamentSummary | null>(null);
@@ -69,18 +67,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     return () => clearInterval(t);
   }, [load]);
 
-  // Am I the admin? (server compares my username to ADMIN_USERNAME)
-  useEffect(() => {
-    if (!user?.token) return;
-    apiGet<{ isAdmin?: boolean }>('/api/me', user.token)
-      .then((me) => setIsAdmin(!!me.isAdmin))
-      .catch(() => {});
-  }, [user?.token]);
-
-  // React to a successful start.
+  // Refresh the view when the admin starts/stops/resets from the Admin Panel.
   useEffect(() => {
     function onStarted({ format: f }: { format: number }) {
-      setStarting(false);
       setMsg(`${f}-over bot league started! 🤖`);
       load();
       setTimeout(() => setMsg(''), 4000);
@@ -142,42 +131,6 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const champ5 = data?.history.find((t) => t.format === 5 && !isSuperSummary(t))?.champion ?? null;
   const champ10 = data?.history.find((t) => t.format === 10 && !isSuperSummary(t))?.champion ?? null;
   const champSuper = data?.history.find(isSuperSummary)?.champion ?? null;
-  // A 10-over event (regular OR super) is live → both share the 10-over rankings,
-  // so the server allows only one at a time. Disable the other tab's start button.
-  const tenOverBusy = !!data?.active.some((a) => a.format === 10);
-  const startBusy = isSuper ? tenOverBusy : !!data?.active.some((a) => a.format === format);
-
-  function handleStart() {
-    if (starting || startBusy) return;
-    setStarting(true);
-    setMsg('');
-    socket.emit('start_bot_league', { format });
-    // Safety: clear the spinner even if the server stays silent (e.g. rejected).
-    setTimeout(() => setStarting(false), 4000);
-  }
-
-  function handleStartSuper() {
-    if (starting || tenOverBusy) return;
-    setStarting(true);
-    setMsg('');
-    socket.emit('start_bot_super_league');
-    setTimeout(() => setStarting(false), 4000);
-  }
-
-  function handleStop() {
-    if (!liveForFormat) return;
-    if (!window.confirm('Stop the running league? It will be dropped without a result.')) return;
-    socket.emit('stop_bot_league', { id: liveForFormat.id });
-  }
-
-  function handleReset() {
-    if (data && data.active.length > 0) {
-      setMsg('Finish the live league before resetting.');
-      return;
-    }
-    if (!window.confirm('Reset ALL bot rankings (ratings, records and trophies) to zero?')) return;
-    socket.emit('reset_bot_rankings');
-  }
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -202,53 +155,6 @@ export default function BotLeague({ socket, user, onClose }: Props) {
         </div>
 
         <div className={styles.body}>
-          {isAdmin && (
-            <div className={styles.adminBar}>
-              {isSuper ? (
-                <button
-                  className={styles.superBtn}
-                  onClick={handleStartSuper}
-                  disabled={starting || startBusy}
-                  title="All 12 bots, two groups of 6, quarters → semis → final"
-                >
-                  {startBusy
-                    ? '10-Over event in progress…'
-                    : starting
-                      ? 'Starting…'
-                      : '🏆 Start Super League — all 12 bots'}
-                </button>
-              ) : (
-                <button
-                  className={styles.startBtn}
-                  onClick={handleStart}
-                  disabled={starting || startBusy}
-                >
-                  {startBusy
-                    ? `${format}-Over event in progress…`
-                    : starting
-                      ? 'Starting…'
-                      : `▶ Start ${format}-Over League`}
-                </button>
-              )}
-              {liveForFormat && (
-                <button
-                  className={styles.stopBtn}
-                  onClick={handleStop}
-                  title="Abort the running league (drops it with no result)"
-                >
-                  ⏹ Stop
-                </button>
-              )}
-              <button
-                className={styles.resetBtn}
-                onClick={handleReset}
-                disabled={!!data && data.active.length > 0}
-                title="Reset all bot rankings to zero"
-              >
-                🔄 Reset
-              </button>
-            </div>
-          )}
           {msg && <div className={styles.msg}>{msg}</div>}
 
           {data === null ? (

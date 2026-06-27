@@ -239,6 +239,59 @@ export interface EconomyState {
   unlocks: string[];
 }
 
+// ─── Admin panel ──────────────────────────────────────────────────────────────
+
+/** Aggregate database + runtime stats for the admin dashboard. */
+export interface AdminStats {
+  users: number;
+  usersPlayed: number;
+  online: number;
+  totalGamesPlayed: number;
+  totalRunsScored: number;
+  matchHistoryRows: number;
+  friendships: number;
+  coinsInCirculation: number;
+  tournamentsPlayed: number;
+  tournamentsWon: number;
+  botLeaguesCompleted: number;
+  botH2HPairs: number;
+  botRankingRows: number;
+  liveRooms: number;
+  activeTournaments: number;
+  queueWaiting: number;
+}
+
+/** One in-progress match (room) for the admin live view. */
+export interface AdminLiveMatch {
+  roomId: string;
+  kind: 'tournament' | 'quick' | 'vs-bot' | 'casual';
+  phase: string;
+  overs: number;
+  wickets: number;
+  innings: number;
+  score: string;
+  players: { name: string; isBot: boolean }[];
+  tournamentCode?: string | null;
+}
+
+/** One active tournament (bot or human) for the admin live view. */
+export interface AdminTournament {
+  code: string;
+  kind: 'super-league' | 'bot-league' | 'human';
+  format?: number | null;
+  size: number;
+  phase: TournamentPhase;
+  players: string[];
+  progress: string;
+}
+
+/** Response of GET /api/admin (admin only). */
+export interface AdminData {
+  stats: AdminStats;
+  liveMatches: AdminLiveMatch[];
+  tournaments: AdminTournament[];
+}
+
 // ─── Server → client event payloads ─────────────────────────────────────────
 
 export interface RoomCreatedPayload {

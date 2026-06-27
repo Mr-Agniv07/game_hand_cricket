@@ -6,6 +6,7 @@ import MeetBots from './MeetBots';
 import GlobalStandings from './GlobalStandings';
 import HallOfFame from './HallOfFame';
 import BotLeague from './BotLeague';
+import AdminPanel from '../admin/AdminPanel';
 import type { BotLeagueData } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
@@ -45,6 +46,8 @@ export default function Lobby({
   const [showStandings, setShowStandings] = useState(false);
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const [showBotLeague, setShowBotLeague] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [leagueLive, setLeagueLive] = useState(false);
   const [qOvers, setQOvers] = useState(2);
   const [qWickets, setQWickets] = useState(2);
@@ -118,6 +121,17 @@ export default function Lobby({
       clearInterval(t);
     };
   }, []);
+
+  // Am I the admin? (server compares my username to ADMIN_USERNAME)
+  useEffect(() => {
+    if (!user?.token) {
+      setIsAdmin(false);
+      return;
+    }
+    apiGet<{ isAdmin?: boolean }>('/api/me', user.token)
+      .then((me) => setIsAdmin(!!me.isAdmin))
+      .catch(() => {});
+  }, [user?.token]);
 
   function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -213,6 +227,15 @@ export default function Lobby({
         >
           🏆 Bot League{leagueLive ? ' · LIVE' : ''}
         </button>
+        {isAdmin && (
+          <button
+            type="button"
+            className={styles['meet-bots-link']}
+            onClick={() => setShowAdmin(true)}
+          >
+            🛠 Admin
+          </button>
+        )}
       </div>
 
       {tab === 'quick' && (
@@ -494,6 +517,9 @@ export default function Lobby({
       {showHallOfFame && <HallOfFame user={user} onClose={() => setShowHallOfFame(false)} />}
       {showBotLeague && (
         <BotLeague socket={socket} user={user} onClose={() => setShowBotLeague(false)} />
+      )}
+      {showAdmin && isAdmin && (
+        <AdminPanel socket={socket} user={user} onClose={() => setShowAdmin(false)} />
       )}
     </div>
   );

@@ -17,6 +17,7 @@ import type {
   BotTournamentStanding,
   TournamentState,
   StoreItem,
+  AdminStats,
 } from '@cric/types';
 import { isBotName, BOT_NAMES } from './game/bot.ts';
 import type { Prisma } from '@prisma/client';
@@ -1221,6 +1222,36 @@ export function getBotRankings(format: number): BotRankingEntry[] {
     trophies: r.trophies,
     winPct: r.played ? Math.round((r.wins / r.played) * 100) : 0,
   }));
+}
+
+// ─── Admin stats ───────────────────────────────────────────────────────────────
+
+/**
+ * Aggregate stats for the admin dashboard, computed synchronously from the
+ * in-memory cache + bot state (the runtime counts — online users, live rooms,
+ * active tournaments, queue — are added by the admin route, which has the maps).
+ */
+export function getAdminStats(): Omit<
+  AdminStats,
+  'online' | 'liveRooms' | 'activeTournaments' | 'queueWaiting'
+> {
+  const users = cache.users;
+  const sum = (f: (u: DbUser) => number) => users.reduce((a, u) => a + f(u), 0);
+  return {
+    users: users.length,
+    usersPlayed: users.filter((u) => u.stats.gamesPlayed > 0).length,
+    totalGamesPlayed: sum((u) => u.stats.gamesPlayed),
+    totalRunsScored: sum((u) => u.stats.runsScored),
+    matchHistoryRows: sum((u) => u.matchHistory.length),
+    friendships: Math.round(sum((u) => u.friends?.length ?? 0) / 2),
+    coinsInCirculation: sum((u) => u.coins ?? 0),
+    tournamentsPlayed: sum((u) => u.achievements?.tournamentsPlayed ?? 0),
+    tournamentsWon: sum((u) => u.achievements?.tournamentsWon ?? 0),
+    botLeaguesCompleted:
+      Object.values(botTournamentCount).reduce((a, b) => a + b, 0) + botSuperLeagueCount,
+    botH2HPairs: botH2H.size,
+    botRankingRows: botRankings.size,
+  };
 }
 
 // ─── ML profiles & ball log ──────────────────────────────────────────────────────
