@@ -467,6 +467,12 @@ export interface TournamentState {
    * mathematically eliminated. Absent id = still in contention. Empty before groups exist.
    */
   qualification?: Record<string, 'Q' | 'E'>;
+  /**
+   * Context for the live match: a head-to-head line + qualification stakes for the
+   * two teams ("must win to stay alive", "a win secures a spot", etc.). Null when
+   * no match is currently live.
+   */
+  liveInsights?: { headToHead: string | null; lines: string[] } | null;
 }
 
 export interface TournamentMatchStartingPayload {

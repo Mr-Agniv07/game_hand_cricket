@@ -26,6 +26,7 @@ import {
   overUnlockId,
   addCoins,
   getEconomy,
+  getBotHeadToHead,
   COIN_REWARDS,
 } from '../db.ts';
 import type { UserAchievements } from '@cric/types';
@@ -500,6 +501,107 @@ function computeQualification(t: Tournament): Record<string, 'Q' | 'E'> {
   return out;
 }
 
+// ─── Live-match insights ────────────────────────────────────────────────────
+
+type TeamInfo = { idx: number; points: number; remaining: number };
+
+/** Clinch status for one team given a set of group infos (floors/ceilings). */
+function statusFromInfos(infos: TeamInfo[], meIdx: number, K: number): 'Q' | 'E' | null {
+  const me = infos.find((i) => i.idx === meIdx);
+  if (!me) return null;
+  const floor = me.points;
+  const ceiling = me.points + 2 * me.remaining;
+  const threats = infos.filter((o) => o.idx !== meIdx && o.points + 2 * o.remaining >= floor).length;
+  const lockedAbove = infos.filter((o) => o.idx !== meIdx && o.points > ceiling).length;
+  if (threats < K) return 'Q';
+  if (lockedAbove >= K) return 'E';
+  return null;
+}
+
+/** True if, from this state, the team is guaranteed to finish top of its group. */
+function guaranteedTop(infos: TeamInfo[], meIdx: number): boolean {
+  const me = infos.find((i) => i.idx === meIdx);
+  if (!me) return false;
+  return infos.every((o) => o.idx === meIdx || o.points + 2 * o.remaining < me.points);
+}
+
+/** Apply a hypothetical decided result to a copy of the group infos. */
+function withResult(infos: TeamInfo[], winnerIdx: number, loserIdx: number): TeamInfo[] {
+  return infos.map((i) =>
+    i.idx === winnerIdx
+      ? { ...i, points: i.points + 2, remaining: Math.max(0, i.remaining - 1) }
+      : i.idx === loserIdx
+        ? { ...i, remaining: Math.max(0, i.remaining - 1) }
+        : i
+  );
+}
+
+/** One team's qualification stake line for the live group match, or null if nothing decisive. */
+function scenarioLine(infos: TeamInfo[], me: number, opp: number, K: number, name: string): string | null {
+  const cur = statusFromInfos(infos, me, K);
+  if (cur === 'Q') return `${name}: already through — playing for seeding.`;
+  if (cur === 'E') return `${name}: eliminated — pride on the line.`;
+
+  const ifWin = statusFromInfos(withResult(infos, me, opp), me, K);
+  const ifLose = statusFromInfos(withResult(infos, opp, me), me, K);
+  const topsOnWin = guaranteedTop(withResult(infos, me, opp), me);
+
+  if (ifLose === 'E' && ifWin !== 'E')
+    return `${name}: must win to stay alive${ifWin === 'Q' ? ' — and a win seals qualification' : ''}.`;
+  if (ifWin === 'Q')
+    return `${name}: a win secures a knockout spot${topsOnWin ? ' and could top the group' : ''}.`;
+  if (topsOnWin) return `${name}: a win could top the group.`;
+  return null;
+}
+
+/** Head-to-head + qualification stakes for the currently-live match (null if none). */
+function computeLiveInsights(t: Tournament): { headToHead: string | null; lines: string[] } | null {
+  if (t.phase !== 'in_progress') return null;
+  const fx = t.fixtures[t.currentMatchIndex];
+  if (!fx || fx.status !== 'live') return null;
+  const p1 = t.players[fx.player1Idx];
+  const p2 = t.players[fx.player2Idx];
+  if (!p1 || !p2) return null;
+
+  // Lifetime head-to-head — only meaningful between two roster bots.
+  let headToHead: string | null = null;
+  if (p1.isBot && p2.isBot) {
+    const h = getBotHeadToHead(p1.name, p2.name);
+    headToHead =
+      h.played === 0
+        ? `First-ever meeting between ${p1.name} and ${p2.name}.`
+        : `Head-to-head: ${p1.name} ${h.xWins}–${h.yWins} ${p2.name}` +
+          (h.ties ? ` (${h.ties} tie${h.ties > 1 ? 's' : ''}).` : '.');
+  }
+
+  const lines: string[] = [];
+  if (fx.stage === 'group') {
+    const K = qualifyCountFor(t.size);
+    const group = t.groups.find((g) => g.includes(fx.player1Idx)) ?? [];
+    const infos: TeamInfo[] = group.map((idx) => ({
+      idx,
+      points: (t.players[idx]?.id && t.pointsTable[t.players[idx].id]?.points) || 0,
+      remaining: remainingGroupGames(t, idx),
+    }));
+    for (const [me, opp] of [
+      [fx.player1Idx, fx.player2Idx],
+      [fx.player2Idx, fx.player1Idx],
+    ] as const) {
+      const line = scenarioLine(infos, me, opp, K, t.players[me]?.name ?? '?');
+      if (line) lines.push(line);
+    }
+  } else {
+    lines.push(
+      fx.stage === 'final'
+        ? 'The final — the winner lifts the trophy.'
+        : `${fx.label ?? 'Knockout'} — win or go home.`
+    );
+  }
+
+  if (!headToHead && lines.length === 0) return null;
+  return { headToHead, lines };
+}
+
 export function publicTournamentState(t: Tournament): TournamentState {
   return {
     id: t.id,
@@ -538,6 +640,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
     champion: t.champion ?? null,
     awards: t.awards ?? null,
     qualification: computeQualification(t),
+    liveInsights: computeLiveInsights(t),
   };
 }
 

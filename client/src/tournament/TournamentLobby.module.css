@@ -461,6 +461,41 @@
   color: var(--danger);
 }
 
+/* ── Live-match insights ── */
+.t-insights {
+  margin: 0.6rem 0;
+  padding: 0.7rem 0.8rem;
+  background: var(--surface2);
+  border: 1px solid #ffffff12;
+  border-radius: 10px;
+}
+.t-insights-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+.t-insight-h2h {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+.t-insight-line {
+  font-size: 0.8rem;
+  color: var(--text);
+  padding: 0.15rem 0 0.15rem 0.9rem;
+  position: relative;
+}
+.t-insight-line::before {
+  content: '•';
+  position: absolute;
+  left: 0.15rem;
+  color: var(--accent);
+}
+
 .t-won {
   color: var(--accent);
   font-weight: 700;

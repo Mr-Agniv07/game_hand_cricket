@@ -408,6 +408,21 @@ export default function TournamentLobby({
         <SpectatorScore liveScore={tournamentState.liveScore} />
       )}
 
+      {/* Live-match insights: head-to-head + what's at stake for qualification */}
+      {phase === 'in_progress' && tournamentState.liveInsights && (
+        <div className={styles['t-insights']}>
+          <div className={styles['t-insights-title']}>📊 Match Insights</div>
+          {tournamentState.liveInsights.headToHead && (
+            <div className={styles['t-insight-h2h']}>{tournamentState.liveInsights.headToHead}</div>
+          )}
+          {tournamentState.liveInsights.lines.map((l, i) => (
+            <div key={i} className={styles['t-insight-line']}>
+              {l}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── 8/12-player: group tabs + playoffs ── */}
       {phase === 'in_progress' && isMultiGroup && (
         <>
