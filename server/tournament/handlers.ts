@@ -607,14 +607,16 @@ function computeLiveInsights(t: Tournament): { headToHead: string | null; lines:
   const p2 = t.players[fx.player2Idx];
   if (!p1 || !p2) return null;
 
-  // Lifetime head-to-head — only meaningful between two roster bots.
+  // Lifetime head-to-head for THIS format (5- and 10-over kept separate) — only
+  // meaningful between two roster bots.
   let headToHead: string | null = null;
   if (p1.isBot && p2.isBot) {
-    const h = getBotHeadToHead(p1.name, p2.name);
+    const fmt = t.format ?? t.overs;
+    const h = getBotHeadToHead(p1.name, p2.name, fmt);
     headToHead =
       h.played === 0
-        ? `First-ever meeting between ${p1.name} and ${p2.name}.`
-        : `Head-to-head: ${p1.name} ${h.xWins}–${h.yWins} ${p2.name}` +
+        ? `First-ever ${fmt}-over meeting between ${p1.name} and ${p2.name}.`
+        : `Head-to-head (${fmt}-over): ${p1.name} ${h.xWins}–${h.yWins} ${p2.name}` +
           (h.ties ? ` (${h.ties} tie${h.ties > 1 ? 's' : ''}).` : '.');
   }
 

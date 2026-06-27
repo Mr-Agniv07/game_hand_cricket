@@ -153,13 +153,16 @@ model BotRanking {
 // names sorted into a stable "NameA|NameB" string; aWins/bWins follow nameA/nameB.
 model BotHeadToHead {
   id        Int      @id @default(autoincrement())
-  pair      String   @unique
+  pair      String
+  format    Int // 5 or 10 (overs) — head-to-head is kept separate per format
   nameA     String
   nameB     String
   aWins     Int      @default(0)
   bWins     Int      @default(0)
   ties      Int      @default(0)
   updatedAt DateTime @updatedAt
+
+  @@unique([pair, format])
 }
 
 // One row per COMPLETED bot-league tournament — a durable history so past

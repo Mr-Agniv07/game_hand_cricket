@@ -328,8 +328,9 @@ export async function initDb(): Promise<void> {
     const rows = await prisma.botHeadToHead.findMany();
     botH2H.clear();
     for (const r of rows)
-      botH2H.set(r.pair, {
+      botH2H.set(h2hCacheKey(r.pair, r.format), {
         pair: r.pair,
+        format: r.format,
         nameA: r.nameA,
         nameB: r.nameB,
         aWins: r.aWins,
@@ -946,11 +947,13 @@ const botRankings = new Map<string, BotRankingRow>(); // keyed by `${botName}|${
 const botKey = (name: string, format: number) => `${name}|${format}`;
 
 // ─── Lifetime bot-vs-bot head-to-head ──────────────────────────────────────────
-// One row per unordered pair of bots, accumulated across every bot-league match
-// (both formats, group + knockouts). Keyed by the two names sorted into "A|B";
-// aWins/bWins follow nameA/nameB. Loaded at boot, updated per match, reset on reset.
-type BotH2HRow = { pair: string; nameA: string; nameB: string; aWins: number; bWins: number; ties: number };
-const botH2H = new Map<string, BotH2HRow>();
+// One row per unordered pair of bots PER FORMAT (5 vs 10 are tracked separately),
+// accumulated across every bot-league match (group + knockouts). Keyed by the two
+// names sorted into "A|B" plus the format; aWins/bWins follow nameA/nameB. Loaded
+// at boot, updated per match, reset on reset.
+type BotH2HRow = { pair: string; format: number; nameA: string; nameB: string; aWins: number; bWins: number; ties: number };
+const botH2H = new Map<string, BotH2HRow>(); // keyed by `${pair}|${format}`
+const h2hCacheKey = (pair: string, format: number) => `${pair}|${format}`;
 
 /** Canonical (order-independent) key + name ordering for a bot pair. */
 function h2hPair(x: string, y: string): { pair: string; nameA: string; nameB: string } {
@@ -961,22 +964,23 @@ function h2hPair(x: string, y: string): { pair: string; nameA: string; nameB: st
 function persistBotH2H(row: BotH2HRow): void {
   persist(
     prisma.botHeadToHead.upsert({
-      where: { pair: row.pair },
-      create: { pair: row.pair, nameA: row.nameA, nameB: row.nameB, aWins: row.aWins, bWins: row.bWins, ties: row.ties },
+      where: { pair_format: { pair: row.pair, format: row.format } },
+      create: { pair: row.pair, format: row.format, nameA: row.nameA, nameB: row.nameB, aWins: row.aWins, bWins: row.bWins, ties: row.ties },
       update: { aWins: row.aWins, bWins: row.bWins, ties: row.ties },
     }),
     'botH2H'
   );
 }
 
-/** Fold one finished bot-vs-bot match into the lifetime head-to-head record. */
-function recordBotH2H(aName: string, bName: string, winnerName: string | null): void {
+/** Fold one finished bot-vs-bot match into the per-format head-to-head record. */
+function recordBotH2H(aName: string, bName: string, winnerName: string | null, format: number): void {
   if (aName === bName) return;
   const { pair, nameA, nameB } = h2hPair(aName, bName);
-  let row = botH2H.get(pair);
+  const key = h2hCacheKey(pair, format);
+  let row = botH2H.get(key);
   if (!row) {
-    row = { pair, nameA, nameB, aWins: 0, bWins: 0, ties: 0 };
-    botH2H.set(pair, row);
+    row = { pair, format, nameA, nameB, aWins: 0, bWins: 0, ties: 0 };
+    botH2H.set(key, row);
   }
   if (winnerName === null) row.ties++;
   else if (winnerName === row.nameA) row.aWins++;
@@ -984,12 +988,13 @@ function recordBotH2H(aName: string, bName: string, winnerName: string | null): 
   persistBotH2H(row);
 }
 
-/** Lifetime head-to-head between two bots, oriented to the requested (x, y). */
+/** Lifetime head-to-head between two bots for a format, oriented to (x, y). */
 export function getBotHeadToHead(
   x: string,
-  y: string
+  y: string,
+  format: number
 ): { played: number; xWins: number; yWins: number; ties: number } {
-  const row = botH2H.get(h2hPair(x, y).pair);
+  const row = botH2H.get(h2hCacheKey(h2hPair(x, y).pair, format));
   if (!row) return { played: 0, xWins: 0, yWins: 0, ties: 0 };
   const xIsA = row.nameA === x;
   const xWins = xIsA ? row.aWins : row.bWins;
@@ -1099,8 +1104,8 @@ export function recordBotLeagueMatch(input: {
   persistBotRow(a);
   persistBotRow(b);
 
-  // Lifetime head-to-head (format-agnostic): winner by the authoritative result.
-  recordBotH2H(aName, bName, result === 'a' ? aName : result === 'b' ? bName : null);
+  // Lifetime head-to-head (per format): winner by the authoritative result.
+  recordBotH2H(aName, bName, result === 'a' ? aName : result === 'b' ? bName : null, format);
 }
 
 /**
