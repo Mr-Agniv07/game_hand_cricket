@@ -461,6 +461,12 @@ export interface TournamentState {
   champion?: string | null;
   /** Batting awards, computed when the tournament completes. */
   awards?: TournamentAwards | null;
+  /**
+   * Per-player knockout-qualification status (by player id), for the group stage:
+   * 'Q' = mathematically clinched a top-N spot (through no matter what), 'E' =
+   * mathematically eliminated. Absent id = still in contention. Empty before groups exist.
+   */
+  qualification?: Record<string, 'Q' | 'E'>;
 }
 
 export interface TournamentMatchStartingPayload {

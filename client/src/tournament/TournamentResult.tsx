@@ -33,16 +33,34 @@ function sortByStandings(players: TournamentPlayer[], pt: PT): TournamentPlayer[
   });
 }
 
+function QualBadge({ status }: { status: 'Q' | 'E' | undefined }) {
+  if (status === 'Q')
+    return (
+      <span className={styles['t-qual-q']} title="Qualified for the knockouts">
+        Q
+      </span>
+    );
+  if (status === 'E')
+    return (
+      <span className={styles['t-qual-e']} title="Eliminated from the knockouts">
+        E
+      </span>
+    );
+  return null;
+}
+
 function StandingsTable({
   rows,
   pt,
   myId,
   championId,
+  qual,
 }: {
   rows: TournamentPlayer[];
   pt: PT;
   myId: string | null;
   championId: string | null | undefined;
+  qual?: Record<string, 'Q' | 'E'>;
 }) {
   return (
     <div className={styles['t-result-table-wrap']}>
@@ -72,6 +90,7 @@ function StandingsTable({
                 <td className={styles['t-td-player']}>
                   {isChampion ? '🏆 ' : ''}
                   {p.name}
+                  <QualBadge status={qual?.[p.id]} />
                   {isMe ? <span className={styles['t-you']}> (You)</span> : null}
                 </td>
                 <td>{e?.played ?? 0}</td>
@@ -205,6 +224,7 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
               pt={pointsTable}
               myId={myId}
               championId={champion}
+              qual={tournamentState.qualification}
             />
             <div className={styles['t-result-section-title']}>Group B — Final Standings</div>
             <StandingsTable
@@ -212,12 +232,13 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
               pt={pointsTable}
               myId={myId}
               championId={champion}
+              qual={tournamentState.qualification}
             />
           </>
         ) : (
           <>
             <div className={styles['t-result-section-title']}>League Standings</div>
-            <StandingsTable rows={sortedAll} pt={pointsTable} myId={myId} championId={champion} />
+            <StandingsTable rows={sortedAll} pt={pointsTable} myId={myId} championId={champion} qual={tournamentState.qualification} />
           </>
         )}
 

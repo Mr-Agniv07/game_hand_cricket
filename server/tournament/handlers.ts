@@ -450,6 +450,56 @@ export function remapTournamentSocketId(t: Tournament, oldId: string, newId: str
   if (t.champion === oldId) t.champion = newId;
 }
 
+/** How many teams advance from each group: 4 from the 12-team Super League's
+ *  groups of 6, otherwise the top 2 (groups of 4, or the single 4-team group). */
+function qualifyCountFor(size: number): number {
+  return size === 12 ? 4 : 2;
+}
+
+/** Remaining (not-yet-played) GROUP games involving this player index. */
+function remainingGroupGames(t: Tournament, idx: number): number {
+  return t.fixtures.filter(
+    (f) =>
+      f.stage === 'group' &&
+      f.status !== 'done' &&
+      (f.player1Idx === idx || f.player2Idx === idx)
+  ).length;
+}
+
+/**
+ * Per-player knockout-qualification status for the group stage. Points-based and
+ * deliberately SOUND (never wrongly marks): a team is 'Q' only when guaranteed a
+ * top-N spot in every remaining outcome, and 'E' only when it can't reach top-N
+ * even winning out. Uses points floors/ceilings; because it doesn't model the
+ * interdependence of remaining games it can mark a clinch slightly late, but it
+ * is never wrong. Ties count against the team (NRR could break either way), so
+ * 'Q' means "through regardless of net run rate".
+ */
+function computeQualification(t: Tournament): Record<string, 'Q' | 'E'> {
+  const out: Record<string, 'Q' | 'E'> = {};
+  if (!t.groups.length) return out;
+  const K = qualifyCountFor(t.size);
+
+  for (const group of t.groups) {
+    const info = group.map((idx) => {
+      const id = t.players[idx]?.id;
+      const points = (id && t.pointsTable[id]?.points) || 0;
+      const remaining = remainingGroupGames(t, idx);
+      return { idx, id, floor: points, ceiling: points + 2 * remaining };
+    });
+    for (const me of info) {
+      if (!me.id) continue;
+      // Teams that could still finish at or above my worst-case points.
+      const threats = info.filter((o) => o.idx !== me.idx && o.ceiling >= me.floor).length;
+      // Teams already guaranteed to finish above my best-case points.
+      const lockedAbove = info.filter((o) => o.idx !== me.idx && o.floor > me.ceiling).length;
+      if (threats < K) out[me.id] = 'Q';
+      else if (lockedAbove >= K) out[me.id] = 'E';
+    }
+  }
+  return out;
+}
+
 export function publicTournamentState(t: Tournament): TournamentState {
   return {
     id: t.id,
@@ -487,6 +537,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
     liveScore: t.liveScore,
     champion: t.champion ?? null,
     awards: t.awards ?? null,
+    qualification: computeQualification(t),
   };
 }
 

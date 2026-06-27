@@ -41,7 +41,33 @@ function sortByStandings(players: TournamentPlayer[], pt: PT): TournamentPlayer[
   });
 }
 
-function StandingsTable({ rows, pt, myId }: { rows: TournamentPlayer[]; pt: PT; myId: string | null }) {
+function QualBadge({ status }: { status: 'Q' | 'E' | undefined }) {
+  if (status === 'Q')
+    return (
+      <span className={styles['t-qual-q']} title="Qualified for the knockouts">
+        Q
+      </span>
+    );
+  if (status === 'E')
+    return (
+      <span className={styles['t-qual-e']} title="Eliminated from the knockouts">
+        E
+      </span>
+    );
+  return null;
+}
+
+function StandingsTable({
+  rows,
+  pt,
+  myId,
+  qual,
+}: {
+  rows: TournamentPlayer[];
+  pt: PT;
+  myId: string | null;
+  qual?: Record<string, 'Q' | 'E'>;
+}) {
   return (
     <div className={styles['t-table-wrap']}>
       <table className={styles['t-table']}>
@@ -65,6 +91,7 @@ function StandingsTable({ rows, pt, myId }: { rows: TournamentPlayer[]; pt: PT; 
                 <td className={styles['t-td-rank']}>{rank + 1}</td>
                 <td className={styles['t-td-player']}>
                   {p.name}
+                  <QualBadge status={qual?.[p.id]} />
                   {isMe ? <span className={styles['t-you']}> (You)</span> : null}
                 </td>
                 <td>{e?.played ?? 0}</td>
@@ -401,7 +428,7 @@ export default function TournamentLobby({
 
           <div className={styles['t-section']}>
             <div className={styles['t-section-title']}>Group {groupTab === 0 ? 'A' : 'B'} — Standings</div>
-            <StandingsTable rows={groupSorted(groupTab)} pt={pointsTable} myId={myId} />
+            <StandingsTable rows={groupSorted(groupTab)} pt={pointsTable} myId={myId} qual={tournamentState.qualification} />
           </div>
 
           <div className={styles['t-section']}>
@@ -487,7 +514,7 @@ export default function TournamentLobby({
         <>
           <div className={styles['t-section']}>
             <div className={styles['t-section-title']}>Points Table</div>
-            <StandingsTable rows={sortByStandings(players, pointsTable)} pt={pointsTable} myId={myId} />
+            <StandingsTable rows={sortByStandings(players, pointsTable)} pt={pointsTable} myId={myId} qual={tournamentState.qualification} />
           </div>
 
           <div className={styles['t-section']}>
