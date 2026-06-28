@@ -23,10 +23,10 @@ const SPAWN_MIN_MS = 7000;
 const SPAWN_MAX_MS = 13000;
 const CAP_PER_TOURNAMENT = 25;
 
-// KILL SWITCH — live bids are temporarily OFF while we confirm they aren't
-// stalling tournaments. With this false, the engine never starts, so every hook
-// (onBall/onMatchEnd/place) is an instant no-op (no state ever created).
-const LIVE_BIDS_ENABLED = false;
+// KILL SWITCH — flip to false to instantly disable the engine (every hook becomes
+// a no-op, no per-tournament state is created). Live bids now run on a dedicated
+// spectator room (`spec:<id>`), isolated from the players'/game socket flow.
+const LIVE_BIDS_ENABLED = true;
 
 type LBEvent =
   | { type: 'ball' }
@@ -255,7 +255,7 @@ function resolveMarket(s: LBState, m: LBMarket, winning: string | null): void {
   if (i >= 0) s.pending.splice(i, 1);
 
   const winLabel = winning ? (m.options.find((o) => o.id === winning)?.label ?? '—') : '—';
-  s.io.to('t:' + s.tid).emit('live_bid_resolved', {
+  s.io.to('spec:' + s.tid).emit('live_bid_resolved', {
     id: m.id,
     winningOptionId: winning,
     winningLabel: winLabel,
@@ -303,7 +303,7 @@ function scheduleSpawn(s: LBState): void {
           const m = buildMarket(s);
           if (m) {
             s.open = m;
-            s.io.to('t:' + s.tid).emit('live_bid_offer', {
+            s.io.to('spec:' + s.tid).emit('live_bid_offer', {
               id: m.id,
               tournamentId: s.tid,
               question: m.question,

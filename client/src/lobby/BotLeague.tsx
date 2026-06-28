@@ -106,6 +106,17 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     socket.emit('place_bid', { tournamentId, botName });
   }
 
+  // While watching, join the tournament's SPECTATOR-ONLY room so live-bid offers
+  // arrive. This room gets no participant `tournament_state` events, so it can't
+  // interfere with the poll-driven spectate view. Standings still come from the poll.
+  useEffect(() => {
+    if (!watchingId) return;
+    socket.emit('watch_tournament', { id: watchingId });
+    return () => {
+      socket.emit('unwatch_tournament', { id: watchingId });
+    };
+  }, [socket, watchingId]);
+
   const isSuper = tab === 'super';
   // Both the 10-over and Super League tabs read the 10-over rating pool.
   const format: 5 | 10 = tab === '5' ? 5 : 10;

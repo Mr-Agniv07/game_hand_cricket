@@ -1536,12 +1536,16 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       socket.emit('bot_league_stopped', { id: id ?? null });
     });
 
-    // Spectating a bot tournament → join its room so live-bid offers arrive.
+    // Spectating a bot tournament → join its SPECTATOR-ONLY room (`spec:<id>`),
+    // separate from the players' room (`t:<id>`). This is the key isolation: a
+    // spectator must NOT receive participant `tournament_state` events (App.tsx
+    // reacts to those and would freeze the poll-driven spectate view). Live-bid
+    // offers are broadcast to `spec:<id>` only.
     socket.on('watch_tournament', ({ id }) => {
-      if (typeof id === 'string') socket.join('t:' + id);
+      if (typeof id === 'string') socket.join('spec:' + id);
     });
     socket.on('unwatch_tournament', ({ id }) => {
-      if (typeof id === 'string') socket.leave('t:' + id);
+      if (typeof id === 'string') socket.leave('spec:' + id);
     });
 
     // Pick an option on the currently-open live in-play market (must be logged in).
