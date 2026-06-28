@@ -14,7 +14,13 @@ import type {
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
 import { makeBotPlayer, makeBotPlayerNamed, isBot } from '../game/bot.ts';
 import { driveBots } from '../game/logic.ts';
-import { liveBidsStart, liveBidsEnd, liveBidsStop, placeLiveBid } from './livebids.ts';
+import {
+  liveBidsStart,
+  liveBidsEnd,
+  liveBidsStop,
+  liveBidsPreMatch,
+  placeLiveBid,
+} from './livebids.ts';
 import type { SocketData } from '../game/types.ts';
 import {
   incrementAchievements,
@@ -1177,8 +1183,15 @@ function beginTournamentMatch(
         driveBots(io, roomId, room, rooms);
       }
     }, 8000);
+  } else if (tournament.isBotLeague) {
+    // All-bot match: hold it for the pre-match betting window so spectators can
+    // bet on this match before its first ball, then start play.
+    liveBidsPreMatch(tournament, PRE_MATCH_WINDOW_MS);
+    room._finalStartTimer = setTimeout(() => {
+      if (rooms.get(roomId) === room) driveBots(io, roomId, room, rooms);
+    }, PRE_MATCH_WINDOW_MS);
   } else {
-    // Bot-vs-bot final, human-vs-human, or any regular match: start normally.
+    // Human-vs-human or bot-vs-bot non-league match: start normally.
     driveBots(io, roomId, room, rooms);
   }
 }
@@ -1187,6 +1200,10 @@ function beginTournamentMatch(
 
 /** How long bidding stays open before a started bot league actually plays. */
 const BOT_LEAGUE_BID_WINDOW_MS = 5 * 60_000;
+
+/** Pre-match betting window: each bot-league match is held this long before its
+ *  first ball so spectators can place match bids on it. */
+const PRE_MATCH_WINDOW_MS = 60_000;
 
 /**
  * Launch an admin-triggered all-bot league for a format (5 or 10 overs): field

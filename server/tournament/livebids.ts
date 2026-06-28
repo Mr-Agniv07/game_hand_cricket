@@ -78,6 +78,9 @@ interface LBState {
   perBotBiggestOver: Map<string, number>;
   perBotSixes: Map<string, number>;
   perBotWickets: Map<string, number>;
+  /** While set & unexpired, the engine offers MATCH bids for the upcoming match
+   *  (the pre-match betting window); otherwise it offers tournament-long bids. */
+  preMatch?: { until: number };
   match?: { key: string; overRuns: number; consec: number };
   /** Per-current-match aggregates across BOTH innings (for match-count markets). */
   matchAgg?: { roomId: string; sixes: number; wkts: number; maxOver: number };
@@ -108,30 +111,37 @@ function buildMarket(s: LBState): LBMarket | null {
   const fmt = s.format;
   const liveFix = t.fixtures[t.currentMatchIndex];
   const roomId = liveFix && liveFix.status === 'live' ? liveFix.roomId : null;
+  // In the pre-match window we bet on THIS match (before it's played); otherwise
+  // (during play) we offer the tournament-long markets.
+  const inPreMatch = !!(s.preMatch && Date.now() < s.preMatch.until && roomId && liveFix);
 
-  const matchKindsAll = ['m_total', 'm_inn1', 'm_firstwin', 'm_sixes', 'm_wickets', 'm_bigover', 'm_margin'];
-  const offeredForMatch = roomId ? (s.matchOffered.get(roomId) ?? new Set<string>()) : new Set<string>();
-  const matchKinds = roomId ? matchKindsAll.filter((k) => !offeredForMatch.has(k)) : [];
-  const tourneyKinds = [
-    't_top',
-    't_low',
-    't_biggest',
-    't_threshold',
-    't_hattrick',
-    't_champion',
-    't_most_sixes',
-    't_most_wkts',
-  ].filter((k) => !s.offeredKinds.has(k));
-  // Weight match markets x2 so the quick ones appear most often.
-  const pool = [...matchKinds, ...matchKinds, ...tourneyKinds];
-  if (pool.length === 0) return null;
-  const kind = pool[Math.floor(Math.random() * pool.length)];
-
-  if (kind.startsWith('m_') && roomId) {
-    offeredForMatch.add(kind);
-    s.matchOffered.set(roomId, offeredForMatch);
+  let kind: string;
+  if (inPreMatch) {
+    const offered = s.matchOffered.get(roomId!) ?? new Set<string>();
+    const kinds = ['m_total', 'm_inn1', 'm_firstwin', 'm_sixes', 'm_wickets', 'm_bigover', 'm_margin'];
+    // Super Over only happens in knockouts (group ties just stand), so only ask it there.
+    if (liveFix!.stage && liveFix!.stage !== 'group') kinds.push('m_superover');
+    const avail = kinds.filter((k) => !offered.has(k));
+    if (avail.length === 0) return null;
+    kind = avail[Math.floor(Math.random() * avail.length)];
+    offered.add(kind);
+    s.matchOffered.set(roomId!, offered);
+  } else {
+    const kinds = [
+      't_top',
+      't_low',
+      't_biggest',
+      't_threshold',
+      't_hattrick',
+      't_champion',
+      't_most_sixes',
+      't_most_wkts',
+    ];
+    const avail = kinds.filter((k) => !s.offeredKinds.has(k));
+    if (avail.length === 0) return null;
+    kind = avail[Math.floor(Math.random() * avail.length)];
+    s.offeredKinds.add(kind);
   }
-  if (kind.startsWith('t_')) s.offeredKinds.add(kind);
 
   const id = randomUUID();
   const mk = (
@@ -199,6 +209,10 @@ function buildMarket(s: LBState): LBMarket | null {
         atRoom(ev) ? (ev.firstBatWon && ev.inn1 - ev.inn2 >= T ? 'yes' : 'no') : undefined
       );
     }
+    case 'm_superover': // knockouts only (offered only for non-group fixtures)
+      return mk('Will this knockout go to a Super Over?', yesno, 4, (_s, ev) =>
+        atRoom(ev) ? (ev.viaSuperOver ? 'yes' : 'no') : undefined
+      );
     case 't_top': {
       const cands = rankedDesc.slice(0, 4).map((p) => p.name);
       const options = cands.map((n, i) => ({ id: 'o' + i, label: n }));
@@ -430,6 +444,17 @@ export function liveBidsStart(io: GameServer, t: Tournament): void {
   };
   states.set(t.code, s);
   scheduleSpawn(s);
+}
+
+/**
+ * Open the pre-match betting window: for the next `windowMs` the engine offers
+ * MATCH bids for the upcoming (currently-live) fixture, before its first ball.
+ * Called when a bot-league match is set up but held before play.
+ */
+export function liveBidsPreMatch(t: Tournament, windowMs: number): void {
+  const s = states.get(t.code);
+  if (!s) return;
+  s.preMatch = { until: Date.now() + windowMs };
 }
 
 /** Tournament finished → resolve every remaining market (superlatives etc.), then clean up. */
