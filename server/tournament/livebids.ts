@@ -23,6 +23,11 @@ const SPAWN_MIN_MS = 7000;
 const SPAWN_MAX_MS = 13000;
 const CAP_PER_TOURNAMENT = 25;
 
+// KILL SWITCH — live bids are temporarily OFF while we confirm they aren't
+// stalling tournaments. With this false, the engine never starts, so every hook
+// (onBall/onMatchEnd/place) is an instant no-op (no state ever created).
+const LIVE_BIDS_ENABLED = false;
+
 type LBEvent =
   | { type: 'ball' }
   | {
@@ -328,6 +333,7 @@ function scheduleSpawn(s: LBState): void {
 
 /** Start the live-bid engine for a bot tournament that just went in-progress. */
 export function liveBidsStart(io: GameServer, t: Tournament): void {
+  if (!LIVE_BIDS_ENABLED) return; // disabled → engine never starts; all hooks no-op
   if (states.has(t.code)) return;
   const s: LBState = {
     code: t.code,
