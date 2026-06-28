@@ -18,14 +18,8 @@ export default function LiveBids({ socket, tournamentId, user }: Props) {
   const [now, setNow] = useState(Date.now());
   const [win, setWin] = useState<LiveBidWonPayload | null>(null);
 
-  // Join the tournament's room so offers arrive; leave on close.
-  useEffect(() => {
-    socket.emit('watch_tournament', { id: tournamentId });
-    return () => {
-      socket.emit('unwatch_tournament', { id: tournamentId });
-    };
-  }, [socket, tournamentId]);
-
+  // Room membership (watch/unwatch) is owned by the parent BotLeague while
+  // spectating; here we just react to the live-bid events that arrive on it.
   useEffect(() => {
     function onOffer(o: LiveBidOfferPayload) {
       if (o.tournamentId !== tournamentId) return;

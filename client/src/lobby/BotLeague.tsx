@@ -46,6 +46,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const [data, setData] = useState<BotLeagueData | null>(null);
   const [msg, setMsg] = useState('');
   const [watchingId, setWatchingId] = useState<string | null>(null);
+  const [liveState, setLiveState] = useState<TournamentState | null>(null);
   const [pastView, setPastView] = useState<BotTournamentSummary | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -106,6 +107,23 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     socket.emit('place_bid', { tournamentId, botName });
   }
 
+  // While watching a live tournament, drive the view from the socket in REAL TIME
+  // (join its room, update on every ball) instead of the 3s HTTP poll — which
+  // mobile browsers throttle/suspend in the background, freezing the standings.
+  useEffect(() => {
+    if (!watchingId) return;
+    setLiveState(null);
+    socket.emit('watch_tournament', { id: watchingId });
+    function onState(s: TournamentState) {
+      if (s.id === watchingId) setLiveState(s);
+    }
+    socket.on('tournament_state', onState);
+    return () => {
+      socket.off('tournament_state', onState);
+      socket.emit('unwatch_tournament', { id: watchingId });
+    };
+  }, [socket, watchingId]);
+
   const isSuper = tab === 'super';
   // Both the 10-over and Super League tabs read the 10-over rating pool.
   const format: 5 | 10 = tab === '5' ? 5 : 10;
@@ -126,6 +144,12 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   // The league being watched — live OR just-finished — refreshed from each poll.
   const watching = watchingId
     ? [...(data?.active ?? []), ...(data?.recent ?? [])].find((a) => a.id === watchingId)
+    : undefined;
+  // Prefer the real-time socket state; fall back to the last polled snapshot.
+  const watchState: TournamentState | undefined = watchingId
+    ? liveState && liveState.id === watchingId
+      ? liveState
+      : watching?.state
     : undefined;
   const pastForFormat = (data?.history ?? []).filter(summaryForTab);
   // Reigning champion per bucket = the most recent completed tournament's winner.
@@ -279,12 +303,12 @@ export default function BotLeague({ socket, user, onClose }: Props) {
       </div>
 
       {/* Live spectating: the in-progress lobby view (groups, fixtures, live score). */}
-      {watching && watching.state.phase !== 'complete' && (
+      {watchState && watchState.phase !== 'complete' && (
         <div className={styles.specOverlay} onClick={() => setWatchingId(null)}>
           <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
             <div className={styles.specHeader}>
               <h2>
-                <span className={styles.liveDot} /> Bot League · {eventLabel(watching.state, watching.format)} — Spectating
+                <span className={styles.liveDot} /> Bot League · {eventLabel(watchState, watchState.overs)} — Spectating
               </h2>
               <button
                 className={styles.close}
@@ -296,7 +320,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
             </div>
             <div className={styles.specBody}>
               <TournamentLobby
-                tournamentState={watching.state}
+                tournamentState={watchState}
                 myId={null}
                 onLeave={noop}
                 onStartWithBots={noop}
@@ -304,17 +328,17 @@ export default function BotLeague({ socket, user, onClose }: Props) {
             </div>
           </div>
           {/* Live in-play prediction bids float over the spectate view. */}
-          <LiveBids socket={socket} tournamentId={watching.id} user={user} />
+          {watchingId && <LiveBids socket={socket} tournamentId={watchingId} user={user} />}
         </div>
       )}
 
       {/* Finished league just watched: full result summary (groups + knockouts). */}
-      {watching && watching.state.phase === 'complete' && (
-        <ResultOverlay state={watching.state} onClose={() => setWatchingId(null)} />
+      {watchState && watchState.phase === 'complete' && (
+        <ResultOverlay state={watchState} onClose={() => setWatchingId(null)} />
       )}
 
       {/* The watched league ended and is no longer in the feed. */}
-      {watchingId && !watching && (
+      {watchingId && !watchState && (
         <div className={styles.specOverlay} onClick={() => setWatchingId(null)}>
           <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
             <div className={styles.specHeader}>
