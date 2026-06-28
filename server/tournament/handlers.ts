@@ -1203,7 +1203,7 @@ const BOT_LEAGUE_BID_WINDOW_MS = 5 * 60_000;
 
 /** Pre-match betting window: each bot-league match is held this long before its
  *  first ball so spectators can place match bids on it. */
-const PRE_MATCH_WINDOW_MS = 60_000;
+const PRE_MATCH_WINDOW_MS = 30_000;
 
 /**
  * Launch an admin-triggered all-bot league for a format (5 or 10 overs): field

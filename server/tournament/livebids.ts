@@ -170,13 +170,14 @@ function buildMarket(s: LBState): LBMarket | null {
 
   switch (kind) {
     case 'm_total': {
-      const T = fmt === 10 ? 230 + rand(0, 40) : 110 + rand(0, 30);
+      // Thresholds centred on measured medians so it's a real coin-flip.
+      const T = fmt === 10 ? 295 + rand(0, 55) : 135 + rand(0, 40);
       return mk(`Both innings combined: ${T}+ runs?`, yesno, 2, (_s, ev) =>
         atRoom(ev) ? (ev.inn1 + ev.inn2 >= T ? 'yes' : 'no') : undefined
       );
     }
     case 'm_inn1': {
-      const T = fmt === 10 ? 110 + rand(0, 40) : 55 + rand(0, 25);
+      const T = fmt === 10 ? 160 + rand(0, 40) : 75 + rand(0, 30);
       return mk(`1st innings: ${T}+ runs?`, yesno, 2, (_s, ev) =>
         atRoom(ev) ? (ev.inn1 >= T ? 'yes' : 'no') : undefined
       );
@@ -186,25 +187,25 @@ function buildMarket(s: LBState): LBMarket | null {
         atRoom(ev) ? (ev.firstBatWon ? 'yes' : 'no') : undefined
       );
     case 'm_sixes': {
-      const T = fmt === 10 ? 6 + rand(0, 4) : 3 + rand(0, 3);
+      const T = fmt === 10 ? 14 + rand(0, 4) : 7 + rand(0, 2);
       return mk(`${T}+ sixes in this match?`, yesno, 3, (st, ev) =>
         atRoom(ev) ? ((st.matchAgg?.sixes ?? 0) >= T ? 'yes' : 'no') : undefined
       );
     }
     case 'm_wickets': {
-      const T = fmt === 10 ? 9 + rand(0, 4) : 5 + rand(0, 3);
+      const T = fmt === 10 ? 15 + rand(0, 3) : 8 + rand(0, 2);
       return mk(`${T}+ wickets fall in this match?`, yesno, 3, (st, ev) =>
         atRoom(ev) ? ((st.matchAgg?.wkts ?? 0) >= T ? 'yes' : 'no') : undefined
       );
     }
     case 'm_bigover': {
-      const T = 14 + rand(0, 5);
+      const T = 24 + rand(0, 6);
       return mk(`An over of ${T}+ runs this match?`, yesno, 4, (st, ev) =>
         atRoom(ev) ? ((st.matchAgg?.maxOver ?? 0) >= T ? 'yes' : 'no') : undefined
       );
     }
     case 'm_margin': {
-      const T = fmt === 10 ? 25 + rand(0, 20) : 15 + rand(0, 15);
+      const T = fmt === 10 ? 18 + rand(0, 20) : 12 + rand(0, 12);
       return mk(`Team batting first wins by ${T}+ runs?`, yesno, 4, (_s, ev) =>
         atRoom(ev) ? (ev.firstBatWon && ev.inn1 - ev.inn2 >= T ? 'yes' : 'no') : undefined
       );
