@@ -152,6 +152,10 @@ export default function App() {
   const recovering = useRef(false);
   const roomIdRef = useRef<string | null>(null);
   const tournamentCodeRef = useRef<string | null>(null);
+  // True while a reconnect is re-announcing us to a stored tournament, so a
+  // "Tournament not found" reply (the league is gone) clears the stale code
+  // silently instead of toasting it on every reconnect.
+  const rejoiningTournamentRef = useRef(false);
   const userRef = useRef<ClientUser | null>(null);
   const gameStateRef = useRef<GameState | null>(null);
   const myPlayerIdxRef = useRef<number | null>(null);
@@ -247,6 +251,7 @@ export default function App() {
         // identity. The server remaps by userId or the stable clientId, so guests
         // recover too. playerName is unused on the reconnection path (it only
         // matters for a fresh join).
+        rejoiningTournamentRef.current = true;
         socket.emit('join_tournament', {
           code: tournamentCode,
           playerName: userRef.current?.username ?? '',
@@ -421,9 +426,21 @@ export default function App() {
       }, 3000);
     });
 
-    socket.on('error', ({ message }) => setError(message));
+    socket.on('error', ({ message }) => {
+      // A reconnect tried to re-announce us to a tournament that's gone (server
+      // restarted / league ended). Drop the stale code and stay quiet instead of
+      // spamming "Tournament not found" on every reconnect.
+      if (message === 'Tournament not found.' && rejoiningTournamentRef.current) {
+        rejoiningTournamentRef.current = false;
+        tournamentCodeRef.current = null;
+        clearTournamentCode();
+        return;
+      }
+      setError(message);
+    });
 
     socket.on('tournament_created', (state) => {
+      rejoiningTournamentRef.current = false; // a successful (re)join — clear the guard
       setTournamentState(state);
       // tournament_created is also re-emitted on reconnect (join_tournament). Only
       // reset the per-tournament guards for a genuinely fresh tournament, so a
@@ -560,6 +577,7 @@ export default function App() {
         const tcode = tournamentCodeRef.current ?? loadTournamentCode();
         if (storedRoom.isTournamentMatch && tcode) {
           console.log('[recover] match room gone — re-entering tournament', tcode);
+          rejoiningTournamentRef.current = true;
           socket.emit('join_tournament', {
             code: tcode,
             playerName: userRef.current?.username ?? '',
