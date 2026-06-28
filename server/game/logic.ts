@@ -33,6 +33,7 @@ import {
   pushLiveScore,
   advanceTournament,
 } from '../tournament/handlers.ts';
+import { liveBidsOnBall, liveBidsOnMatchEnd } from '../tournament/livebids.ts';
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
 
@@ -208,6 +209,7 @@ export function resolveBall(
 
   if (batMove === bowlMove) {
     inn.wicketsLost += 1;
+    if (room.tournamentId) liveBidsOnBall(io, roomId, room, { scored: 0, isOut: true });
 
     io.to(roomId).emit('ball_played', {
       batsmanMove: batMove,
@@ -233,6 +235,7 @@ export function resolveBall(
     }
   } else {
     inn.score += batMove;
+    if (room.tournamentId) liveBidsOnBall(io, roomId, room, { scored: batMove, isOut: false });
     io.to(roomId).emit('ball_played', {
       batsmanMove: batMove,
       bowlerMove: bowlMove,
@@ -551,6 +554,17 @@ export function endInnings(
           }, 5000);
         }
       }
+    }
+
+    // Live in-play bids: resolve the match-scoped markets for bot tournaments.
+    if (room.tournamentId) {
+      liveBidsOnMatchEnd(io, roomId, room, {
+        viaSuperOver,
+        inn1: inn1.score,
+        inn2: inn2.score,
+        firstBatWon: winnerId !== null && winnerId === room.players[room.bowlerIdx!].id,
+        allOut: inn1.isOut || inn2.isOut,
+      });
     }
 
     room.phase = 'result';

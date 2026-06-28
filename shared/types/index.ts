@@ -292,6 +292,46 @@ export interface AdminData {
   tournaments: AdminTournament[];
 }
 
+// ─── Live in-play bids (bot tournaments) ─────────────────────────────────────
+
+export interface LiveBidOption {
+  id: string;
+  label: string;
+}
+
+/** A live prediction market offered to spectators of a bot tournament. */
+export interface LiveBidOfferPayload {
+  id: string;
+  tournamentId: string;
+  question: string;
+  options: LiveBidOption[];
+  /** Coins a correct pick pays. */
+  reward: number;
+  /** Epoch ms when the pick window closes (the card then vanishes). */
+  expiresAt: number;
+}
+
+/** A market has been decided — clears the card and shows the outcome to everyone. */
+export interface LiveBidResolvedPayload {
+  id: string;
+  winningOptionId: string | null;
+  winningLabel: string;
+}
+
+/** Sent only to a spectator who called it right — celebration + new balance. */
+export interface LiveBidWonPayload {
+  id: string;
+  reward: number;
+  coins: number;
+  label: string;
+}
+
+/** Ack that a spectator's pick was locked in. */
+export interface LiveBidLockedPayload {
+  id: string;
+  optionId: string;
+}
+
 // ─── Server → client event payloads ─────────────────────────────────────────
 
 export interface RoomCreatedPayload {
@@ -602,6 +642,10 @@ export interface ServerToClientEvents {
   match_waiting: (p: MatchWaitingPayload) => void;
   bid_placed: (p: { tournamentId: string; botName: string }) => void;
   bid_won: (p: { botName: string; reward: number; coins: number }) => void;
+  live_bid_offer: (p: LiveBidOfferPayload) => void;
+  live_bid_resolved: (p: LiveBidResolvedPayload) => void;
+  live_bid_won: (p: LiveBidWonPayload) => void;
+  live_bid_locked: (p: LiveBidLockedPayload) => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────
@@ -691,4 +735,7 @@ export interface ClientToServerEvents {
   find_match: (p: FindMatchPayload) => void;
   cancel_match: () => void;
   place_bid: (p: { tournamentId: string; botName: string }) => void;
+  watch_tournament: (p: { id: string }) => void;
+  unwatch_tournament: (p: { id: string }) => void;
+  place_live_bid: (p: { id: string; optionId: string }) => void;
 }

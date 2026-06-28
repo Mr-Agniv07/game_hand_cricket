@@ -14,6 +14,7 @@ import type {
 import { makeRoomId, createRoom, publicState, cleanName, clampCount, type Room } from '../game/room.ts';
 import { makeBotPlayer, makeBotPlayerNamed, isBot } from '../game/bot.ts';
 import { driveBots } from '../game/logic.ts';
+import { liveBidsStart, liveBidsEnd, liveBidsStop, placeLiveBid } from './livebids.ts';
 import type { SocketData } from '../game/types.ts';
 import {
   incrementAchievements,
@@ -837,6 +838,8 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
   // path) — without it, achievements would be counted twice.
   if (tournament.phase === 'complete') return;
   tournament.phase = 'complete';
+  // Resolve any remaining live in-play bids (tournament superlatives) + clean up.
+  if (tournament.isBotLeague) liveBidsEnd(tournament);
   // Defensive: if we somehow finalized without a recorded champion, fall back to
   // the league topper so the result screen always has a winner.
   if (!tournament.champion) {
@@ -1237,6 +1240,7 @@ export function startBotLeague(
     if (tournaments.get(tournament.code) !== tournament || tournament.phase !== 'waiting') return;
     tournament.phase = 'in_progress';
     io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+    liveBidsStart(io, tournament); // start live in-play prediction markets for spectators
     startTournamentMatch(io, rooms, tournament, 0);
   }, BOT_LEAGUE_BID_WINDOW_MS);
 
@@ -1307,6 +1311,7 @@ export function recentBotLeagues(): { id: string; format: number; state: Tournam
  */
 export function stopBotLeague(io: GameServer, rooms: Map<string, Room>, t: Tournament): void {
   t.phase = 'complete';
+  liveBidsStop(t); // drop live-bid markets without paying out
   tournaments.delete(t.code);
   for (const [roomId, room] of rooms) if (room.tournamentId === t.code) rooms.delete(roomId);
   t.liveScore = null;
@@ -1529,6 +1534,22 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         return socket.emit('error', { message: 'No running bot league to stop.' });
       for (const t of targets) stopBotLeague(io, rooms, t);
       socket.emit('bot_league_stopped', { id: id ?? null });
+    });
+
+    // Spectating a bot tournament → join its room so live-bid offers arrive.
+    socket.on('watch_tournament', ({ id }) => {
+      if (typeof id === 'string') socket.join('t:' + id);
+    });
+    socket.on('unwatch_tournament', ({ id }) => {
+      if (typeof id === 'string') socket.leave('t:' + id);
+    });
+
+    // Pick an option on the currently-open live in-play market (must be logged in).
+    socket.on('place_live_bid', ({ id, optionId }) => {
+      if (!socket.data.userId) return;
+      if (typeof id !== 'string' || typeof optionId !== 'string') return;
+      const locked = placeLiveBid(socket.data.userId, socket.id, id, optionId);
+      if (locked) socket.emit('live_bid_locked', locked);
     });
 
     // Back a bot to win an in-progress league. Free, one pick per league; pays

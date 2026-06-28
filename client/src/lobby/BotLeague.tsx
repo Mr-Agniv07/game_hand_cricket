@@ -3,6 +3,7 @@ import { apiGet } from '../api';
 import styles from './BotLeague.module.css';
 import TournamentLobby from '../tournament/TournamentLobby';
 import TournamentResult from '../tournament/TournamentResult';
+import LiveBids from './LiveBids';
 import type {
   BotLeagueData,
   BotLeagueActive,
@@ -302,6 +303,8 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               />
             </div>
           </div>
+          {/* Live in-play prediction bids float over the spectate view. */}
+          <LiveBids socket={socket} tournamentId={watching.id} user={user} />
         </div>
       )}
 

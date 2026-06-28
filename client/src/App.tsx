@@ -397,6 +397,12 @@ export default function App() {
       setTimeout(() => setBidWin(null), 7000);
     });
 
+    // A live in-play prediction landed — keep the coin chip in sync (the in-context
+    // celebration is handled by the LiveBids overlay in the spectate view).
+    socket.on('live_bid_won', ({ coins }) => {
+      setUser((u) => (u ? { ...u, coins } : u));
+    });
+
     socket.on('rematch_requested', () => setRematchState('opponent_wants'));
 
     socket.on('rematch_start', ({ roomId: rid, myPlayerIdx: pidx }) => {
