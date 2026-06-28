@@ -46,7 +46,6 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const [data, setData] = useState<BotLeagueData | null>(null);
   const [msg, setMsg] = useState('');
   const [watchingId, setWatchingId] = useState<string | null>(null);
-  const [liveState, setLiveState] = useState<TournamentState | null>(null);
   const [pastView, setPastView] = useState<BotTournamentSummary | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -107,19 +106,12 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     socket.emit('place_bid', { tournamentId, botName });
   }
 
-  // While watching a live tournament, drive the view from the socket in REAL TIME
-  // (join its room, update on every ball) instead of the 3s HTTP poll — which
-  // mobile browsers throttle/suspend in the background, freezing the standings.
+  // While watching, join the tournament's socket room so live-bid offers arrive.
+  // (The standings themselves refresh off the 3s poll below.)
   useEffect(() => {
     if (!watchingId) return;
-    setLiveState(null);
     socket.emit('watch_tournament', { id: watchingId });
-    function onState(s: TournamentState) {
-      if (s.id === watchingId) setLiveState(s);
-    }
-    socket.on('tournament_state', onState);
     return () => {
-      socket.off('tournament_state', onState);
       socket.emit('unwatch_tournament', { id: watchingId });
     };
   }, [socket, watchingId]);
@@ -145,12 +137,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const watching = watchingId
     ? [...(data?.active ?? []), ...(data?.recent ?? [])].find((a) => a.id === watchingId)
     : undefined;
-  // Prefer the real-time socket state; fall back to the last polled snapshot.
-  const watchState: TournamentState | undefined = watchingId
-    ? liveState && liveState.id === watchingId
-      ? liveState
-      : watching?.state
-    : undefined;
+  // Driven by the poll: when the league is gone from active/recent the view
+  // clears (shows the "finished" fallback) instead of freezing on a stale snapshot.
+  const watchState: TournamentState | undefined = watching?.state;
   const pastForFormat = (data?.history ?? []).filter(summaryForTab);
   // Reigning champion per bucket = the most recent completed tournament's winner.
   const champ5 = data?.history.find((t) => t.format === 5 && !isSuperSummary(t))?.champion ?? null;
