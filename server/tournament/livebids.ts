@@ -76,7 +76,11 @@ interface LBState {
   thresholdOrder: string[];
   hattrickOrder: string[];
   perBotBiggestOver: Map<string, number>;
+  perBotSixes: Map<string, number>;
+  perBotWickets: Map<string, number>;
   match?: { key: string; overRuns: number; consec: number };
+  /** Per-current-match aggregates across BOTH innings (for match-count markets). */
+  matchAgg?: { roomId: string; sixes: number; wkts: number; maxOver: number };
 }
 
 const states = new Map<string, LBState>(); // keyed by tournament code (== room.tournamentId)
@@ -105,12 +109,19 @@ function buildMarket(s: LBState): LBMarket | null {
   const liveFix = t.fixtures[t.currentMatchIndex];
   const roomId = liveFix && liveFix.status === 'live' ? liveFix.roomId : null;
 
-  const matchKindsAll = ['m_superover', 'm_total', 'm_firstwin', 'm_allout', 'm_inn1'];
+  const matchKindsAll = ['m_total', 'm_inn1', 'm_firstwin', 'm_sixes', 'm_wickets', 'm_bigover', 'm_margin'];
   const offeredForMatch = roomId ? (s.matchOffered.get(roomId) ?? new Set<string>()) : new Set<string>();
   const matchKinds = roomId ? matchKindsAll.filter((k) => !offeredForMatch.has(k)) : [];
-  const tourneyKinds = ['t_top', 't_low', 't_biggest', 't_threshold', 't_hattrick'].filter(
-    (k) => !s.offeredKinds.has(k)
-  );
+  const tourneyKinds = [
+    't_top',
+    't_low',
+    't_biggest',
+    't_threshold',
+    't_hattrick',
+    't_champion',
+    't_most_sixes',
+    't_most_wkts',
+  ].filter((k) => !s.offeredKinds.has(k));
   // Weight match markets x2 so the quick ones appear most often.
   const pool = [...matchKinds, ...matchKinds, ...tourneyKinds];
   if (pool.length === 0) return null;
@@ -148,28 +159,44 @@ function buildMarket(s: LBState): LBMarket | null {
     ev.type === 'matchEnd' && ev.roomId === roomId;
 
   switch (kind) {
-    case 'm_superover':
-      return mk('Will this match need a Super Over?', yesno, 3, (_s, ev) =>
-        atRoom(ev) ? (ev.viaSuperOver ? 'yes' : 'no') : undefined
-      );
     case 'm_total': {
       const T = fmt === 10 ? 230 + rand(0, 40) : 110 + rand(0, 30);
       return mk(`Both innings combined: ${T}+ runs?`, yesno, 2, (_s, ev) =>
         atRoom(ev) ? (ev.inn1 + ev.inn2 >= T ? 'yes' : 'no') : undefined
       );
     }
-    case 'm_firstwin':
-      return mk('Will the team batting first win?', yesno, 3, (_s, ev) =>
-        atRoom(ev) ? (ev.firstBatWon ? 'yes' : 'no') : undefined
-      );
-    case 'm_allout':
-      return mk('Will any side be bowled out?', yesno, 3, (_s, ev) =>
-        atRoom(ev) ? (ev.allOut ? 'yes' : 'no') : undefined
-      );
     case 'm_inn1': {
       const T = fmt === 10 ? 110 + rand(0, 40) : 55 + rand(0, 25);
       return mk(`1st innings: ${T}+ runs?`, yesno, 2, (_s, ev) =>
         atRoom(ev) ? (ev.inn1 >= T ? 'yes' : 'no') : undefined
+      );
+    }
+    case 'm_firstwin':
+      return mk('Will the team batting first win?', yesno, 3, (_s, ev) =>
+        atRoom(ev) ? (ev.firstBatWon ? 'yes' : 'no') : undefined
+      );
+    case 'm_sixes': {
+      const T = fmt === 10 ? 6 + rand(0, 4) : 3 + rand(0, 3);
+      return mk(`${T}+ sixes in this match?`, yesno, 3, (st, ev) =>
+        atRoom(ev) ? ((st.matchAgg?.sixes ?? 0) >= T ? 'yes' : 'no') : undefined
+      );
+    }
+    case 'm_wickets': {
+      const T = fmt === 10 ? 9 + rand(0, 4) : 5 + rand(0, 3);
+      return mk(`${T}+ wickets fall in this match?`, yesno, 3, (st, ev) =>
+        atRoom(ev) ? ((st.matchAgg?.wkts ?? 0) >= T ? 'yes' : 'no') : undefined
+      );
+    }
+    case 'm_bigover': {
+      const T = 14 + rand(0, 5);
+      return mk(`An over of ${T}+ runs this match?`, yesno, 4, (st, ev) =>
+        atRoom(ev) ? ((st.matchAgg?.maxOver ?? 0) >= T ? 'yes' : 'no') : undefined
+      );
+    }
+    case 'm_margin': {
+      const T = fmt === 10 ? 25 + rand(0, 20) : 15 + rand(0, 15);
+      return mk(`Team batting first wins by ${T}+ runs?`, yesno, 4, (_s, ev) =>
+        atRoom(ev) ? (ev.firstBatWon && ev.inn1 - ev.inn2 >= T ? 'yes' : 'no') : undefined
       );
     }
     case 't_top': {
@@ -240,6 +267,55 @@ function buildMarket(s: LBState): LBMarket | null {
         const hit = st.hattrickOrder.find((b) => cands.includes(b));
         if (hit) return 'o' + cands.indexOf(hit);
         return ev.type === 'tournamentEnd' ? 'none' : undefined;
+      });
+    }
+    case 't_champion': {
+      // Candidates = current top-4 by points (likely to contain the eventual winner).
+      const cands = [...t.players]
+        .sort((a, b) => (t.pointsTable[b.id]?.points ?? 0) - (t.pointsTable[a.id]?.points ?? 0))
+        .slice(0, 4);
+      const options = cands.map((p, i) => ({ id: 'o' + i, label: p.name }));
+      return mk('Tournament champion (of these)?', options, 5, (_st, ev) => {
+        if (ev.type !== 'tournamentEnd') return undefined;
+        const champIdx = cands.findIndex((p) => p.id === t.champion);
+        if (champIdx >= 0) return 'o' + champIdx;
+        // Champion isn't among the offered four → best-by-points of them.
+        let best = 0;
+        cands.forEach((p, i) => {
+          if ((t.pointsTable[p.id]?.points ?? 0) > (t.pointsTable[cands[best].id]?.points ?? 0))
+            best = i;
+        });
+        return 'o' + best;
+      });
+    }
+    case 't_most_sixes': {
+      const cands = sample(
+        t.players.map((p) => p.name),
+        4
+      );
+      const options = cands.map((n, i) => ({ id: 'o' + i, label: n }));
+      return mk('Most sixes in the tournament (of these)?', options, 5, (st, ev) => {
+        if (ev.type !== 'tournamentEnd') return undefined;
+        let best = 0;
+        cands.forEach((n, i) => {
+          if ((st.perBotSixes.get(n) ?? 0) > (st.perBotSixes.get(cands[best]) ?? 0)) best = i;
+        });
+        return options[best].id;
+      });
+    }
+    case 't_most_wkts': {
+      const cands = sample(
+        t.players.map((p) => p.name),
+        4
+      );
+      const options = cands.map((n, i) => ({ id: 'o' + i, label: n }));
+      return mk('Most wickets in the tournament (of these)?', options, 5, (st, ev) => {
+        if (ev.type !== 'tournamentEnd') return undefined;
+        let best = 0;
+        cands.forEach((n, i) => {
+          if ((st.perBotWickets.get(n) ?? 0) > (st.perBotWickets.get(cands[best]) ?? 0)) best = i;
+        });
+        return options[best].id;
       });
     }
   }
@@ -349,6 +425,8 @@ export function liveBidsStart(io: GameServer, t: Tournament): void {
     thresholdOrder: [],
     hattrickOrder: [],
     perBotBiggestOver: new Map(),
+    perBotSixes: new Map(),
+    perBotWickets: new Map(),
   };
   states.set(t.code, s);
   scheduleSpawn(s);
@@ -388,19 +466,30 @@ export function liveBidsOnBall(
     if (!s) return;
     const inn = room.innings[room.currentInnings];
     const battingBot = room.players[room.batsmanIdx ?? -1]?.name;
+    const bowlingBot = room.players[room.bowlerIdx ?? -1]?.name;
     if (!battingBot) return;
+
+    // Per-match aggregates across both innings (sixes / wickets / biggest over).
+    if (!s.matchAgg || s.matchAgg.roomId !== roomId)
+      s.matchAgg = { roomId, sixes: 0, wkts: 0, maxOver: 0 };
+    if (ball.isOut) {
+      s.matchAgg.wkts++;
+      if (bowlingBot) s.perBotWickets.set(bowlingBot, (s.perBotWickets.get(bowlingBot) ?? 0) + 1);
+    } else if (ball.scored === 6) {
+      s.matchAgg.sixes++;
+      s.perBotSixes.set(battingBot, (s.perBotSixes.get(battingBot) ?? 0) + 1);
+    }
 
     const key = `${roomId}#${room.currentInnings}`;
     if (!s.match || s.match.key !== key) s.match = { key, overRuns: 0, consec: 0 };
     s.match.overRuns += ball.scored;
     s.match.consec = ball.isOut ? s.match.consec + 1 : 0;
-    if (ball.isOut && s.match.consec >= 3) {
-      const bowler = room.players[room.bowlerIdx ?? -1]?.name;
-      if (bowler && !s.hattrickOrder.includes(bowler)) s.hattrickOrder.push(bowler);
-    }
+    if (ball.isOut && s.match.consec >= 3 && bowlingBot && !s.hattrickOrder.includes(bowlingBot))
+      s.hattrickOrder.push(bowlingBot);
     if (inn.balls % 6 === 0) {
       const prev = s.perBotBiggestOver.get(battingBot) ?? 0;
       if (s.match.overRuns > prev) s.perBotBiggestOver.set(battingBot, s.match.overRuns);
+      if (s.match.overRuns > s.matchAgg.maxOver) s.matchAgg.maxOver = s.match.overRuns;
       s.match.overRuns = 0;
     }
     if (inn.score >= s.thresholdValue && !s.thresholdOrder.includes(battingBot))
