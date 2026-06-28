@@ -116,6 +116,11 @@ export interface Tournament {
   bids?: Record<string, string>;
   /** Epoch ms when the pre-match bidding window closes (bot leagues only). */
   bidsCloseAt?: number;
+  /** Cache for the (expensive) brute-force qualification, keyed by games played so
+   *  far — recomputed only when a result changes, not on every per-ball emit. */
+  _qualCache?: { doneCount: number; result: Record<string, 'Q' | 'E'> };
+  /** Cache for live-match insight lines, keyed by current match + games played. */
+  _insightCache?: { key: string; result: { headToHead: string | null; lines: string[] } | null };
 }
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -474,52 +479,143 @@ function remainingGroupGames(t: Tournament, idx: number): number {
   ).length;
 }
 
+/** Group points per index (0 if missing). */
+function groupPointsOf(t: Tournament, idx: number): number {
+  const id = t.players[idx]?.id;
+  return (id && t.pointsTable[id]?.points) || 0;
+}
+
+/** Remaining group games WITHIN this group, as [p1Idx, p2Idx] pairs. */
+function remainingGroupPairs(t: Tournament, group: number[]): [number, number][] {
+  return t.fixtures
+    .filter(
+      (f) =>
+        f.stage === 'group' &&
+        f.status !== 'done' &&
+        group.includes(f.player1Idx) &&
+        group.includes(f.player2Idx)
+    )
+    .map((f) => [f.player1Idx, f.player2Idx] as [number, number]);
+}
+
 /**
- * Per-player knockout-qualification status for the group stage. Points-based and
- * deliberately SOUND (never wrongly marks): a team is 'Q' only when guaranteed a
- * top-N spot in every remaining outcome, and 'E' only when it can't reach top-N
- * even winning out. Uses points floors/ceilings; because it doesn't model the
- * interdependence of remaining games it can mark a clinch slightly late, but it
- * is never wrong. Ties count against the team (NRR could break either way), so
- * 'Q' means "through regardless of net run rate".
+ * Brute-force the clinch over every win/loss/tie combination of the remaining
+ * games — so it understands fixture interdependence (rivals who must still play
+ * EACH OTHER can't all overtake you). Sound + NRR-agnostic:
+ *   guaranteed (= 'Q'): top-K in EVERY outcome, counting points-ties pessimistically
+ *                       (any team that can equal you is treated as above you).
+ *   possible   (= not 'E'): top-K in SOME outcome, counting ties optimistically.
  */
-function computeQualification(t: Tournament): Record<string, 'Q' | 'E'> {
+function bruteForceClinch(
+  basePts: Map<number, number>,
+  group: number[],
+  remGames: [number, number][],
+  K: number
+): { guaranteed: Set<number>; possible: Set<number> } {
+  const guaranteed = new Set<number>(group);
+  const possible = new Set<number>();
+  const total = 3 ** remGames.length;
+  for (let mask = 0; mask < total; mask++) {
+    const fin = new Map(basePts);
+    let m = mask;
+    for (const [a, b] of remGames) {
+      const o = m % 3;
+      m = (m - o) / 3;
+      if (o === 0) fin.set(a, fin.get(a)! + 2);
+      else if (o === 1) fin.set(b, fin.get(b)! + 2);
+      else {
+        fin.set(a, fin.get(a)! + 1);
+        fin.set(b, fin.get(b)! + 1);
+      }
+    }
+    for (const me of group) {
+      const mp = fin.get(me)!;
+      let above = 0;
+      let equal = 0;
+      for (const o2 of group) {
+        if (o2 === me) continue;
+        const op = fin.get(o2)!;
+        if (op > mp) above++;
+        else if (op === mp) equal++;
+      }
+      if (above + equal >= K) guaranteed.delete(me); // not safe if ties go against me
+      if (above < K) possible.add(me); // could be top-K if ties go my way
+    }
+  }
+  return { guaranteed, possible };
+}
+
+/** Sound points-only floor/ceiling clinch — cheap fallback when too many games
+ *  remain to brute force (early on, when nothing is clinched anyway). */
+function conservativeClinch(t: Tournament, group: number[], K: number, out: Record<string, 'Q' | 'E'>): void {
+  const info = group.map((idx) => {
+    const points = groupPointsOf(t, idx);
+    return { idx, id: t.players[idx]?.id, floor: points, ceiling: points + 2 * remainingGroupGames(t, idx) };
+  });
+  for (const me of info) {
+    if (!me.id) continue;
+    const threats = info.filter((o) => o.idx !== me.idx && o.ceiling >= me.floor).length;
+    const lockedAbove = info.filter((o) => o.idx !== me.idx && o.floor > me.ceiling).length;
+    if (threats < K) out[me.id] = 'Q';
+    else if (lockedAbove >= K) out[me.id] = 'E';
+  }
+}
+
+const MAX_BRUTE_GAMES = 11; // 3^11 ≈ 177k — fine once per match (cached)
+
+function computeQualificationFresh(t: Tournament): Record<string, 'Q' | 'E'> {
   const out: Record<string, 'Q' | 'E'> = {};
   if (!t.groups.length) return out;
   const K = qualifyCountFor(t.size);
 
   for (const group of t.groups) {
-    const info = group.map((idx) => {
-      const id = t.players[idx]?.id;
-      const e = id ? t.pointsTable[id] : undefined;
-      const points = e?.points ?? 0;
-      const remaining = remainingGroupGames(t, idx);
-      return { idx, id, points, nrr: e ? computeNRR(e) : 0, remaining, floor: points, ceiling: points + 2 * remaining };
-    });
+    const remGames = remainingGroupPairs(t, group);
 
-    // Group finished → the table is final, so the tie-break (NRR) decides: the top
-    // N are through, the rest are out. Uses the same ordering the bracket advances by.
-    if (info.every((i) => i.remaining === 0)) {
-      [...info]
-        .sort((a, b) => b.points - a.points || b.nrr - a.nrr)
-        .forEach((r, pos) => {
-          if (r.id) out[r.id] = pos < K ? 'Q' : 'E';
+    if (remGames.length === 0) {
+      // Group done → final table decides, tie-break by NRR (same order the bracket uses).
+      const nrrOf = (idx: number) => {
+        const e = t.pointsTable[t.players[idx]?.id ?? ''];
+        return e ? computeNRR(e) : 0;
+      };
+      [...group]
+        .sort((a, b) => groupPointsOf(t, b) - groupPointsOf(t, a) || nrrOf(b) - nrrOf(a))
+        .forEach((idx, pos) => {
+          const id = t.players[idx]?.id;
+          if (id) out[id] = pos < K ? 'Q' : 'E';
         });
       continue;
     }
 
-    // Group still in progress → sound points-based clinch (never marks wrongly;
-    // a team only tie-able on points is treated as a live threat since NRR could
-    // still swing either way).
-    for (const me of info) {
-      if (!me.id) continue;
-      const threats = info.filter((o) => o.idx !== me.idx && o.ceiling >= me.floor).length;
-      const lockedAbove = info.filter((o) => o.idx !== me.idx && o.floor > me.ceiling).length;
-      if (threats < K) out[me.id] = 'Q';
-      else if (lockedAbove >= K) out[me.id] = 'E';
+    if (remGames.length > MAX_BRUTE_GAMES) {
+      conservativeClinch(t, group, K, out); // too early to clinch anyway
+      continue;
+    }
+
+    const basePts = new Map(group.map((idx) => [idx, groupPointsOf(t, idx)]));
+    const { guaranteed, possible } = bruteForceClinch(basePts, group, remGames, K);
+    for (const idx of group) {
+      const id = t.players[idx]?.id;
+      if (!id) continue;
+      if (guaranteed.has(idx)) out[id] = 'Q';
+      else if (!possible.has(idx)) out[id] = 'E';
     }
   }
   return out;
+}
+
+/**
+ * Per-player knockout-qualification status for the group stage — 'Q' (guaranteed
+ * top-N regardless of remaining results AND net run rate) or 'E' (can't reach
+ * top-N in any outcome). Brute-forces the remaining fixtures so it respects
+ * interdependence (rivals that must still play each other). Cached by games
+ * played, so the brute force runs at most once per completed match.
+ */
+function computeQualification(t: Tournament): Record<string, 'Q' | 'E'> {
+  const doneCount = t.fixtures.filter((f) => f.status === 'done').length;
+  if (t._qualCache && t._qualCache.doneCount === doneCount) return t._qualCache.result;
+  const result = computeQualificationFresh(t);
+  t._qualCache = { doneCount, result };
+  return result;
 }
 
 // ─── Live-match insights ────────────────────────────────────────────────────
@@ -539,13 +635,6 @@ function statusFromInfos(infos: TeamInfo[], meIdx: number, K: number): 'Q' | 'E'
   return null;
 }
 
-/** True if, from this state, the team is guaranteed to finish top of its group. */
-function guaranteedTop(infos: TeamInfo[], meIdx: number): boolean {
-  const me = infos.find((i) => i.idx === meIdx);
-  if (!me) return false;
-  return infos.every((o) => o.idx === meIdx || o.points + 2 * o.remaining < me.points);
-}
-
 /** Apply a hypothetical decided result to a copy of the group infos. */
 function withResult(infos: TeamInfo[], winnerIdx: number, loserIdx: number): TeamInfo[] {
   return infos.map((i) =>
@@ -557,21 +646,44 @@ function withResult(infos: TeamInfo[], winnerIdx: number, loserIdx: number): Tea
   );
 }
 
-/** One team's qualification stake line for the live group match, or null if nothing decisive. */
-function scenarioLine(infos: TeamInfo[], me: number, opp: number, K: number, name: string): string | null {
-  const cur = statusFromInfos(infos, me, K);
-  if (cur === 'Q') return `${name}: already through — playing for seeding.`;
-  if (cur === 'E') return `${name}: eliminated — pride on the line.`;
+/** Remaining games with the first occurrence of the {a,b} fixture removed. */
+function removeGame(games: [number, number][], a: number, b: number): [number, number][] {
+  const i = games.findIndex(
+    ([x, y]) => (x === a && y === b) || (x === b && y === a)
+  );
+  return i === -1 ? games : [...games.slice(0, i), ...games.slice(i + 1)];
+}
 
-  const ifWin = statusFromInfos(withResult(infos, me, opp), me, K);
-  const ifLose = statusFromInfos(withResult(infos, opp, me), me, K);
-  const topsOnWin = guaranteedTop(withResult(infos, me, opp), me);
+/**
+ * One team's qualification stake line for the live group match — brute-forced so
+ * it's accurate (respects who-plays-whom). "already through" / "eliminated" use
+ * the guaranteed/possible clinch; otherwise it forces THIS match win/lose to see
+ * if a win secures a spot or a loss is fatal.
+ */
+function matchScenario(
+  t: Tournament,
+  group: number[],
+  remGames: [number, number][],
+  K: number,
+  me: number,
+  opp: number,
+  name: string
+): string | null {
+  const basePts = new Map(group.map((i) => [i, groupPointsOf(t, i)]));
+  const base = bruteForceClinch(basePts, group, remGames, K);
+  if (base.guaranteed.has(me)) return `${name}: already through — playing for seeding.`;
+  if (!base.possible.has(me)) return `${name}: eliminated — pride on the line.`;
 
-  if (ifLose === 'E' && ifWin !== 'E')
-    return `${name}: must win to stay alive${ifWin === 'Q' ? ' — and a win seals qualification' : ''}.`;
-  if (ifWin === 'Q')
-    return `${name}: a win secures a knockout spot${topsOnWin ? ' and could top the group' : ''}.`;
-  if (topsOnWin) return `${name}: a win could top the group.`;
+  const rest = removeGame(remGames, me, opp);
+  const winPts = new Map(basePts);
+  winPts.set(me, winPts.get(me)! + 2);
+  const losePts = new Map(basePts);
+  losePts.set(opp, losePts.get(opp)! + 2);
+  const winSecures = bruteForceClinch(winPts, group, rest, K).guaranteed.has(me);
+  const loseOut = !bruteForceClinch(losePts, group, rest, K).possible.has(me);
+
+  if (loseOut) return `${name}: must win to stay alive${winSecures ? ' — a win seals it' : ''}.`;
+  if (winSecures) return `${name}: a win secures a knockout spot.`;
   return null;
 }
 
@@ -605,11 +717,25 @@ function groupStakesFor(t: Tournament, fixture: InternalFixtureMatch): Record<nu
   };
 }
 
-/** Head-to-head + qualification stakes for the currently-live match (null if none). */
+/** Head-to-head + qualification stakes for the currently-live match (null if none).
+ *  Cached by current match + games played so the brute-forced scenarios only run
+ *  once per match, not on every per-ball emit. */
 function computeLiveInsights(t: Tournament): { headToHead: string | null; lines: string[] } | null {
   if (t.phase !== 'in_progress') return null;
   const fx = t.fixtures[t.currentMatchIndex];
   if (!fx || fx.status !== 'live') return null;
+  const doneCount = t.fixtures.filter((f) => f.status === 'done').length;
+  const cacheKey = `${t.currentMatchIndex}:${doneCount}`;
+  if (t._insightCache && t._insightCache.key === cacheKey) return t._insightCache.result;
+  const result = computeLiveInsightsFresh(t, fx);
+  t._insightCache = { key: cacheKey, result };
+  return result;
+}
+
+function computeLiveInsightsFresh(
+  t: Tournament,
+  fx: InternalFixtureMatch
+): { headToHead: string | null; lines: string[] } | null {
   const p1 = t.players[fx.player1Idx];
   const p2 = t.players[fx.player2Idx];
   if (!p1 || !p2) return null;
@@ -631,16 +757,12 @@ function computeLiveInsights(t: Tournament): { headToHead: string | null; lines:
   if (fx.stage === 'group') {
     const K = qualifyCountFor(t.size);
     const group = t.groups.find((g) => g.includes(fx.player1Idx)) ?? [];
-    const infos: TeamInfo[] = group.map((idx) => ({
-      idx,
-      points: (t.players[idx]?.id && t.pointsTable[t.players[idx].id]?.points) || 0,
-      remaining: remainingGroupGames(t, idx),
-    }));
+    const remGames = remainingGroupPairs(t, group);
     for (const [me, opp] of [
       [fx.player1Idx, fx.player2Idx],
       [fx.player2Idx, fx.player1Idx],
     ] as const) {
-      const line = scenarioLine(infos, me, opp, K, t.players[me]?.name ?? '?');
+      const line = matchScenario(t, group, remGames, K, me, opp, t.players[me]?.name ?? '?');
       if (line) lines.push(line);
     }
   } else {
