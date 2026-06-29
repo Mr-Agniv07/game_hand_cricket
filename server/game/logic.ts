@@ -32,6 +32,7 @@ import {
   publicTournamentState,
   pushLiveScore,
   advanceTournament,
+  computeMarginInsightAtBreak,
 } from '../tournament/handlers.ts';
 import { liveBidsOnBall, liveBidsOnMatchEnd } from '../tournament/livebids.ts';
 
@@ -302,6 +303,19 @@ export function endInnings(
   });
 
   if (room.currentInnings === 0) {
+    // Compute NRR margin coaching ONCE here (innings break), before the role swap —
+    // the innings-0 batsman is the team that batted first (the "defender").
+    if (room.tournamentId) {
+      const t = tournaments.get(room.tournamentId);
+      if (t)
+        computeMarginInsightAtBreak(
+          t,
+          room.players[room.batsmanIdx!].name,
+          room.players[room.bowlerIdx!].name,
+          room.innings[0].score
+        );
+    }
+
     room.currentInnings = 1;
     const tmp = room.batsmanIdx;
     room.batsmanIdx = room.bowlerIdx;

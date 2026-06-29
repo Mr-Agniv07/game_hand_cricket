@@ -121,6 +121,9 @@ export interface Tournament {
   _qualCache?: { doneCount: number; result: Record<string, 'Q' | 'E'> };
   /** Cache for live-match insight lines, keyed by current match + games played. */
   _insightCache?: { key: string; result: { headToHead: string | null; lines: string[] } | null };
+  /** NRR margin coaching for the current match, computed ONCE at its innings break
+   *  (never in the per-ball hot path) and echoed by the insight builder. */
+  _marginInsight?: { matchIndex: number; lines: string[] };
 }
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -720,6 +723,129 @@ function groupStakesFor(t: Tournament, fixture: InternalFixtureMatch): Record<nu
 /** Head-to-head + qualification stakes for the currently-live match (null if none).
  *  Cached by current match + games played so the brute-forced scenarios only run
  *  once per match, not on every per-ball emit. */
+// ─── NRR margin coaching (computed ONCE at the innings break) ──────────────────
+
+type NrrTot = { name: string; pts: number; rs: number; bf: number; rc: number; bb: number };
+const nrrOf = (x: NrrTot) => (x.bf && x.bb ? (x.rs * 6) / x.bf - (x.rc * 6) / x.bb : 0);
+const isTopK = (rows: NrrTot[], name: string, K: number) =>
+  [...rows].sort((a, b) => b.pts - a.pts || nrrOf(b) - nrrOf(a)).slice(0, K).some((r) => r.name === name);
+/** Smallest x in [lo,hi] with pred(x) true, for a monotonic false→true predicate (null if none). */
+const firstTrue = (lo: number, hi: number, pred: (x: number) => boolean): number | null => {
+  if (!pred(hi)) return null;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (pred(m)) hi = m; else lo = m + 1; }
+  return lo;
+};
+/** Largest x in [lo,hi] with pred(x) true, for a monotonic true→false predicate (null if none). */
+const lastTrue = (lo: number, hi: number, pred: (x: number) => boolean): number | null => {
+  if (!pred(lo)) return null;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (pred(m)) lo = m; else hi = m - 1; }
+  return lo;
+};
+
+/**
+ * Compute the exact NRR margin lines for the group's LAST decisive game, ONCE, at
+ * its innings break (when the 1st-innings total is final). Stores them on the
+ * tournament so the per-ball insight builder just echoes them — no work in the hot
+ * path. Defended/chased totals follow the official NRR rules (a side that bats its
+ * innings out counts the full over quota; a chasing winner counts only the balls it
+ * used). Each threshold is found by binary search over a monotonic predicate.
+ * Fully guarded — insight math must never break the game loop.
+ */
+export function computeMarginInsightAtBreak(
+  t: Tournament,
+  defenderName: string,
+  chaserName: string,
+  firstInningsScore: number
+): void {
+  try {
+    if (t.phase !== 'in_progress') return;
+    const fx = t.fixtures[t.currentMatchIndex];
+    if (!fx || fx.stage !== 'group') return;
+    const group = t.groups.find((g) => g.includes(fx.player1Idx));
+    if (!group) return;
+    if (remainingGroupPairs(t, group).length !== 1) return; // only the last decisive game
+
+    const K = qualifyCountFor(t.size);
+    const sixO = 6 * t.overs;
+    const S = firstInningsScore;
+
+    const base: NrrTot[] = group.map((idx) => {
+      const e = t.pointsTable[t.players[idx]?.id ?? ''];
+      return {
+        name: t.players[idx]?.name ?? '?',
+        pts: e?.points ?? 0,
+        rs: e?.runsScored ?? 0,
+        bf: e?.ballsFaced ?? 0,
+        rc: e?.runsConceded ?? 0,
+        bb: e?.ballsBowled ?? 0,
+      };
+    });
+    const ci = base.findIndex((r) => r.name === chaserName);
+    const di = base.findIndex((r) => r.name === defenderName);
+    if (ci < 0 || di < 0) return;
+
+    // Chaser wins, reaching S+1 with `spare` balls left (used b = sixO - spare).
+    const chaseTable = (spare: number): NrrTot[] => {
+      const b = Math.max(1, sixO - spare);
+      const a = base.map((r) => ({ ...r }));
+      const C = a[ci], D = a[di];
+      C.pts += 2; C.rs += S + 1; C.bf += b; C.rc += S; C.bb += sixO;
+      D.rs += S; D.bf += sixO; D.rc += S + 1; D.bb += b;
+      return a;
+    };
+    // Defender wins by M runs (chaser ends on S-M over the full quota).
+    const defendTable = (M: number): NrrTot[] => {
+      const a = base.map((r) => ({ ...r }));
+      const C = a[ci], D = a[di];
+      D.pts += 2; D.rs += S; D.bf += sixO; D.rc += Math.max(0, S - M); D.bb += sixO;
+      C.rs += Math.max(0, S - M); C.bf += sixO; C.rc += S; C.bb += sixO;
+      return a;
+    };
+    const cutoffRival = (rows: NrrTot[], exclude: string): string | null => {
+      const top = [...rows].sort((a, b) => b.pts - a.pts || nrrOf(b) - nrrOf(a)).slice(0, K).map((r) => r.name);
+      if (top.includes(exclude)) return null;
+      return top[top.length - 1] ?? null;
+    };
+    const ptsWall = (rows: NrrTot[], i: number) => rows.filter((r, j) => j !== i && r.pts > rows[i].pts).length >= K;
+
+    const lines: string[] = [];
+
+    // (1) Chaser wins — does it need a fast enough chase, or is the spot unreachable?
+    const cMin = firstTrue(0, sixO - 1, (spare) => isTopK(chaseTable(spare), chaserName, K));
+    if (cMin !== null && cMin > 0)
+      lines.push(`${chaserName}: must chase ${S + 1} with ${cMin}+ ball${cMin > 1 ? 's' : ''} to spare to go through (NRR).`);
+    else if (cMin === null && !ptsWall(chaseTable(sixO - 1), ci))
+      lines.push(`${chaserName}: out — even the fastest possible win can't overhaul ${cutoffRival(chaseTable(sixO - 1), chaserName) ?? 'the'}'s NRR.`);
+
+    // (2) Defender loses the chase — survives unless the chase is quick?
+    const dMax = lastTrue(0, sixO - 1, (spare) => isTopK(chaseTable(spare), defenderName, K));
+    if (dMax !== null && dMax < sixO - 1) {
+      const third = cutoffRival(chaseTable(dMax + 1), defenderName);
+      lines.push(`${defenderName}: survives defeat — unless ${chaserName} wins with ${dMax + 1}+ balls to spare${third && third !== chaserName ? ` (then ${third} goes through on NRR)` : ''}.`);
+    }
+
+    // (3) Defender wins — a win enough, a runs margin needed, or unreachable?
+    const dMin = firstTrue(1, S, (M) => isTopK(defendTable(M), defenderName, K));
+    if (dMin !== null && dMin > 1)
+      lines.push(`${defenderName}: a win alone won't do — must win by ${dMin}+ runs to go through (NRR).`);
+    else if (dMin === null && !ptsWall(defendTable(S), di))
+      lines.push(`${defenderName}: out — even the biggest possible win can't overhaul ${cutoffRival(defendTable(S), defenderName) ?? 'the'}'s NRR.`);
+
+    // (4) Chaser loses — survives unless beaten by too big a margin?
+    const cLoseMax = lastTrue(1, S, (M) => isTopK(defendTable(M), chaserName, K));
+    if (cLoseMax !== null && cLoseMax < S) {
+      const third = cutoffRival(defendTable(cLoseMax + 1), chaserName);
+      lines.push(`${chaserName}: survives a loss — unless beaten by ${cLoseMax + 1}+ runs${third && third !== defenderName ? ` (then ${third} goes through on NRR)` : ''}.`);
+    }
+
+    if (lines.length === 0) return;
+    t._marginInsight = { matchIndex: t.currentMatchIndex, lines };
+    t._insightCache = undefined; // bust once so the lines fold into the cached insights
+  } catch (e) {
+    console.error('[marginInsight] failed (ignored):', e);
+  }
+}
+
 function computeLiveInsights(t: Tournament): { headToHead: string | null; lines: string[] } | null {
   if (t.phase !== 'in_progress') return null;
   const fx = t.fixtures[t.currentMatchIndex];
@@ -765,6 +891,10 @@ function computeLiveInsightsFresh(
       const line = matchScenario(t, group, remGames, K, me, opp, t.players[me]?.name ?? '?');
       if (line) lines.push(line);
     }
+    // Echo the NRR margin lines computed once at this match's innings break (no work
+    // here — just a cached read, guarded against staleness from a previous match).
+    if (t._marginInsight && t._marginInsight.matchIndex === t.currentMatchIndex)
+      for (const l of t._marginInsight.lines) lines.push(l);
   } else {
     lines.push(
       fx.stage === 'final'
