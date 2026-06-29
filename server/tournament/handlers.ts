@@ -672,6 +672,26 @@ function matchScenario(
   opp: number,
   name: string
 ): string | null {
+  // CRITICAL: bruteForceClinch is 3^remGames. With many games left (e.g. a Super
+  // League group of 6 = 15 games → 3^15 ≈ 14M, called 3× per team) this blocks the
+  // event loop for minutes and the whole server goes unresponsive. Gate it exactly
+  // like computeQualificationFresh: when too many games remain, fall back to the
+  // cheap floor/ceiling clinch (nothing is clinched that early anyway).
+  if (remGames.length > MAX_BRUTE_GAMES) {
+    const infos: TeamInfo[] = group.map((idx) => ({
+      idx,
+      points: groupPointsOf(t, idx),
+      remaining: remainingGroupGames(t, idx),
+    }));
+    if (statusFromInfos(infos, me, K) === 'Q') return `${name}: already through — playing for seeding.`;
+    if (statusFromInfos(infos, me, K) === 'E') return `${name}: eliminated — pride on the line.`;
+    const loseOut = statusFromInfos(withResult(infos, opp, me), me, K) === 'E';
+    const winSecures = statusFromInfos(withResult(infos, me, opp), me, K) === 'Q';
+    if (loseOut) return `${name}: must win to stay alive${winSecures ? ' — a win seals it' : ''}.`;
+    if (winSecures) return `${name}: a win secures a knockout spot.`;
+    return null;
+  }
+
   const basePts = new Map(group.map((i) => [i, groupPointsOf(t, i)]));
   const base = bruteForceClinch(basePts, group, remGames, K);
   if (base.guaranteed.has(me)) return `${name}: already through — playing for seeding.`;
