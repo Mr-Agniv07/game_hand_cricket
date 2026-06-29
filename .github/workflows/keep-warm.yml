@@ -1,0 +1,32 @@
+name: keep-warm
+
+# Pings the Render backend on a schedule so the free tier never spins down (it
+# sleeps after ~15 min with no inbound traffic, which cold-starts logins and can
+# freeze long all-bot leagues). The traffic comes from GitHub's runners — i.e.
+# genuinely external — so Render counts it, unlike an in-process self-ping.
+# This repo is public, so scheduled Actions minutes are free.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # every 5 minutes
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+# If a run is still going when the next fires, let the new one proceed.
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend (retry to wake a cold instance)
+        run: |
+          url="https://cric-flick.onrender.com/"
+          for i in $(seq 1 6); do
+            code=$(curl -s -m 30 -o /dev/null -w "%{http_code}" "$url" || echo 000)
+            echo "attempt $i -> $code"
+            if [ "$code" = "200" ]; then echo "awake"; exit 0; fi
+            sleep 15
+          done
+          echo "no 200 yet (may be mid cold-start) — traffic was still delivered"
