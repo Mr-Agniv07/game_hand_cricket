@@ -455,27 +455,35 @@ export default function TournamentLobby({
           <div className={styles['t-section']}>
             <div className={styles['t-section-title']}>🏆 Playoffs</div>
             <div className={styles['t-fixture']}>
-              {/* Quarterfinals (12-team league + 16-team Super League). The exact
-                  match-ups depend on final group standings (and best 3rd-placed for
-                  the 12-team), so before they're drawn we just show a placeholder. */}
+              {/* Quarterfinals: once drawn, show the real fixtures; before that, show
+                  the bracket structure (the actual teams depend on final standings). */}
               {hasQuarters &&
-                (quarters.length > 0 ? (
-                  quarters.map((f) => (
-                    <div key={f.matchNum}>
-                      <div className={styles['t-playoff-label']}>{f.label}</div>
-                      <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
-                    </div>
-                  ))
-                ) : (
-                  <div>
-                    <div className={styles['t-playoff-label']}>Quarterfinals</div>
-                    <PlaceholderRow
-                      badge="QF"
-                      p1="Top 2 of each group"
-                      p2={size === 12 ? '+ 2 best 3rd-placed' : ''}
-                    />
-                  </div>
-                ))}
+                (quarters.length > 0
+                  ? quarters.map((f) => (
+                      <div key={f.matchNum}>
+                        <div className={styles['t-playoff-label']}>{f.label}</div>
+                        <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
+                      </div>
+                    ))
+                  : (size === 16
+                      ? ([
+                          ['Quarter Final 1', 'Group A #1', 'Group C #2'],
+                          ['Quarter Final 2', 'Group B #1', 'Group D #2'],
+                          ['Quarter Final 3', 'Group C #1', 'Group A #2'],
+                          ['Quarter Final 4', 'Group D #1', 'Group B #2'],
+                        ] as const)
+                      : ([
+                          ['Quarter Final 1', 'Group A #1', 'Group B #2'],
+                          ['Quarter Final 2', 'Group B #1', 'Group C #2'],
+                          ['Quarter Final 3', 'Group C #1', 'Best 3rd-placed'],
+                          ['Quarter Final 4', 'Group A #2', 'Best 3rd-placed'],
+                        ] as const)
+                    ).map(([label, p1, p2]) => (
+                      <div key={label}>
+                        <div className={styles['t-playoff-label']}>{label}</div>
+                        <PlaceholderRow badge="QF" p1={p1} p2={p2} />
+                      </div>
+                    )))}
 
               {semis.length > 0 ? (
                 semis.map((f) => (
