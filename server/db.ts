@@ -381,6 +381,29 @@ export async function initDb(): Promise<void> {
         standings: (t.standings as unknown as BotTournamentStanding[]) ?? [],
         state: (t.state as unknown as TournamentState) ?? null,
       });
+
+    // Self-heal trophy counts from the authoritative championship record: a bot's
+    // trophies for a format == how many tournaments of that format it has won. This
+    // repairs any ranking row whose trophy count drifted (e.g. got zeroed by a stale
+    // fresh-row overwrite) and keeps it honest on every boot. Leaves correct rows
+    // untouched. (Super Leagues are stored as format 10, matching how titles are
+    // credited, so counting by format stays consistent.)
+    const trophyByKey = new Map<string, number>();
+    for (const t of all)
+      if (t.champion) {
+        const k = botKey(t.champion, t.format);
+        trophyByKey.set(k, (trophyByKey.get(k) ?? 0) + 1);
+      }
+    let healed = 0;
+    for (const [key, row] of botRankings) {
+      const correct = trophyByKey.get(key) ?? 0;
+      if (row.trophies !== correct) {
+        row.trophies = correct;
+        persistBotRow(row);
+        healed++;
+      }
+    }
+    if (healed) console.log(`[db] healed ${healed} bot trophy count(s) from championship history`);
   } catch (err) {
     console.error(
       '[db] bot tournament history unavailable (is the BotTournament migration applied?):',
@@ -1048,14 +1071,29 @@ function persistBotRow(row: BotRankingRow): void {
   );
 }
 
-/** Ensure every roster bot has a row in both formats (cache + DB). */
-function seedBotRankings(): void {
+/**
+ * Ensure every roster bot has a row in both formats. At boot (reset=false) this is
+ * NON-destructive: it only creates a row that's genuinely absent and NEVER overwrites
+ * an existing DB row — a row missing from the in-memory cache must not wipe a bot's
+ * real stats/trophies. On an admin reset (reset=true) it force-writes every row back
+ * to base (that's the whole point of a reset).
+ */
+function seedBotRankings(reset = false): void {
   for (const name of BOT_NAMES) {
     for (const format of BOT_FORMATS) {
-      if (!botRankings.has(botKey(name, format))) {
+      if (reset || !botRankings.has(botKey(name, format))) {
         const row = freshBotRow(name, format);
         botRankings.set(botKey(name, format), row);
-        persistBotRow(row);
+        persist(
+          prisma.botRanking.upsert({
+            where: { botName_format: { botName: name, format } },
+            create: { ...row },
+            update: reset
+              ? { rating: ELO_BASE, played: 0, wins: 0, losses: 0, ties: 0, trophies: 0, runsFor: 0, runsAgainst: 0 }
+              : {}, // boot: leave any existing row exactly as it is
+          }),
+          'seedBotRanking'
+        );
       }
     }
   }
@@ -1118,7 +1156,7 @@ export function recordBotLeagueMatch(input: {
  */
 export function resetBotRankings(): void {
   botRankings.clear();
-  seedBotRankings(); // recreate every (bot, format) row at base + persist base values
+  seedBotRankings(true); // force every (bot, format) row back to base values
   // Also wipe past-tournament history — a ranking reset means a clean slate, and
   // the per-format sequence restarts from #1.
   botTournaments.length = 0;
