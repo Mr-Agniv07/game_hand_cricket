@@ -30,6 +30,10 @@ const ROSTER = [
   'Wall-E Willow',
   'Binary Bumrah',
   'Turbo Tendulkar',
+  'Cyborg Sehwag',
+  'Mecha Maxwell',
+  'Volt de Villiers',
+  'Quantum Warne',
 ];
 
 export default function MeetBots({ onClose }: { onClose: () => void }) {

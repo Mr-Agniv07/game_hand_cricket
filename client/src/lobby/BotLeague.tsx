@@ -254,16 +254,15 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                   key={r.botName}
                   className={[
                     styles.row,
+                    // Super League fields all 16, so no band there. For 5/10: top 12
+                    // make the league (1–10 safely in green), 11–12 are on the bubble
+                    // (amber — in the league but also in the Qualifier), 13–16 out.
                     isSuper
                       ? ''
-                      : tab === '5'
-                        ? r.rank <= 6
-                          ? styles.qualified // 1–6: safely in the top 8
-                          : r.rank <= 8
-                            ? styles.qualifying // 7–8: on the bubble (and in the Qualifier)
-                            : '' // 9–12: out (but they play the Qualifier too)
-                        : r.rank <= 8
-                          ? styles.qualified
+                      : r.rank <= 10
+                        ? styles.qualified
+                        : r.rank <= 12
+                          ? styles.qualifying
                           : '',
                   ]
                     .filter(Boolean)
@@ -283,10 +282,8 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               ))}
               <p className={styles.qualNote}>
                 {isSuper
-                  ? '⬅ All 12 bots play the Super League — seeded by 10-over rating.'
-                  : tab === '5'
-                    ? '⬅ Top 6 qualify; 7–8 are on the bubble (amber). The bottom 6 (7–12) play the Qualifier to earn games and climb.'
-                    : '⬅ Top 8 by rating qualify for the next league.'}
+                  ? '⬅ All 16 bots play the Super League — four groups, seeded by 10-over rating.'
+                  : '⬅ Top 12 make the league; 11–12 are on the bubble (amber). Ranks 11–16 play the Qualifier to earn games and climb.'}
               </p>
 
               <div className={styles.sectionTitle}>

@@ -63,7 +63,7 @@ export interface InternalFixtureMatch {
   roomId: string | null;
   isFinal?: boolean;
   stage: 'group' | 'quarter' | 'semi' | 'final';
-  group?: 'A' | 'B';
+  group?: 'A' | 'B' | 'C' | 'D';
   label?: string;
   superOver?: boolean;
   scorecard?: MatchScorecard;
@@ -204,12 +204,10 @@ function rankedPlayerIndices(t: Tournament): number[] {
   );
 }
 
-/**
- * Aggregate every finished fixture's scorecard into batting awards: most runs
- * (Orange Cap), most sixes, and Player of the Tournament (runs weighted for
- * sixes). Aggregated by batter name (unique within a tournament in practice).
- */
-function computeAwards(t: Tournament): TournamentAwards {
+/** Aggregate every finished fixture's scorecard into per-bot totals (runs + sixes as
+ *  a batter, wickets as a bowler), keyed by name. Used for awards and the best-3rd
+ *  qualification tiebreaker. */
+function tournamentStatsByName(t: Tournament): Map<string, { runs: number; sixes: number; wickets: number }> {
   const agg = new Map<string, { runs: number; sixes: number; wickets: number }>();
   const get = (name: string) => {
     let a = agg.get(name);
@@ -229,6 +227,16 @@ function computeAwards(t: Tournament): TournamentAwards {
       get(inn.bowler).wickets += inn.wickets;
     }
   }
+  return agg;
+}
+
+/**
+ * Aggregate every finished fixture's scorecard into batting awards: most runs
+ * (Orange Cap), most sixes, and Player of the Tournament (runs weighted for
+ * sixes). Aggregated by batter name (unique within a tournament in practice).
+ */
+function computeAwards(t: Tournament): TournamentAwards {
+  const agg = tournamentStatsByName(t);
   let orangeCap: TournamentAwards['orangeCap'] = null;
   let mostSixes: TournamentAwards['mostSixes'] = null;
   let purpleCap: TournamentAwards['purpleCap'] = null;
@@ -297,22 +305,11 @@ function setupSemis(io: GameServer, t: Tournament): void {
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
-/**
- * Append the four Super League quarterfinals (12-player only): the top 4 of each
- * group cross over — Q1 A1·B4, Q2 A2·B3, Q3 A3·B2, Q4 A4·B1. player1 is the
- * higher group seed, so a tied quarter is awarded to them.
- */
-function setupQuarters(io: GameServer, t: Tournament): void {
+/** Push the four quarterfinal fixtures from [player1, player2, label] tuples and
+ *  broadcast. player1 is the higher seed, so a tied quarter is awarded to them. */
+function pushQuarters(io: GameServer, t: Tournament, pairs: [number, number, string][]): void {
   t.quartersCreated = true;
-  const a = rankedGroupIndices(t, t.groups[0]);
-  const b = rankedGroupIndices(t, t.groups[1]);
-  const pairs: [number, number, string][] = [
-    [a[0], b[3], 'Quarter Final 1'],
-    [a[1], b[2], 'Quarter Final 2'],
-    [a[2], b[1], 'Quarter Final 3'],
-    [a[3], b[0], 'Quarter Final 4'],
-  ];
-  for (const [p1, p2, label] of pairs) {
+  for (const [p1, p2, label] of pairs)
     t.fixtures.push({
       matchNum: t.fixtures.length + 1,
       player1Idx: p1,
@@ -325,8 +322,66 @@ function setupQuarters(io: GameServer, t: Tournament): void {
       stage: 'quarter',
       label,
     });
-  }
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
+}
+
+/** Super League (16, four groups of 4): top 2 of each, A↔C and B↔D crossovers. */
+function setupQuarters16(io: GameServer, t: Tournament): void {
+  const [a, b, c, d] = t.groups.map((g) => rankedGroupIndices(t, g));
+  pushQuarters(io, t, [
+    [a[0], c[1], 'Quarter Final 1'], // A1 · C2
+    [b[0], d[1], 'Quarter Final 2'], // B1 · D2
+    [c[0], a[1], 'Quarter Final 3'], // C1 · A2
+    [d[0], b[1], 'Quarter Final 4'], // D1 · B2
+  ]);
+}
+
+/** Rank group 3rd-placed teams for the best-thirds spots: NRR → wins → runs scored →
+ *  wickets → sixes (all descending). */
+function rankThirds(t: Tournament, thirds: number[]): number[] {
+  const stats = tournamentStatsByName(t);
+  const key = (idx: number) => {
+    const p = t.players[idx];
+    const e = p ? t.pointsTable[p.id] : undefined;
+    const s = (p && stats.get(p.name)) || { runs: 0, sixes: 0, wickets: 0 };
+    return {
+      nrr: e ? computeNRR(e) : 0,
+      wins: e?.won ?? 0,
+      runs: e?.runsScored ?? 0,
+      wickets: s.wickets,
+      sixes: s.sixes,
+    };
+  };
+  return [...thirds].sort((x, y) => {
+    const a = key(x);
+    const b = key(y);
+    return (
+      b.nrr - a.nrr || b.wins - a.wins || b.runs - a.runs || b.wickets - a.wickets || b.sixes - a.sixes
+    );
+  });
+}
+
+/**
+ * Bot League (12, three groups of 4): top 2 of each group + the 2 best 3rd-placed
+ * (alpha = best third, beta = 2nd) → QF1 A1·B2, QF2 B1·C2, QF3 C1·beta, QF4 A2·alpha.
+ * alpha/beta are assigned so each meets a team from a DIFFERENT group: alpha faces A2
+ * (so alpha must not be from A) and beta faces C1 (so beta must not be from C). Always
+ * solvable since the two best thirds come from two distinct groups.
+ */
+function setupQuarters12BestThirds(io: GameServer, t: Tournament): void {
+  const [a, b, c] = t.groups.map((g) => rankedGroupIndices(t, g));
+  const best = rankThirds(t, [a[2], b[2], c[2]]);
+  const groupOf = (idx: number) => (a.includes(idx) ? 'A' : b.includes(idx) ? 'B' : 'C');
+  let alpha = best[0]; // the better third by default
+  let beta = best[1];
+  const ok = (al: number, be: number) => groupOf(al) !== 'A' && groupOf(be) !== 'C';
+  if (!ok(alpha, beta)) [alpha, beta] = [beta, alpha];
+  pushQuarters(io, t, [
+    [a[0], b[1], 'Quarter Final 1'], // A1 · B2
+    [b[0], c[1], 'Quarter Final 2'], // B1 · C2
+    [c[0], beta, 'Quarter Final 3'], // C1 · beta
+    [a[1], alpha, 'Quarter Final 4'], // A2 · alpha
+  ]);
 }
 
 /**
@@ -424,11 +479,13 @@ export function advanceTournament(
     return;
   }
   // All currently-scheduled fixtures are done — open the next stage.
-  // 12-player Super League: group → quarters → semis → final → finalize.
-  if (t.size === 12) {
+  // The Super League (16, four groups) and the regular league (12, three groups +
+  // best thirds) both feed 8 teams into quarters → semis → final.
+  if (t.size === 16 || t.size === 12) {
     if (!t.quartersCreated) {
       const firstQuarter = t.fixtures.length;
-      setupQuarters(io, t);
+      if (t.size === 16) setupQuarters16(io, t);
+      else setupQuarters12BestThirds(io, t);
       startTournamentMatch(io, rooms, t, firstQuarter);
     } else if (!t.semisCreated) {
       const firstSemi = t.fixtures.length;
@@ -442,6 +499,7 @@ export function advanceTournament(
     }
     return;
   }
+  // Human tournaments: 8 → semis → final; 4 → final.
   if (t.size === 8 && !t.semisCreated) {
     const firstSemi = t.fixtures.length;
     setupSemis(io, t);
@@ -475,10 +533,11 @@ export function remapTournamentSocketId(t: Tournament, oldId: string, newId: str
   if (t.champion === oldId) t.champion = newId;
 }
 
-/** How many teams advance from each group: 4 from the 12-team Super League's
- *  groups of 6, otherwise the top 2 (groups of 4, or the single 4-team group). */
-function qualifyCountFor(size: number): number {
-  return size === 12 ? 4 : 2;
+/** Direct qualifiers from each group: always the top 2 (every group is size 4 now).
+ *  The 12-team league additionally takes the 2 best 3rd-placed teams — handled
+ *  separately at group-end, not part of the per-group clinch. */
+function qualifyCountFor(_size: number): number {
+  return 2;
 }
 
 /** Remaining (not-yet-played) GROUP games involving this player index. */
@@ -1006,7 +1065,7 @@ export function generateFixture(tournament: Tournament): void {
     n: number,
     p1: number,
     p2: number,
-    group?: 'A' | 'B'
+    group?: 'A' | 'B' | 'C' | 'D'
   ): InternalFixtureMatch => ({
     matchNum: n,
     player1Idx: p1,
@@ -1020,65 +1079,54 @@ export function generateFixture(tournament: Tournament): void {
     group,
   });
 
+  // Build a SINGLE round-robin per group (each team meets every group-mate exactly
+  // once → 3 games each in a group of 4), interleaved across groups so they all
+  // progress together.
+  const labels = ['A', 'B', 'C', 'D'] as const;
+  const buildGroups = (groups: number[][]) => {
+    tournament.groups = groups;
+    const pairsPer = groups.map((g) => singleRoundRobin(g));
+    const maxLen = Math.max(0, ...pairsPer.map((p) => p.length));
+    const fixtures: InternalFixtureMatch[] = [];
+    for (let i = 0; i < maxLen; i++)
+      for (let g = 0; g < groups.length; g++) {
+        const pr = pairsPer[g][i];
+        if (pr) fixtures.push(mkFixture(fixtures.length + 1, pr[0], pr[1], labels[g]));
+      }
+    tournament.fixtures = fixtures;
+  };
+
+  const all = tournament.players.map((_, i) => i);
   if (tournament.isQualifier) {
-    // Qualifying Playoffs: one group, a SINGLE round-robin (everyone plays everyone
-    // once). No knockouts — it exists purely to give the lower bots games + rating.
-    const all = tournament.players.map((_, i) => i);
-    tournament.groups = [all];
-    tournament.fixtures = singleRoundRobin(all).map(([p1, p2], i) => mkFixture(i + 1, p1, p2));
+    // Qualifier: one group, single round-robin. No knockouts — just rating games.
+    buildGroups([all]);
+  } else if (tournament.size === 16) {
+    // Super League: all 16, four groups of 4, rank-distributed (1st/5th/9th/13th to
+    // A, etc.) so the top seeds are kept apart. Top 2 of each group → quarters.
+    buildGroups([
+      [0, 4, 8, 12],
+      [1, 5, 9, 13],
+      [2, 6, 10, 14],
+      [3, 7, 11, 15],
+    ]);
   } else if (tournament.size === 12) {
-    // Super League: split the 12 into two groups of 6, SINGLE round-robin per
-    // group (each team plays the other five once → 5 matches each, 15 per group),
-    // interleaved so both groups progress together. Seeded by rank (players arrive
-    // in rank order): odd seeds (1st/3rd/5th/7th/9th/11th) to Group A, even seeds
-    // to Group B, keeping the top seeds apart.
-    let groupA: number[];
-    let groupB: number[];
-    if (tournament.isBotLeague) {
-      groupA = [0, 2, 4, 6, 8, 10];
-      groupB = [1, 3, 5, 7, 9, 11];
-    } else {
-      const order = shuffled(tournament.players.map((_, i) => i));
-      groupA = order.slice(0, 6);
-      groupB = order.slice(6, 12);
-    }
-    tournament.groups = [groupA, groupB];
-    const aPairs = singleRoundRobin(groupA); // 15 (each pair once)
-    const bPairs = singleRoundRobin(groupB); // 15
-    const fixtures: InternalFixtureMatch[] = [];
-    for (let i = 0; i < Math.max(aPairs.length, bPairs.length); i++) {
-      if (aPairs[i]) fixtures.push(mkFixture(fixtures.length + 1, aPairs[i][0], aPairs[i][1], 'A'));
-      if (bPairs[i]) fixtures.push(mkFixture(fixtures.length + 1, bPairs[i][0], bPairs[i][1], 'B'));
-    }
-    tournament.fixtures = fixtures;
+    // Bot League: top 12, three groups of 4, rank-distributed (A=1,4,7,10 etc.).
+    buildGroups([
+      [0, 3, 6, 9],
+      [1, 4, 7, 10],
+      [2, 5, 8, 11],
+    ]);
   } else if (tournament.size === 8) {
-    // Split the 8 into two groups of 4, single round-robin per group, interleaved
-    // so both groups progress together. Human tournaments draw randomly; a bot
-    // league seeds by rank (players arrive in rank order) — 1st/3rd/5th/7th to
-    // Group A, 2nd/4th/6th/8th to Group B, so the top seeds are kept apart.
-    let groupA: number[];
-    let groupB: number[];
-    if (tournament.isBotLeague) {
-      groupA = [0, 2, 4, 6];
-      groupB = [1, 3, 5, 7];
-    } else {
-      const order = shuffled(tournament.players.map((_, i) => i));
-      groupA = order.slice(0, 4);
-      groupB = order.slice(4, 8);
-    }
-    tournament.groups = [groupA, groupB];
-    const aPairs = doubleRoundRobin(groupA); // 12 (each pair twice)
-    const bPairs = doubleRoundRobin(groupB); // 12
-    const fixtures: InternalFixtureMatch[] = [];
-    for (let i = 0; i < Math.max(aPairs.length, bPairs.length); i++) {
-      if (aPairs[i]) fixtures.push(mkFixture(fixtures.length + 1, aPairs[i][0], aPairs[i][1], 'A'));
-      if (bPairs[i]) fixtures.push(mkFixture(fixtures.length + 1, bPairs[i][0], bPairs[i][1], 'B'));
-    }
-    tournament.fixtures = fixtures;
+    // Two groups of 4, single round-robin. A bot field seeds by rank; a human draw
+    // is shuffled. Top seeds kept apart.
+    const order = tournament.isBotLeague ? all : shuffled(all);
+    buildGroups([
+      [order[0], order[2], order[4], order[6]],
+      [order[1], order[3], order[5], order[7]],
+    ]);
   } else {
-    // 4 players: one group, double round-robin (the original 12-match template).
-    tournament.groups = [tournament.players.map((_, i) => i)];
-    tournament.fixtures = FIXTURE_TEMPLATE.map(([p1, p2], i) => mkFixture(i + 1, p1, p2));
+    // 4 players: one group, single round-robin.
+    buildGroups([all]);
   }
 
   for (const p of tournament.players) {
@@ -1495,15 +1543,16 @@ function beginTournamentMatch(
         driveBots(io, roomId, room, rooms);
       }
     }, 8000);
-  } else if (tournament.isBotLeague) {
-    // All-bot match: hold it for the pre-match betting window so spectators can
-    // bet on this match before its first ball, then start play.
+  } else if (tournament.isBotLeague && !tournament.isQualifier) {
+    // All-bot league match: hold it for the pre-match betting window so spectators
+    // can bet on this match before its first ball, then start play. (The Qualifier
+    // has no bids, so it skips the hold and starts immediately below.)
     liveBidsPreMatch(tournament, PRE_MATCH_WINDOW_MS);
     room._finalStartTimer = setTimeout(() => {
       if (rooms.get(roomId) === room) driveBots(io, roomId, room, rooms);
     }, PRE_MATCH_WINDOW_MS);
   } else {
-    // Human-vs-human or bot-vs-bot non-league match: start normally.
+    // Human game, or the bot Qualifier: start play right away.
     driveBots(io, roomId, room, rooms);
   }
 }
@@ -1518,11 +1567,12 @@ const BOT_LEAGUE_BID_WINDOW_MS = 5 * 60_000;
 const PRE_MATCH_WINDOW_MS = 30_000;
 
 /**
- * Launch an admin-triggered all-bot league for a format (5 or 10 overs): field
- * the current top-8 ranked bots into an 8-team tournament. The teams are decided
- * up front and the league sits in a 5-minute BIDDING window before any match is
- * played; when the window closes it runs itself (no human host). Returns the new
- * tournament, or null if one for this format is already running / not enough bots.
+ * Launch an admin-triggered all-bot league for a format (5 or 10 overs): field the
+ * top 12 ranked bots (three groups of 4 → top-2 + 2 best 3rd-placed → quarters). The
+ * Super League fields all 16 (four groups of 4). The teams are decided up front and
+ * the league sits in a 5-minute BIDDING window before any match is played; when the
+ * window closes it runs itself. Returns the new tournament, or null if one for this
+ * format is already running / not enough bots.
  */
 export function startBotLeague(
   io: GameServer,
@@ -1530,9 +1580,9 @@ export function startBotLeague(
   format: number,
   superLeague = false
 ): Tournament | null {
-  // The Super League is always 10/10 and fields all 12 bots.
+  // The Super League is always 10/10 and fields all 16 bots; a regular league fields 12.
   const fmt = superLeague ? 10 : Number(format) === 10 ? 10 : 5;
-  const need = superLeague ? 12 : 8;
+  const need = superLeague ? 16 : 12;
   // Only one live bot event per format at a time (incl. the bidding window). A
   // Super League and a regular league are both 10-over events, so this also keeps
   // them from clashing on the 10-over rankings.
@@ -1577,22 +1627,26 @@ export function startBotLeague(
 }
 
 /**
- * Launch the 5-over Qualifying Playoffs: the BOTTOM 6 ranked 5-over bots (positions
- * 7–12) play a single round-robin. It's a real bot-league event (so every match moves
- * Elo normally), but with no knockouts and no title — its sole purpose is to give the
- * lower-ranked bots games so they can climb, instead of being stuck just outside the
- * top 8 forever. Returns the tournament, or null if a 5-over event is already running
- * or there aren't 12 ranked bots to take a bottom 6 from.
+ * Launch a Qualifying Playoffs for a format (5 or 10 overs): ranks 11–16 play a
+ * single round-robin. It's a real bot-league event (so every match moves Elo
+ * normally), but with NO bidding window, NO knockouts and no title — its sole purpose
+ * is to give the lower-ranked bots games so they can climb instead of being stuck
+ * just outside the top 12. Returns the tournament, or null if a same-format bot event
+ * is already running or there aren't 16 ranked bots to take ranks 11–16 from.
  */
-export function startBotQualifier(io: GameServer, rooms: Map<string, Room>): Tournament | null {
-  const fmt = 5;
-  // One live 5-over bot event at a time (shares the guard with the regular league).
+export function startBotQualifier(
+  io: GameServer,
+  rooms: Map<string, Room>,
+  format: number
+): Tournament | null {
+  const fmt = Number(format) === 10 ? 10 : 5;
+  // One live bot event per format at a time (shares the guard with the regular league).
   for (const t of tournaments.values())
     if (t.isBotLeague && t.format === fmt && t.phase !== 'complete') return null;
 
   const all = getBotRankings(fmt);
-  if (all.length < 12) return null;
-  const bottom6 = all.slice(6, 12); // positions 7–12
+  if (all.length < 16) return null;
+  const bubble = all.slice(10, 16); // ranks 11–16
 
   const tournament: Tournament = {
     id: randomUUID(),
@@ -1601,8 +1655,8 @@ export function startBotQualifier(io: GameServer, rooms: Map<string, Room>): Tou
     wickets: fmt,
     size: 6,
     groups: [],
-    players: bottom6.map((r) => makeBotPlayerNamed(r.botName)),
-    phase: 'waiting',
+    players: bubble.map((r) => makeBotPlayerNamed(r.botName)),
+    phase: 'in_progress', // no bidding window — starts immediately
     fixtures: [],
     currentMatchIndex: 0,
     pointsTable: {},
@@ -1610,19 +1664,11 @@ export function startBotQualifier(io: GameServer, rooms: Map<string, Room>): Tou
     isBotLeague: true,
     isQualifier: true,
     format: fmt,
-    bidsCloseAt: Date.now() + BOT_LEAGUE_BID_WINDOW_MS,
   };
   tournaments.set(tournament.code, tournament);
   generateFixture(tournament);
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
-
-  setTimeout(() => {
-    if (tournaments.get(tournament.code) !== tournament || tournament.phase !== 'waiting') return;
-    tournament.phase = 'in_progress';
-    io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
-    liveBidsStart(io, tournament);
-    startTournamentMatch(io, rooms, tournament, 0);
-  }, BOT_LEAGUE_BID_WINDOW_MS);
+  startTournamentMatch(io, rooms, tournament, 0); // play right away (no bids)
 
   return tournament;
 }
@@ -1884,19 +1930,20 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
 
     // Admin-only: kick off the 5-over Qualifying Playoffs (bottom-6 round-robin, no
     // knockouts) so the lower bots earn games + rating movement.
-    socket.on('start_bot_qualifier', () => {
+    socket.on('start_bot_qualifier', ({ format }) => {
       const adminName = process.env.ADMIN_USERNAME;
       const uid = socket.data.userId;
       const user = uid ? findById(uid) : null;
       if (!adminName || !user || user.username !== adminName)
         return socket.emit('error', { message: 'Not authorized to start the Qualifier.' });
 
-      const tournament = startBotQualifier(io, rooms);
+      const fmt = Number(format) === 10 ? 10 : 5;
+      const tournament = startBotQualifier(io, rooms, fmt);
       if (!tournament)
         return socket.emit('error', {
-          message: 'A 5-over bot event is already running — finish it first.',
+          message: `A ${fmt}-over bot event is already running, or there aren't 16 ranked bots yet.`,
         });
-      socket.emit('bot_league_started', { id: tournament.id, format: 5 });
+      socket.emit('bot_league_started', { id: tournament.id, format: fmt });
     });
 
     // Admin-only: wipe all bot rankings back to base (recover from an interrupted

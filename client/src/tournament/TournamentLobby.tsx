@@ -253,12 +253,12 @@ export default function TournamentLobby({
   const { code, size, groups, players, phase, fixtures, currentMatchIndex, pointsTable, overs, wickets } =
     tournamentState;
   const [copied, setCopied] = useState(false);
-  const [groupTab, setGroupTab] = useState<0 | 1>(0);
+  const [groupTab, setGroupTab] = useState(0);
   const [card, setCard] = useState<MatchScorecard | null>(null);
 
-  const is8 = size === 8;
-  const is12 = size === 12;
-  const isMultiGroup = is8 || is12;
+  const groupLabels = ['A', 'B', 'C', 'D'] as const;
+  const isMultiGroup = groups.length > 1;
+  const hasQuarters = size === 12 || size === 16; // 3/4 groups → quarters → semis → final
   const isHost = players[0]?.id === myId;
 
   function copyCode() {
@@ -297,8 +297,8 @@ export default function TournamentLobby({
   const groupPlayers = (gi: number): TournamentPlayer[] =>
     (groups[gi] ?? []).map((idx) => players[idx]).filter(Boolean);
   const groupSorted = (gi: number) => sortByStandings(groupPlayers(gi), pointsTable);
-  const groupFixtures = (g: 'A' | 'B') =>
-    fixtures.filter((f) => f.stage === 'group' && f.group === g);
+  const groupFixtures = (gi: number) =>
+    fixtures.filter((f) => f.stage === 'group' && f.group === groupLabels[gi]);
 
   return (
     <div className={styles['t-lobby']}>
@@ -351,12 +351,12 @@ export default function TournamentLobby({
             <div className={styles['t-format']}>
               <div className={styles['t-format-title']}>📋 How it works</div>
               <ul className={styles['t-format-list']}>
-                {is8 ? (
+                {size === 8 ? (
                   <>
                     <li>8 players split randomly into Group A & B (4 each).</li>
                     <li>
-                      Round-robin within each group — every pair plays twice. Win = 2 pts, Tie = 1
-                      pt; ties broken by NRR.
+                      Single round-robin within each group — every pair plays once. Win = 2 pts,
+                      Tie = 1 pt; ties broken by NRR.
                     </li>
                     <li>
                       Top 2 of each group reach the <strong>semi-finals</strong>: A1 v B2 and B1 v A2.
@@ -367,7 +367,7 @@ export default function TournamentLobby({
                   </>
                 ) : (
                   <>
-                    <li>4 players, round-robin — everyone plays everyone twice (12 matches).</li>
+                    <li>4 players, single round-robin — everyone plays everyone once.</li>
                     <li>Win = 2 pts, Tie = 1 pt, Loss = 0. Ties on points broken by NRR.</li>
                     <li>
                       The top 2 then play a one-off <strong>FINAL</strong> — its winner is the
@@ -427,29 +427,26 @@ export default function TournamentLobby({
       {phase === 'in_progress' && isMultiGroup && (
         <>
           <div className={styles['t-group-tabs']}>
-            <button
-              className={groupTab === 0 ? `${styles['t-group-tab']} ${styles.active}` : styles['t-group-tab']}
-              onClick={() => setGroupTab(0)}
-            >
-              Group A
-            </button>
-            <button
-              className={groupTab === 1 ? `${styles['t-group-tab']} ${styles.active}` : styles['t-group-tab']}
-              onClick={() => setGroupTab(1)}
-            >
-              Group B
-            </button>
+            {groups.map((_, gi) => (
+              <button
+                key={gi}
+                className={groupTab === gi ? `${styles['t-group-tab']} ${styles.active}` : styles['t-group-tab']}
+                onClick={() => setGroupTab(gi)}
+              >
+                Group {groupLabels[gi]}
+              </button>
+            ))}
           </div>
 
           <div className={styles['t-section']}>
-            <div className={styles['t-section-title']}>Group {groupTab === 0 ? 'A' : 'B'} — Standings</div>
+            <div className={styles['t-section-title']}>Group {groupLabels[groupTab]} — Standings</div>
             <StandingsTable rows={groupSorted(groupTab)} pt={pointsTable} myId={myId} qual={tournamentState.qualification} />
           </div>
 
           <div className={styles['t-section']}>
-            <div className={styles['t-section-title']}>Group {groupTab === 0 ? 'A' : 'B'} — Fixtures</div>
+            <div className={styles['t-section-title']}>Group {groupLabels[groupTab]} — Fixtures</div>
             <div className={styles['t-fixture']}>
-              {groupFixtures(groupTab === 0 ? 'A' : 'B').map((f) => (
+              {groupFixtures(groupTab).map((f) => (
                 <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
               ))}
             </div>
@@ -458,28 +455,27 @@ export default function TournamentLobby({
           <div className={styles['t-section']}>
             <div className={styles['t-section-title']}>🏆 Playoffs</div>
             <div className={styles['t-fixture']}>
-              {/* Quarterfinals (Super League only): top 4 of each group cross over. */}
-              {is12 &&
-                (quarters.length > 0
-                  ? quarters.map((f) => (
-                      <div key={f.matchNum}>
-                        <div className={styles['t-playoff-label']}>{f.label}</div>
-                        <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
-                      </div>
-                    ))
-                  : (
-                      [
-                        ['Quarter Final 1', 'Group A #1', 'Group B #4'],
-                        ['Quarter Final 2', 'Group A #2', 'Group B #3'],
-                        ['Quarter Final 3', 'Group A #3', 'Group B #2'],
-                        ['Quarter Final 4', 'Group A #4', 'Group B #1'],
-                      ] as const
-                    ).map(([label, p1, p2]) => (
-                      <div key={label}>
-                        <div className={styles['t-playoff-label']}>{label}</div>
-                        <PlaceholderRow badge="QF" p1={p1} p2={p2} />
-                      </div>
-                    )))}
+              {/* Quarterfinals (12-team league + 16-team Super League). The exact
+                  match-ups depend on final group standings (and best 3rd-placed for
+                  the 12-team), so before they're drawn we just show a placeholder. */}
+              {hasQuarters &&
+                (quarters.length > 0 ? (
+                  quarters.map((f) => (
+                    <div key={f.matchNum}>
+                      <div className={styles['t-playoff-label']}>{f.label}</div>
+                      <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
+                    </div>
+                  ))
+                ) : (
+                  <div>
+                    <div className={styles['t-playoff-label']}>Quarterfinals</div>
+                    <PlaceholderRow
+                      badge="QF"
+                      p1="Top 2 of each group"
+                      p2={size === 12 ? '+ 2 best 3rd-placed' : ''}
+                    />
+                  </div>
+                ))}
 
               {semis.length > 0 ? (
                 semis.map((f) => (
@@ -488,26 +484,15 @@ export default function TournamentLobby({
                     <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
                   </div>
                 ))
-              ) : is12 ? (
-                <>
-                  <div>
-                    <div className={styles['t-playoff-label']}>Semi Final 1</div>
-                    <PlaceholderRow badge="SF" p1="QF1 winner" p2="QF4 winner" />
-                  </div>
-                  <div>
-                    <div className={styles['t-playoff-label']}>Semi Final 2</div>
-                    <PlaceholderRow badge="SF" p1="QF2 winner" p2="QF3 winner" />
-                  </div>
-                </>
               ) : (
                 <>
                   <div>
                     <div className={styles['t-playoff-label']}>Semi Final 1</div>
-                    <PlaceholderRow badge="SF" p1="Group A #1" p2="Group B #2" />
+                    <PlaceholderRow badge="SF" p1={hasQuarters ? 'QF winner' : 'Group winner'} p2={hasQuarters ? 'QF winner' : 'Group runner-up'} />
                   </div>
                   <div>
                     <div className={styles['t-playoff-label']}>Semi Final 2</div>
-                    <PlaceholderRow badge="SF" p1="Group B #1" p2="Group A #2" />
+                    <PlaceholderRow badge="SF" p1={hasQuarters ? 'QF winner' : 'Group winner'} p2={hasQuarters ? 'QF winner' : 'Group runner-up'} />
                   </div>
                 </>
               )}

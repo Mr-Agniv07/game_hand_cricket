@@ -486,7 +486,7 @@ export interface FixtureMatch {
   /** Which stage this fixture belongs to. */
   stage?: FixtureStage;
   /** Group label for group-stage matches in multi-group (8-player) tournaments. */
-  group?: 'A' | 'B';
+  group?: 'A' | 'B' | 'C' | 'D';
   /** Display label for knockout matches, e.g. "Semi Final 1". */
   label?: string;
   /** True if a tied knockout was decided by a Super Over. */
@@ -733,7 +733,7 @@ export interface ClientToServerEvents {
   send_emote: (p: SendEmotePayload) => void;
   start_bot_league: (p: { format: number }) => void;
   start_bot_super_league: () => void;
-  start_bot_qualifier: () => void;
+  start_bot_qualifier: (p: { format: number }) => void;
   stop_bot_league: (p: { id?: string }) => void;
   reset_bot_rankings: () => void;
   find_match: (p: FindMatchPayload) => void;

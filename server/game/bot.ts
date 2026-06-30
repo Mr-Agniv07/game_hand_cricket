@@ -17,6 +17,10 @@ export const BOT_NAMES = [
   'Wall-E Willow',
   'Binary Bumrah',
   'Turbo Tendulkar',
+  'Cyborg Sehwag',
+  'Mecha Maxwell',
+  'Volt de Villiers',
+  'Quantum Warne',
 ];
 
 /** A bot's id is namespaced so it can never collide with a real socket id. */
@@ -125,10 +129,10 @@ const PERSONALITIES: Record<string, Personality> = {
 };
 const STYLE_LABELS = Object.keys(PERSONALITIES);
 
-// The permanent 1:1 bot→personality mapping: 12 bots, 12 personalities, each used
-// exactly once. This is the authoritative, frozen pairing — a given bot always
-// plays the same way, forever. Do NOT edit these assignments (and it's meant to
-// stay a secret players discover through play, so don't surface it in the UI).
+// The pinned bot→personality mapping. The original 12 are a FROZEN 1:1 pairing —
+// never edit those assignments (and it stays a secret players discover through play,
+// so don't surface it in the UI). The 4 newer bots reuse existing personalities
+// (duplicates are intentional from the 16-bot expansion onward).
 const STYLE_OVERRIDES: Record<string, string> = {
   Botinho: 'Maestro',
   'Sir Bot-a-lot': 'Trickster',
@@ -142,6 +146,10 @@ const STYLE_OVERRIDES: Record<string, string> = {
   'Wall-E Willow': 'All-Rounder',
   'Binary Bumrah': 'Guardian',
   'Turbo Tendulkar': 'Chaos',
+  'Cyborg Sehwag': 'Aggressor',
+  'Mecha Maxwell': 'Gambler',
+  'Volt de Villiers': 'Finisher',
+  'Quantum Warne': 'Trickster',
 };
 
 /**
