@@ -110,6 +110,9 @@ export interface Tournament {
   isBotLeague?: boolean;
   /** True for the 12-bot Super League (all 12 bots, two groups of 6 → quarters). */
   isSuperLeague?: boolean;
+  /** True for the 5-over Qualifying Playoffs: the bottom-6 ranked bots play a single
+   *  round-robin so they earn games + rating movement. No knockouts, no title. */
+  isQualifier?: boolean;
   /** Ranked format (5 or 10 overs) — only set for bot-league tournaments. */
   format?: number;
   /** Spectator bids on the champion: userId → backed bot name (bot leagues only). */
@@ -414,6 +417,12 @@ export function advanceTournament(
     startTournamentMatch(io, rooms, t, next);
     return;
   }
+  // Qualifier: a flat round-robin — once every game is played, just wrap up. No
+  // knockouts (its whole purpose is rating movement for the lower bots).
+  if (t.isQualifier) {
+    finalizeTournament(io, t);
+    return;
+  }
   // All currently-scheduled fixtures are done — open the next stage.
   // 12-player Super League: group → quarters → semis → final → finalize.
   if (t.size === 12) {
@@ -614,6 +623,7 @@ function computeQualificationFresh(t: Tournament): Record<string, 'Q' | 'E'> {
  * played, so the brute force runs at most once per completed match.
  */
 function computeQualification(t: Tournament): Record<string, 'Q' | 'E'> {
+  if (t.isQualifier) return {}; // no knockout to qualify for — it's a rating round-robin
   const doneCount = t.fixtures.filter((f) => f.status === 'done').length;
   if (t._qualCache && t._qualCache.doneCount === doneCount) return t._qualCache.result;
   const result = computeQualificationFresh(t);
@@ -899,6 +909,10 @@ function computeLiveInsightsFresh(
           (h.ties ? ` (${h.ties} tie${h.ties > 1 ? 's' : ''}).` : '.');
   }
 
+  // Qualifier: no knockout to chase, so no qualification stakes/margin lines — just
+  // the head-to-head.
+  if (t.isQualifier) return headToHead ? { headToHead, lines: [] } : null;
+
   const lines: string[] = [];
   if (fx.stage === 'group') {
     const K = qualifyCountFor(t.size);
@@ -966,6 +980,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
     awards: t.awards ?? null,
     qualification: computeQualification(t),
     liveInsights: computeLiveInsights(t),
+    isQualifier: t.isQualifier,
   };
 }
 
@@ -988,7 +1003,13 @@ export function generateFixture(tournament: Tournament): void {
     group,
   });
 
-  if (tournament.size === 12) {
+  if (tournament.isQualifier) {
+    // Qualifying Playoffs: one group, a SINGLE round-robin (everyone plays everyone
+    // once). No knockouts — it exists purely to give the lower bots games + rating.
+    const all = tournament.players.map((_, i) => i);
+    tournament.groups = [all];
+    tournament.fixtures = singleRoundRobin(all).map(([p1, p2], i) => mkFixture(i + 1, p1, p2));
+  } else if (tournament.size === 12) {
     // Super League: split the 12 into two groups of 6, SINGLE round-robin per
     // group (each team plays the other five once → 5 matches each, 15 per group),
     // interleaved so both groups progress together. Seeded by rank (players arrive
@@ -1127,8 +1148,10 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
   tournament.awards = computeAwards(tournament);
   recordTournamentAchievements(tournament);
   // Bot league: credit the champion a trophy and save a durable history record
-  // (champion, runner-up, final standings) so past winners survive restarts.
-  if (tournament.isBotLeague && tournament.format && tournament.champion) {
+  // (champion, runner-up, final standings) so past winners survive restarts. The
+  // Qualifier is skipped here — it has no title; per-match ratings already moved
+  // during play (recordBotLeagueMatch), which is its entire point.
+  if (tournament.isBotLeague && !tournament.isQualifier && tournament.format && tournament.champion) {
     const champ = tournament.players.find((p) => p.id === tournament.champion);
     if (champ) {
       recordBotTrophy(champ.name, tournament.format);
@@ -1536,6 +1559,57 @@ export function startBotLeague(
   return tournament;
 }
 
+/**
+ * Launch the 5-over Qualifying Playoffs: the BOTTOM 6 ranked 5-over bots (positions
+ * 7–12) play a single round-robin. It's a real bot-league event (so every match moves
+ * Elo normally), but with no knockouts and no title — its sole purpose is to give the
+ * lower-ranked bots games so they can climb, instead of being stuck just outside the
+ * top 8 forever. Returns the tournament, or null if a 5-over event is already running
+ * or there aren't 12 ranked bots to take a bottom 6 from.
+ */
+export function startBotQualifier(io: GameServer, rooms: Map<string, Room>): Tournament | null {
+  const fmt = 5;
+  // One live 5-over bot event at a time (shares the guard with the regular league).
+  for (const t of tournaments.values())
+    if (t.isBotLeague && t.format === fmt && t.phase !== 'complete') return null;
+
+  const all = getBotRankings(fmt);
+  if (all.length < 12) return null;
+  const bottom6 = all.slice(6, 12); // positions 7–12
+
+  const tournament: Tournament = {
+    id: randomUUID(),
+    code: makeRoomId(tournaments),
+    overs: fmt,
+    wickets: fmt,
+    size: 6,
+    groups: [],
+    players: bottom6.map((r) => makeBotPlayerNamed(r.botName)),
+    phase: 'waiting',
+    fixtures: [],
+    currentMatchIndex: 0,
+    pointsTable: {},
+    liveScore: null,
+    isBotLeague: true,
+    isQualifier: true,
+    format: fmt,
+    bidsCloseAt: Date.now() + BOT_LEAGUE_BID_WINDOW_MS,
+  };
+  tournaments.set(tournament.code, tournament);
+  generateFixture(tournament);
+  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+
+  setTimeout(() => {
+    if (tournaments.get(tournament.code) !== tournament || tournament.phase !== 'waiting') return;
+    tournament.phase = 'in_progress';
+    io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+    liveBidsStart(io, tournament);
+    startTournamentMatch(io, rooms, tournament, 0);
+  }, BOT_LEAGUE_BID_WINDOW_MS);
+
+  return tournament;
+}
+
 type ActiveBotLeague = {
   id: string;
   format: number;
@@ -1789,6 +1863,23 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
           message: 'A 10-over bot event is already running — finish it first.',
         });
       socket.emit('bot_league_started', { id: tournament.id, format: 10 });
+    });
+
+    // Admin-only: kick off the 5-over Qualifying Playoffs (bottom-6 round-robin, no
+    // knockouts) so the lower bots earn games + rating movement.
+    socket.on('start_bot_qualifier', () => {
+      const adminName = process.env.ADMIN_USERNAME;
+      const uid = socket.data.userId;
+      const user = uid ? findById(uid) : null;
+      if (!adminName || !user || user.username !== adminName)
+        return socket.emit('error', { message: 'Not authorized to start the Qualifier.' });
+
+      const tournament = startBotQualifier(io, rooms);
+      if (!tournament)
+        return socket.emit('error', {
+          message: 'A 5-over bot event is already running — finish it first.',
+        });
+      socket.emit('bot_league_started', { id: tournament.id, format: 5 });
     });
 
     // Admin-only: wipe all bot rankings back to base (recover from an interrupted

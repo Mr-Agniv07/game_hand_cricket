@@ -17,6 +17,7 @@ const noop = () => {};
 
 /** Display label for a bot event: the 12-team Super League vs a normal N-over league. */
 function eventLabel(state: TournamentState, format: number): string {
+  if (state.isQualifier) return 'Qualifying Playoffs';
   return state.size === 12 ? 'Super League' : `${format} Over`;
 }
 
@@ -251,9 +252,22 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               {rankings.map((r) => (
                 <div
                   key={r.botName}
-                  className={
-                    !isSuper && r.rank <= 8 ? `${styles.row} ${styles.qualified}` : styles.row
-                  }
+                  className={[
+                    styles.row,
+                    isSuper
+                      ? ''
+                      : tab === '5'
+                        ? r.rank <= 6
+                          ? styles.qualified // 1–6: safely in the top 8
+                          : r.rank <= 8
+                            ? styles.qualifying // 7–8: on the bubble (and in the Qualifier)
+                            : '' // 9–12: out (but they play the Qualifier too)
+                        : r.rank <= 8
+                          ? styles.qualified
+                          : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                 >
                   <span className={styles.rank}>{r.rank}</span>
                   <span className={styles.nameCell}>
@@ -270,7 +284,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               <p className={styles.qualNote}>
                 {isSuper
                   ? '⬅ All 12 bots play the Super League — seeded by 10-over rating.'
-                  : '⬅ Top 8 by rating qualify for the next league.'}
+                  : tab === '5'
+                    ? '⬅ Top 6 qualify; 7–8 are on the bubble (amber). The bottom 6 (7–12) play the Qualifier to earn games and climb.'
+                    : '⬅ Top 8 by rating qualify for the next league.'}
               </p>
 
               <div className={styles.sectionTitle}>

@@ -65,6 +65,7 @@ export default function AdminPanel({ socket, user, onClose }: Props) {
 
   const startLeague = (format: number) => socket.emit('start_bot_league', { format });
   const startSuper = () => socket.emit('start_bot_super_league');
+  const startQualifier = () => socket.emit('start_bot_qualifier');
   const stopLeagues = () => {
     if (window.confirm('Stop ALL running bot leagues? They will be dropped with no result.'))
       socket.emit('stop_bot_league', {});
@@ -119,6 +120,9 @@ export default function AdminPanel({ socket, user, onClose }: Props) {
             </button>
             <button className={styles.super} onClick={startSuper}>
               🏆 Super League
+            </button>
+            <button className={styles.start} onClick={startQualifier}>
+              🎟 5-Over Qualifier
             </button>
             <button className={styles.stop} onClick={stopLeagues}>
               ⏹ Stop

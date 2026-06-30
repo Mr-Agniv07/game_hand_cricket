@@ -566,6 +566,9 @@ export interface TournamentState {
    * no match is currently live.
    */
   liveInsights?: { headToHead: string | null; lines: string[] } | null;
+  /** True for a 5-over Qualifying Playoffs (bottom-6 round-robin to let lower-ranked
+   *  bots earn games and move their rating; no knockouts, no title). */
+  isQualifier?: boolean;
 }
 
 export interface TournamentMatchStartingPayload {
@@ -730,6 +733,7 @@ export interface ClientToServerEvents {
   send_emote: (p: SendEmotePayload) => void;
   start_bot_league: (p: { format: number }) => void;
   start_bot_super_league: () => void;
+  start_bot_qualifier: () => void;
   stop_bot_league: (p: { id?: string }) => void;
   reset_bot_rankings: () => void;
   find_match: (p: FindMatchPayload) => void;
