@@ -1189,8 +1189,8 @@ let botSuperLeagueCount = 0;
 const botLeagueName = (format: number, seq: number) => `Bot League ${format}#${seq}`;
 const botSuperLeagueName = (seq: number) => `Bot Super League ${seq}`;
 
-/** A completed bot tournament is a Super League iff its final state had 12 teams. */
-const isSuperLeagueState = (state: TournamentState | null | undefined) => state?.size === 12;
+/** A completed bot tournament is a Super League iff its final state had 16 teams. */
+const isSuperLeagueState = (state: TournamentState | null | undefined) => state?.size === 16;
 
 /** Persist one completed bot-league tournament and cache it for the history view. */
 export function recordBotTournament(input: {

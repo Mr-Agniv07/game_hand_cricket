@@ -110,7 +110,7 @@ function StandingsTable({
 export default function TournamentResult({ tournamentState, myId, onLeave }: TournamentResultProps) {
   const { size, groups, players, pointsTable, fixtures, champion, awards, overs, wickets } =
     tournamentState;
-  const isMultiGroup = size === 8 || size === 12;
+  const isMultiGroup = size === 8 || size === 12 || size === 16;
 
   const sortedAll = sortByStandings(players, pointsTable);
 
@@ -218,22 +218,20 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
         {/* Standings */}
         {isMultiGroup ? (
           <>
-            <div className={styles['t-result-section-title']}>Group A — Final Standings</div>
-            <StandingsTable
-              rows={sortByStandings((groups[0] ?? []).map((i) => players[i]).filter(Boolean), pointsTable)}
-              pt={pointsTable}
-              myId={myId}
-              championId={champion}
-              qual={tournamentState.qualification}
-            />
-            <div className={styles['t-result-section-title']}>Group B — Final Standings</div>
-            <StandingsTable
-              rows={sortByStandings((groups[1] ?? []).map((i) => players[i]).filter(Boolean), pointsTable)}
-              pt={pointsTable}
-              myId={myId}
-              championId={champion}
-              qual={tournamentState.qualification}
-            />
+            {groups.map((g, gi) => (
+              <div key={gi}>
+                <div className={styles['t-result-section-title']}>
+                  Group {['A', 'B', 'C', 'D'][gi]} — Final Standings
+                </div>
+                <StandingsTable
+                  rows={sortByStandings(g.map((i) => players[i]).filter(Boolean), pointsTable)}
+                  pt={pointsTable}
+                  myId={myId}
+                  championId={champion}
+                  qual={tournamentState.qualification}
+                />
+              </div>
+            ))}
           </>
         ) : (
           <>

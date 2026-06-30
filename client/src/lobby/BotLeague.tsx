@@ -15,10 +15,10 @@ import type { ClientUser } from '../types';
 
 const noop = () => {};
 
-/** Display label for a bot event: the 12-team Super League vs a normal N-over league. */
+/** Display label for a bot event: the 16-team Super League vs a normal N-over league. */
 function eventLabel(state: TournamentState, format: number): string {
   if (state.isQualifier) return 'Qualifying Playoffs';
-  return state.size === 12 ? 'Super League' : `${format} Over`;
+  return state.size === 16 ? 'Super League' : `${format} Over`;
 }
 
 /** The champion bot's name for a finished league, or null if not decided yet. */
@@ -30,11 +30,12 @@ function championName(a: BotLeagueActive): string | null {
 
 type Tab = '5' | '10' | 'super';
 
-/** A live/just-finished league is the Super League iff it fielded 12 teams. */
-const isSuperActive = (a: BotLeagueActive) => a.state.size === 12;
-/** A history record is a Super League iff its final state had 12 teams (or by name, for safety). */
+/** A live/just-finished league is the Super League iff it fielded 16 teams. */
+const isSuperActive = (a: BotLeagueActive) => a.state.size === 16;
+/** A history record is a Super League iff its final state had 16 teams (or by name, which
+ *  also covers older 12-team Super Leagues recorded before the 16-bot expansion). */
 const isSuperSummary = (t: BotTournamentSummary) =>
-  t.state?.size === 12 || t.name.startsWith('Bot Super League');
+  t.state?.size === 16 || t.name.startsWith('Bot Super League');
 
 interface Props {
   socket: AppSocket;
@@ -228,7 +229,7 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 <div className={styles.champ}>
                   <span>
                     🏆 <strong>{championName(recentForFormat)}</strong> won the latest{' '}
-                    {recentForFormat.state.size === 12 ? 'Super League' : `${format}-over league`}
+                    {recentForFormat.state.size === 16 ? 'Super League' : `${format}-over league`}
                   </span>
                   <button
                     className={styles.viewBtn}
