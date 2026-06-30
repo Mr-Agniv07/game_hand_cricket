@@ -646,13 +646,42 @@ const MAX_BRUTE_GAMES = 11; // 3^11 ≈ 177k — fine once per match (cached)
 function computeQualificationFresh(t: Tournament): Record<string, 'Q' | 'E'> {
   const out: Record<string, 'Q' | 'E'> = {};
   if (!t.groups.length) return out;
-  const K = qualifyCountFor(t.size);
+  const K = qualifyCountFor(t.size); // direct qualifiers per group (top 2)
+  // The 12-team league ALSO takes the 2 best 3rd-placed, so a 3rd-placed team is not
+  // eliminated — only 4th-or-lower is. Other formats: top-K is the only path.
+  const bestThirds = t.size === 12;
+  const eK = bestThirds ? K + 1 : K; // elimination cutoff (top-3 vs top-2)
+
+  // Once the whole group stage is finished, the best-thirds league's qualifiers are
+  // fully determined: top 2 of each group + the 2 best 3rd-placed → Q, everyone else E.
+  const groupStageDone =
+    t.fixtures.some((f) => f.stage === 'group') &&
+    !t.fixtures.some((f) => f.stage === 'group' && f.status !== 'done');
+  if (bestThirds && groupStageDone) {
+    const thirds: number[] = [];
+    for (const group of t.groups)
+      rankedGroupIndices(t, group).forEach((idx, pos) => {
+        const id = t.players[idx]?.id;
+        if (!id) return;
+        if (pos < K) out[id] = 'Q';
+        else if (pos === K) thirds.push(idx); // the 3rd-placed team
+        else out[id] = 'E'; // 4th and below
+      });
+    const through = new Set(rankThirds(t, thirds).slice(0, 2));
+    for (const idx of thirds) {
+      const id = t.players[idx]?.id;
+      if (id) out[id] = through.has(idx) ? 'Q' : 'E';
+    }
+    return out;
+  }
 
   for (const group of t.groups) {
     const remGames = remainingGroupPairs(t, group);
 
     if (remGames.length === 0) {
-      // Group done → final table decides, tie-break by NRR (same order the bracket uses).
+      // This group finished while others are still playing. Clinched top-K → Q; only
+      // teams below the elimination cutoff are E (a 3rd in a best-thirds league is
+      // still alive as a possible best-third until the stage ends).
       const nrrOf = (idx: number) => {
         const e = t.pointsTable[t.players[idx]?.id ?? ''];
         return e ? computeNRR(e) : 0;
@@ -661,23 +690,27 @@ function computeQualificationFresh(t: Tournament): Record<string, 'Q' | 'E'> {
         .sort((a, b) => groupPointsOf(t, b) - groupPointsOf(t, a) || nrrOf(b) - nrrOf(a))
         .forEach((idx, pos) => {
           const id = t.players[idx]?.id;
-          if (id) out[id] = pos < K ? 'Q' : 'E';
+          if (!id) return;
+          if (pos < K) out[id] = 'Q';
+          else if (pos >= eK) out[id] = 'E';
         });
       continue;
     }
 
     if (remGames.length > MAX_BRUTE_GAMES) {
-      conservativeClinch(t, group, K, out); // too early to clinch anyway
+      conservativeClinch(t, group, K, out); // groups of 4 never hit this
       continue;
     }
 
     const basePts = new Map(group.map((idx) => [idx, groupPointsOf(t, idx)]));
-    const { guaranteed, possible } = bruteForceClinch(basePts, group, remGames, K);
+    const cK = bruteForceClinch(basePts, group, remGames, K);
+    const possibleE =
+      eK === K ? cK.possible : bruteForceClinch(basePts, group, remGames, eK).possible;
     for (const idx of group) {
       const id = t.players[idx]?.id;
       if (!id) continue;
-      if (guaranteed.has(idx)) out[id] = 'Q';
-      else if (!possible.has(idx)) out[id] = 'E';
+      if (cK.guaranteed.has(idx)) out[id] = 'Q'; // clinched a direct top-2 spot
+      else if (!possibleE.has(idx)) out[id] = 'E'; // can't even reach the cutoff
     }
   }
   return out;
@@ -755,6 +788,11 @@ function matchScenario(
   // event loop for minutes and the whole server goes unresponsive. Gate it exactly
   // like computeQualificationFresh: when too many games remain, fall back to the
   // cheap floor/ceiling clinch (nothing is clinched that early anyway).
+  // The 12-team league takes the 2 best 3rd-placed too, so "elimination" uses a top-3
+  // cutoff (finishing 3rd keeps you alive); a direct knockout spot ("through/secures")
+  // still means top 2.
+  const eK = t.size === 12 ? K + 1 : K;
+
   if (remGames.length > MAX_BRUTE_GAMES) {
     const infos: TeamInfo[] = group.map((idx) => ({
       idx,
@@ -762,8 +800,8 @@ function matchScenario(
       remaining: remainingGroupGames(t, idx),
     }));
     if (statusFromInfos(infos, me, K) === 'Q') return `${name}: already through — playing for seeding.`;
-    if (statusFromInfos(infos, me, K) === 'E') return `${name}: eliminated — pride on the line.`;
-    const loseOut = statusFromInfos(withResult(infos, opp, me), me, K) === 'E';
+    if (statusFromInfos(infos, me, eK) === 'E') return `${name}: eliminated — pride on the line.`;
+    const loseOut = statusFromInfos(withResult(infos, opp, me), me, eK) === 'E';
     const winSecures = statusFromInfos(withResult(infos, me, opp), me, K) === 'Q';
     if (loseOut) return `${name}: must win to stay alive${winSecures ? ' — a win seals it' : ''}.`;
     if (winSecures) return `${name}: a win secures a knockout spot.`;
@@ -771,10 +809,12 @@ function matchScenario(
   }
 
   const basePts = new Map(group.map((i) => [i, groupPointsOf(t, i)]));
-  // "Already through / eliminated" mirrors the Q/E badges, so keep it points-rigorous.
-  const base = bruteForceClinch(basePts, group, remGames, K);
-  if (base.guaranteed.has(me)) return `${name}: already through — playing for seeding.`;
-  if (!base.possible.has(me)) return `${name}: eliminated — pride on the line.`;
+  // "Already through" mirrors a clinched direct top-2 (Q badge); "eliminated" means
+  // can't even reach the top-3 cutoff. Both points-rigorous.
+  const baseQ = bruteForceClinch(basePts, group, remGames, K);
+  if (baseQ.guaranteed.has(me)) return `${name}: already through — playing for seeding.`;
+  const basePossible = eK === K ? baseQ.possible : bruteForceClinch(basePts, group, remGames, eK).possible;
+  if (!basePossible.has(me)) return `${name}: eliminated — pride on the line.`;
 
   // The "a win secures / must win" advisory IS allowed to read net run rate: a
   // points-tie for the cutoff is resolved by current NRR (a strong predictor), so a
@@ -789,7 +829,7 @@ function matchScenario(
   const losePts = new Map(basePts);
   losePts.set(opp, losePts.get(opp)! + 2);
   const winSecures = bruteForceClinch(winPts, group, rest, K, nrrOf).guaranteed.has(me);
-  const loseOut = !bruteForceClinch(losePts, group, rest, K, nrrOf).possible.has(me);
+  const loseOut = !bruteForceClinch(losePts, group, rest, eK, nrrOf).possible.has(me);
 
   if (loseOut) return `${name}: must win to stay alive${winSecures ? ' — a win seals it' : ''}.`;
   if (winSecures) return `${name}: a win secures a knockout spot.`;
