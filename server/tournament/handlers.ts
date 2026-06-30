@@ -522,7 +522,8 @@ function bruteForceClinch(
   basePts: Map<number, number>,
   group: number[],
   remGames: [number, number][],
-  K: number
+  K: number,
+  nrrOf?: (idx: number) => number
 ): { guaranteed: Set<number>; possible: Set<number> } {
   const guaranteed = new Set<number>(group);
   const possible = new Set<number>();
@@ -548,7 +549,15 @@ function bruteForceClinch(
         if (o2 === me) continue;
         const op = fin.get(o2)!;
         if (op > mp) above++;
-        else if (op === mp) equal++;
+        else if (op === mp) {
+          // Points tie. For advisory insight lines (nrrOf given) resolve it by
+          // current NRR — a rival is only ahead if its NRR actually beats mine.
+          // For the rigorous Q/E clinch (no nrrOf) keep it ambiguous via `equal`
+          // (pessimistic for guaranteed, optimistic for possible).
+          if (nrrOf) {
+            if (nrrOf(o2) > nrrOf(me)) above++;
+          } else equal++;
+        }
       }
       if (above + equal >= K) guaranteed.delete(me); // not safe if ties go against me
       if (above < K) possible.add(me); // could be top-K if ties go my way
@@ -703,17 +712,25 @@ function matchScenario(
   }
 
   const basePts = new Map(group.map((i) => [i, groupPointsOf(t, i)]));
+  // "Already through / eliminated" mirrors the Q/E badges, so keep it points-rigorous.
   const base = bruteForceClinch(basePts, group, remGames, K);
   if (base.guaranteed.has(me)) return `${name}: already through — playing for seeding.`;
   if (!base.possible.has(me)) return `${name}: eliminated — pride on the line.`;
 
+  // The "a win secures / must win" advisory IS allowed to read net run rate: a
+  // points-tie for the cutoff is resolved by current NRR (a strong predictor), so a
+  // team clearly ahead on NRR is correctly told a win seals it.
+  const nrrOf = (idx: number) => {
+    const e = t.pointsTable[t.players[idx]?.id ?? ''];
+    return e ? computeNRR(e) : 0;
+  };
   const rest = removeGame(remGames, me, opp);
   const winPts = new Map(basePts);
   winPts.set(me, winPts.get(me)! + 2);
   const losePts = new Map(basePts);
   losePts.set(opp, losePts.get(opp)! + 2);
-  const winSecures = bruteForceClinch(winPts, group, rest, K).guaranteed.has(me);
-  const loseOut = !bruteForceClinch(losePts, group, rest, K).possible.has(me);
+  const winSecures = bruteForceClinch(winPts, group, rest, K, nrrOf).guaranteed.has(me);
+  const loseOut = !bruteForceClinch(losePts, group, rest, K, nrrOf).possible.has(me);
 
   if (loseOut) return `${name}: must win to stay alive${winSecures ? ' — a win seals it' : ''}.`;
   if (winSecures) return `${name}: a win secures a knockout spot.`;
