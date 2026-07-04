@@ -487,9 +487,15 @@ export default function App() {
         }
       } else {
         setPhase((p) => (p === 'lobby' ? 'tournament_lobby' : p));
-        // KNOCKOUTS bumper for everyone the moment the semis are created
-        // (group stage just ended), before the final's GRAND FINALE intro.
-        if (!knockoutsShownRef.current && state.fixtures.some((f) => f.stage === 'semi')) {
+        // KNOCKOUTS bumper for everyone the moment the group stage ends and the
+        // first knockout round is created, before the final's GRAND FINALE intro.
+        // That first round is the QUARTERS in a 16-player tournament (semis are only
+        // appended after the quarters), and the SEMIS in an 8-player one — fire on
+        // whichever appears first (the ref guard keeps it to a single showing).
+        if (
+          !knockoutsShownRef.current &&
+          state.fixtures.some((f) => f.stage === 'quarter' || f.stage === 'semi')
+        ) {
           knockoutsShownRef.current = true;
           sounds.toss();
           setGrandFinale('knockouts');
@@ -907,7 +913,9 @@ export default function App() {
             </div>
             <div className="gf-sub">
               {grandFinale === 'knockouts'
-                ? 'Group stage done — semi-finals begin!'
+                ? tournamentState?.fixtures.some((f) => f.stage === 'quarter')
+                  ? 'Group stage done — quarter-finals begin!'
+                  : 'Group stage done — semi-finals begin!'
                 : grandFinale === 'superover'
                   ? 'Scores level — one over decides it!'
                   : grandFinale === 'finalist'
