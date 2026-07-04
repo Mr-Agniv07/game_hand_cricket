@@ -39,7 +39,7 @@ export default function Lobby({
   const [joinName, setJoinName] = useState(defaultName);
   const [tOvers, setTOvers] = useState(2);
   const [tWickets, setTWickets] = useState(2);
-  const [tSize, setTSize] = useState<4 | 8>(4);
+  const [tSize, setTSize] = useState<4 | 8 | 16>(4);
   const [tSubTab, setTSubTab] = useState<'create' | 'join'>('create');
   const [tJoinCode, setTJoinCode] = useState('');
   const [showBots, setShowBots] = useState(false);
@@ -421,15 +421,21 @@ export default function Lobby({
               )}
               <label>Players</label>
               <div className="over-options">
-                {([4, 8] as const).map((n) => {
-                  const locked = n === 8 && !unlocks.includes('tourney8');
+                {([4, 8, 16] as const).map((n) => {
+                  const locked =
+                    (n === 8 && !unlocks.includes('tourney8')) ||
+                    (n === 16 && !unlocks.includes('tourney16'));
                   return (
                     <button
                       key={n}
                       type="button"
                       className={`over-btn${tSize === n ? ' selected' : ''}${locked ? ' over-locked' : ''}`}
                       onClick={() => (locked ? onOpenStore() : setTSize(n))}
-                      title={locked ? 'Unlock 8-player tournaments in the Store' : ''}
+                      title={
+                        locked
+                          ? `Unlock ${n}-player tournaments in the Store`
+                          : ''
+                      }
                     >
                       {n}
                       {locked ? ' 🔒' : ''}
@@ -453,7 +459,13 @@ export default function Lobby({
                 ))}
               </div>
               <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0', lineHeight: 1.4 }}>
-                {tSize === 8 ? (
+                {tSize === 16 ? (
+                  <>
+                    16 players · four groups of 4 · top 2 of each group reach the
+                    quarter-finals, then semis and the{' '}
+                    <strong style={{ color: '#fbbf24' }}>FINAL</strong>.
+                  </>
+                ) : tSize === 8 ? (
                   <>
                     8 players · two groups of 4 · top 2 of each group reach the
                     semi-finals, then the <strong style={{ color: '#fbbf24' }}>FINAL</strong>.

@@ -589,7 +589,8 @@ export interface CreateTournamentPayload {
   playerName: string;
   overs: number;
   wickets: number;
-  /** 4 (single group + final) or 8 (two groups + semis + final). Defaults to 4. */
+  /** 4 (single group + final), 8 (two groups + semis + final), or 16 (four groups +
+   *  quarters + semis + final — the Super League). Defaults to 4. */
   size?: number;
 }
 

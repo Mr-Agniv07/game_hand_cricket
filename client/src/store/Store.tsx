@@ -15,6 +15,7 @@ const ICONS: Record<string, string> = {
   over5: '🏏',
   over10: '🏟️',
   tourney8: '🏆',
+  tourney16: '👑',
   emotes: '😎',
 };
 

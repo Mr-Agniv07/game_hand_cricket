@@ -495,6 +495,7 @@ export const STORE_ITEMS: StoreItem[] = [
   { id: 'over5', label: '5-Over Matches', description: 'Play the 5-over format (casual & tournaments).', price: 50 },
   { id: 'over10', label: '10-Over Matches', description: 'Play the 10-over format (casual & tournaments).', price: 150 },
   { id: 'tourney8', label: '8-Player Tournaments', description: 'Host & join the bigger 8-player bracket.', price: 100 },
+  { id: 'tourney16', label: '16-Player Super League', description: 'Host & join the 16-player Super League — four groups, then knockouts.', price: 250 },
   { id: 'emotes', label: 'Full Emote Pack', description: 'Unlock every in-match taunt emote.', price: 40 },
 ];
 

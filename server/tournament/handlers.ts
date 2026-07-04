@@ -1141,13 +1141,15 @@ export function generateFixture(tournament: Tournament): void {
     // Qualifier: one group, single round-robin. No knockouts — just rating games.
     buildGroups([all]);
   } else if (tournament.size === 16) {
-    // Super League: all 16, four groups of 4, rank-distributed (1st/5th/9th/13th to
-    // A, etc.) so the top seeds are kept apart. Top 2 of each group → quarters.
+    // Super League: all 16, four groups of 4. A bot field seeds by rank
+    // (1st/5th/9th/13th to A, etc.) so the top seeds are kept apart; a human draw is
+    // shuffled. Top 2 of each group → quarters.
+    const order = tournament.isBotLeague ? all : shuffled(all);
     buildGroups([
-      [0, 4, 8, 12],
-      [1, 5, 9, 13],
-      [2, 6, 10, 14],
-      [3, 7, 11, 15],
+      [order[0], order[4], order[8], order[12]],
+      [order[1], order[5], order[9], order[13]],
+      [order[2], order[6], order[10], order[14]],
+      [order[3], order[7], order[11], order[15]],
     ]);
   } else if (tournament.size === 12) {
     // Bot League: top 12, three groups of 4, rank-distributed (A=1,4,7,10 etc.).
@@ -1812,13 +1814,15 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
   io.on('connection', (socket) => {
     socket.on('create_tournament', ({ playerName, overs, wickets, size }) => {
       const ov = clampCount(overs, 2);
-      const sz = size === 8 ? 8 : 4;
-      // Economy gates: longer formats and the 8-player bracket must be unlocked.
+      const sz = size === 16 ? 16 : size === 8 ? 8 : 4;
+      // Economy gates: longer formats and the bigger brackets must be unlocked.
       const fmtItem = overUnlockId(ov);
       if (fmtItem && !hasUnlock(socket.data.userId, fmtItem))
         return socket.emit('error', { message: `Unlock the ${ov}-over format in the Store first.` });
       if (sz === 8 && !hasUnlock(socket.data.userId, 'tourney8'))
         return socket.emit('error', { message: 'Unlock 8-player tournaments in the Store first.' });
+      if (sz === 16 && !hasUnlock(socket.data.userId, 'tourney16'))
+        return socket.emit('error', { message: 'Unlock the 16-player Super League in the Store first.' });
 
       // Reap a waiting lobby this socket abandoned (created one, went back, then
       // created another). Left behind, it lingers in the map with the same host
@@ -1835,7 +1839,7 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         code,
         overs: ov,
         wickets: clampCount(wickets, 2),
-        size: sz, // only 4 or 8 supported
+        size: sz, // 4, 8, or 16
         groups: [],
         players: [
           {

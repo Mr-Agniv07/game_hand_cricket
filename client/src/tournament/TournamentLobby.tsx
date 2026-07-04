@@ -351,7 +351,23 @@ export default function TournamentLobby({
             <div className={styles['t-format']}>
               <div className={styles['t-format-title']}>📋 How it works</div>
               <ul className={styles['t-format-list']}>
-                {size === 8 ? (
+                {size === 16 ? (
+                  <>
+                    <li>16 players split randomly into Groups A–D (4 each).</li>
+                    <li>
+                      Single round-robin within each group — every pair plays once. Win = 2 pts,
+                      Tie = 1 pt; ties broken by NRR.
+                    </li>
+                    <li>
+                      Top 2 of each group reach the <strong>quarter-finals</strong> (A↔C, B↔D
+                      crossovers).
+                    </li>
+                    <li>
+                      Quarter winners go to the <strong>semi-finals</strong>, then the{' '}
+                      <strong>FINAL</strong> — its winner is the champion.
+                    </li>
+                  </>
+                ) : size === 8 ? (
                   <>
                     <li>8 players split randomly into Group A & B (4 each).</li>
                     <li>
