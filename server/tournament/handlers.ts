@@ -62,8 +62,8 @@ export interface InternalFixtureMatch {
   p2Score: number;
   roomId: string | null;
   isFinal?: boolean;
-  stage: 'group' | 'quarter' | 'semi' | 'final';
-  group?: 'A' | 'B' | 'C' | 'D';
+  stage: 'group' | 'super8' | 'quarter' | 'semi' | 'final';
+  group?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
   label?: string;
   superOver?: boolean;
   scorecard?: MatchScorecard;
@@ -96,9 +96,17 @@ export interface Tournament {
   currentMatchIndex: number;
   pointsTable: Record<string, InternalPointsEntry>;
   liveScore: LiveMatchScore | null;
+  /** Super 8 groups (16-player only): the two groups of 4 qualifiers (E, F), as
+   *  player-index arrays. Set when the group stage ends and the Super 8 is drawn. */
+  superGroups?: number[][];
+  /** Fresh Super 8 standings (16-player only), keyed by player id — reset to 0 when
+   *  the Super 8 begins, so it's decided purely by the 3 Super 8 matches. */
+  superPointsTable?: Record<string, InternalPointsEntry>;
+  /** True once the Super 8 groups have been appended (16-player only). */
+  super8Created?: boolean;
   /** True once the quarterfinals have been appended (12-player Super League only). */
   quartersCreated?: boolean;
-  /** True once the semifinals have been appended (8- and 12-player). */
+  /** True once the semifinals have been appended (8-, 12-, and 16-player). */
   semisCreated?: boolean;
   /** True once the playoff final has been appended to fixtures. */
   finalCreated?: boolean;
@@ -325,15 +333,113 @@ function pushQuarters(io: GameServer, t: Tournament, pairs: [number, number, str
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
-/** Super League (16, four groups of 4): top 2 of each, A↔C and B↔D crossovers. */
-function setupQuarters16(io: GameServer, t: Tournament): void {
+/** A fresh, zeroed points-table entry. */
+function emptyPointsEntry(): InternalPointsEntry {
+  return {
+    played: 0,
+    won: 0,
+    lost: 0,
+    tied: 0,
+    points: 0,
+    runsScored: 0,
+    ballsFaced: 0,
+    runsConceded: 0,
+    ballsBowled: 0,
+  };
+}
+
+/** Rank a subset of qualifiers by their FRESH Super 8 standings (points desc, then
+ *  NRR desc). Mirrors rankedGroupIndices but reads superPointsTable. */
+function rankedSuperGroupIndices(t: Tournament, indices: number[]): number[] {
+  const table = t.superPointsTable ?? {};
+  return [...indices].sort((a, b) => {
+    const ea = table[t.players[a].id];
+    const eb = table[t.players[b].id];
+    if (!ea || !eb) return 0;
+    if (eb.points !== ea.points) return eb.points - ea.points;
+    return computeNRR(eb) - computeNRR(ea);
+  });
+}
+
+/**
+ * Super League (16): the group stage just ended. Take the top 2 of each of the four
+ * groups (8 qualifiers) and redraw them into the Super 8 — two groups of 4 with a
+ * FRESH points table (reset to 0), so the stage is decided purely by its own matches:
+ *   Group E: A1, B2, C1, D2   Group F: A2, B1, C2, D1
+ * Each Super 8 group is a single round-robin (every team plays the other 3 once =
+ * 3 matches), interleaved so E and F progress together. Top 2 of each → semis.
+ */
+function setupSuper8(io: GameServer, t: Tournament): void {
+  t.super8Created = true;
   const [a, b, c, d] = t.groups.map((g) => rankedGroupIndices(t, g));
-  pushQuarters(io, t, [
-    [a[0], c[1], 'Quarter Final 1'], // A1 · C2
-    [b[0], d[1], 'Quarter Final 2'], // B1 · D2
-    [c[0], a[1], 'Quarter Final 3'], // C1 · A2
-    [d[0], b[1], 'Quarter Final 4'], // D1 · B2
-  ]);
+  const groupE = [a[0], b[1], c[0], d[1]]; // A1, B2, C1, D2
+  const groupF = [a[1], b[0], c[1], d[0]]; // A2, B1, C2, D1
+  t.superGroups = [groupE, groupF];
+
+  // Fresh standings: the 8 qualifiers all start the Super 8 on zero.
+  t.superPointsTable = {};
+  for (const idx of [...groupE, ...groupF]) {
+    const id = t.players[idx]?.id;
+    if (id) t.superPointsTable[id] = emptyPointsEntry();
+  }
+
+  const labels = ['E', 'F'] as const;
+  const pairsPer = [singleRoundRobin(groupE), singleRoundRobin(groupF)];
+  const maxLen = Math.max(0, ...pairsPer.map((p) => p.length));
+  for (let i = 0; i < maxLen; i++)
+    for (let g = 0; g < 2; g++) {
+      const pr = pairsPer[g][i];
+      if (!pr) continue;
+      t.fixtures.push({
+        matchNum: t.fixtures.length + 1,
+        player1Idx: pr[0],
+        player2Idx: pr[1],
+        status: 'upcoming',
+        result: null,
+        p1Score: 0,
+        p2Score: 0,
+        roomId: null,
+        stage: 'super8',
+        group: labels[g],
+      });
+    }
+  io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
+}
+
+/**
+ * Append the two semifinals from the Super 8 (16-player only): top 2 of each Super 8
+ * group cross over — SF1 = E1 v F2, SF2 = F1 v E2. player1 is the group winner, so a
+ * tied semi is awarded to them.
+ */
+function setupSemisFromSuper8(io: GameServer, t: Tournament): void {
+  t.semisCreated = true;
+  const [e, f] = (t.superGroups ?? []).map((g) => rankedSuperGroupIndices(t, g));
+  const base = t.fixtures.length;
+  t.fixtures.push({
+    matchNum: base + 1,
+    player1Idx: e[0],
+    player2Idx: f[1],
+    status: 'upcoming',
+    result: null,
+    p1Score: 0,
+    p2Score: 0,
+    roomId: null,
+    stage: 'semi',
+    label: 'Semi Final 1',
+  });
+  t.fixtures.push({
+    matchNum: base + 2,
+    player1Idx: f[0],
+    player2Idx: e[1],
+    status: 'upcoming',
+    result: null,
+    p1Score: 0,
+    p2Score: 0,
+    roomId: null,
+    stage: 'semi',
+    label: 'Semi Final 2',
+  });
+  io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
 /** Rank group 3rd-placed teams for the best-thirds spots: NRR → wins → runs scored →
@@ -479,13 +585,31 @@ export function advanceTournament(
     return;
   }
   // All currently-scheduled fixtures are done — open the next stage.
-  // The Super League (16, four groups) and the regular league (12, three groups +
-  // best thirds) both feed 8 teams into quarters → semis → final.
-  if (t.size === 16 || t.size === 12) {
+  // The Super League (16, four groups) feeds its top 8 into a SUPER 8 stage (two
+  // fresh groups of 4) → semis → final. There are NO quarterfinals.
+  if (t.size === 16) {
+    if (!t.super8Created) {
+      const firstSuper8 = t.fixtures.length;
+      setupSuper8(io, t);
+      startTournamentMatch(io, rooms, t, firstSuper8);
+    } else if (!t.semisCreated) {
+      const firstSemi = t.fixtures.length;
+      setupSemisFromSuper8(io, t);
+      startTournamentMatch(io, rooms, t, firstSemi);
+    } else if (!t.finalCreated) {
+      setupFinal(io, t);
+      startTournamentMatch(io, rooms, t, t.fixtures.length - 1);
+    } else {
+      finalizeTournament(io, t);
+    }
+    return;
+  }
+  // The regular league (12, three groups + best thirds) feeds 8 teams into
+  // quarters → semis → final.
+  if (t.size === 12) {
     if (!t.quartersCreated) {
       const firstQuarter = t.fixtures.length;
-      if (t.size === 16) setupQuarters16(io, t);
-      else setupQuarters12BestThirds(io, t);
+      setupQuarters12BestThirds(io, t);
       startTournamentMatch(io, rooms, t, firstQuarter);
     } else if (!t.semisCreated) {
       const firstSemi = t.fixtures.length;
@@ -1045,6 +1169,8 @@ function computeLiveInsightsFresh(
     // here — just a cached read, guarded against staleness from a previous match).
     if (t._marginInsight && t._marginInsight.matchIndex === t.currentMatchIndex)
       for (const l of t._marginInsight.lines) lines.push(l);
+  } else if (fx.stage === 'super8') {
+    lines.push(`Super 8${fx.group ? ` Group ${fx.group}` : ''} — top 2 reach the semi-finals.`);
   } else {
     lines.push(
       fx.stage === 'final'
@@ -1091,6 +1217,15 @@ export function publicTournamentState(t: Tournament): TournamentState {
         { ...e, nrr: computeNRR(e) },
       ])
     ),
+    superGroups: t.superGroups ?? null,
+    superPointsTable: t.superPointsTable
+      ? Object.fromEntries(
+          Object.entries(t.superPointsTable).map(([id, e]): [string, PointsTableEntry] => [
+            id,
+            { ...e, nrr: computeNRR(e) },
+          ])
+        )
+      : null,
     liveScore: t.liveScore,
     champion: t.champion ?? null,
     awards: t.awards ?? null,
@@ -1376,9 +1511,10 @@ export function forfeitTournamentMatch(
   if (fixture.stage === 'final') {
     // A forfeited final: the surviving player is champion; no league points.
     tournament.champion = winnerId;
-  } else if (fixture.stage === 'group') {
-    const we = tournament.pointsTable[winnerId];
-    const le = tournament.pointsTable[loserKey];
+  } else if (fixture.stage === 'group' || fixture.stage === 'super8') {
+    const table = fixture.stage === 'super8' ? tournament.superPointsTable : tournament.pointsTable;
+    const we = table?.[winnerId];
+    const le = table?.[loserKey];
     if (we) {
       we.played += 1;
       we.won += 1;
@@ -1491,9 +1627,10 @@ function forfeitAbsentAtStart(
   const loserId = p1Gone ? p1.id : p2.id;
   if (fixture.stage === 'final') {
     tournament.champion = winnerId;
-  } else if (fixture.stage === 'group') {
-    const we = tournament.pointsTable[winnerId];
-    const le = tournament.pointsTable[loserId];
+  } else if (fixture.stage === 'group' || fixture.stage === 'super8') {
+    const table = fixture.stage === 'super8' ? tournament.superPointsTable : tournament.pointsTable;
+    const we = table?.[winnerId];
+    const le = table?.[loserId];
     if (we) {
       we.played += 1;
       we.won += 1;

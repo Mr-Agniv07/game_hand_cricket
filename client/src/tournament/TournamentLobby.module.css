@@ -376,6 +376,22 @@
   color: var(--muted);
 }
 
+.t-subsection-title {
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin: 0.55rem 0 0.3rem;
+}
+
+.t-playoff-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0.35rem 0 0;
+}
+
 /* ─── Points table ─── */
 
 .t-table-wrap {

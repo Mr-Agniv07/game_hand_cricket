@@ -461,8 +461,8 @@ export default function Lobby({
               <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.2rem 0', lineHeight: 1.4 }}>
                 {tSize === 16 ? (
                   <>
-                    16 players · four groups of 4 · top 2 of each group reach the
-                    quarter-finals, then semis and the{' '}
+                    16 players · four groups of 4 · top 2 advance to the{' '}
+                    <strong>Super 8</strong> (two fresh groups of 4), then semis and the{' '}
                     <strong style={{ color: '#fbbf24' }}>FINAL</strong>.
                   </>
                 ) : tSize === 8 ? (

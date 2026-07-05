@@ -110,6 +110,8 @@ function StandingsTable({
 export default function TournamentResult({ tournamentState, myId, onLeave }: TournamentResultProps) {
   const { size, groups, players, pointsTable, fixtures, champion, awards, overs, wickets } =
     tournamentState;
+  const superGroups = tournamentState.superGroups ?? null;
+  const superPointsTable = tournamentState.superPointsTable ?? {};
   const isMultiGroup = size === 8 || size === 12 || size === 16;
 
   const sortedAll = sortByStandings(players, pointsTable);
@@ -138,6 +140,7 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
   const iAmSemiFinalist = fixtures.some(
     (f) => f.stage === 'semi' && (players[f.player1Idx]?.id === myId || players[f.player2Idx]?.id === myId)
   );
+  const iReachedSuper8 = !!superGroups?.some((g) => g.some((i) => players[i]?.id === myId));
   const myRank = sortedAll.findIndex((p) => p.id === myId);
 
   const knockouts = fixtures.filter(
@@ -148,6 +151,7 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
   if (myId === winner?.id) myBadge = { cls: 'rank-0', text: '🏆 Champion!' };
   else if (myId === runnerUp?.id) myBadge = { cls: 'rank-1', text: '🥈 Runner-up' };
   else if (isMultiGroup && iAmSemiFinalist) myBadge = { cls: 'rank-2', text: '🥉 Semi-finalist' };
+  else if (iReachedSuper8) myBadge = { cls: 'rank-3', text: '⚡ Super 8' };
   else if (isMultiGroup && myRank >= 0) myBadge = { cls: 'rank-3', text: 'Group Stage' };
   else if (!isMultiGroup && myRank === 2) myBadge = { cls: 'rank-2', text: '🥉 3rd Place' };
   else if (!isMultiGroup && myRank === 3) myBadge = { cls: 'rank-3', text: '4th Place' };
@@ -229,6 +233,20 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
                   myId={myId}
                   championId={champion}
                   qual={tournamentState.qualification}
+                />
+              </div>
+            ))}
+            {/* Super 8 final standings (16-player only) */}
+            {superGroups?.map((g, gi) => (
+              <div key={`super-${gi}`}>
+                <div className={styles['t-result-section-title']}>
+                  Super 8 · Group {['E', 'F'][gi]} — Final Standings
+                </div>
+                <StandingsTable
+                  rows={sortByStandings(g.map((i) => players[i]).filter(Boolean), superPointsTable)}
+                  pt={superPointsTable}
+                  myId={myId}
+                  championId={champion}
                 />
               </div>
             ))}

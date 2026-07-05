@@ -252,13 +252,19 @@ export default function TournamentLobby({
 }: TournamentLobbyProps) {
   const { code, size, groups, players, phase, fixtures, currentMatchIndex, pointsTable, overs, wickets } =
     tournamentState;
+  const superGroups = tournamentState.superGroups ?? null;
+  const superPointsTable = tournamentState.superPointsTable ?? {};
   const [copied, setCopied] = useState(false);
   const [groupTab, setGroupTab] = useState(0);
+  const [superTab, setSuperTab] = useState(0);
   const [card, setCard] = useState<MatchScorecard | null>(null);
 
   const groupLabels = ['A', 'B', 'C', 'D'] as const;
+  const superGroupLabels = ['E', 'F'] as const;
   const isMultiGroup = groups.length > 1;
-  const hasQuarters = size === 12 || size === 16; // 3/4 groups → quarters → semis → final
+  const hasQuarters = size === 12; // 12: 3 groups → quarters → semis → final
+  const hasSuper8 = size === 16; // 16: 4 groups → Super 8 (E/F) → semis → final
+  const super8Drawn = !!superGroups && superGroups.length > 0;
   const isHost = players[0]?.id === myId;
 
   function copyCode() {
@@ -279,6 +285,9 @@ export default function TournamentLobby({
   const groupTotal = fixtures.filter((f) => f.stage === 'group').length || 12;
   const groupDone = fixtures.filter((f) => f.stage === 'group' && f.status === 'done').length;
 
+  const super8Total = fixtures.filter((f) => f.stage === 'super8').length;
+  const super8Done = fixtures.filter((f) => f.stage === 'super8' && f.status === 'done').length;
+
   const quarters = fixtures.filter((f) => f.stage === 'quarter');
   const semis = fixtures.filter((f) => f.stage === 'semi');
   const finalFix = fixtures.find((f) => f.stage === 'final');
@@ -290,8 +299,13 @@ export default function TournamentLobby({
         ? (liveMatch.label ?? 'Semi Final')
         : liveMatch?.stage === 'quarter'
           ? (liveMatch.label ?? 'Quarter Final')
-          : `Group Stage · ${Math.min(groupDone + 1, groupTotal)} of ${groupTotal}`;
-  const progressPct = Math.min(100, Math.round((groupDone / groupTotal) * 100));
+          : liveMatch?.stage === 'super8'
+            ? `Super 8 · ${Math.min(super8Done + 1, super8Total)} of ${super8Total}`
+            : `Group Stage · ${Math.min(groupDone + 1, groupTotal)} of ${groupTotal}`;
+  const progressPct =
+    liveMatch?.stage === 'super8' && super8Total > 0
+      ? Math.min(100, Math.round((super8Done / super8Total) * 100))
+      : Math.min(100, Math.round((groupDone / groupTotal) * 100));
 
   // Group standings + fixtures for the 8-player view.
   const groupPlayers = (gi: number): TournamentPlayer[] =>
@@ -299,6 +313,29 @@ export default function TournamentLobby({
   const groupSorted = (gi: number) => sortByStandings(groupPlayers(gi), pointsTable);
   const groupFixtures = (gi: number) =>
     fixtures.filter((f) => f.stage === 'group' && f.group === groupLabels[gi]);
+
+  // Super 8 standings + fixtures (16-player only, once drawn).
+  const superGroupPlayers = (gi: number): TournamentPlayer[] =>
+    (superGroups?.[gi] ?? []).map((idx) => players[idx]).filter(Boolean);
+  const superGroupSorted = (gi: number) => sortByStandings(superGroupPlayers(gi), superPointsTable);
+  const superGroupFixtures = (gi: number) =>
+    fixtures.filter((f) => f.stage === 'super8' && f.group === superGroupLabels[gi]);
+
+  // Placeholder pairings for the two semis before they're drawn (depends on format).
+  const sfPlaceholders: [string, string][] = hasSuper8
+    ? [
+        ['Super 8 E #1', 'Super 8 F #2'],
+        ['Super 8 F #1', 'Super 8 E #2'],
+      ]
+    : hasQuarters
+      ? [
+          ['QF winner', 'QF winner'],
+          ['QF winner', 'QF winner'],
+        ]
+      : [
+          ['Group winner', 'Group runner-up'],
+          ['Group winner', 'Group runner-up'],
+        ];
 
   return (
     <div className={styles['t-lobby']}>
@@ -359,12 +396,12 @@ export default function TournamentLobby({
                       Tie = 1 pt; ties broken by NRR.
                     </li>
                     <li>
-                      Top 2 of each group reach the <strong>quarter-finals</strong> (A↔C, B↔D
-                      crossovers).
+                      Top 2 of each group (8 teams) advance to the <strong>Super 8</strong>: two
+                      fresh groups of 4 (E &amp; F), points reset — each team plays 3 matches.
                     </li>
                     <li>
-                      Quarter winners go to the <strong>semi-finals</strong>, then the{' '}
-                      <strong>FINAL</strong> — its winner is the champion.
+                      Top 2 of each Super 8 group reach the <strong>semi-finals</strong> (E1 v F2,
+                      F1 v E2), then the <strong>FINAL</strong> — its winner is the champion.
                     </li>
                   </>
                 ) : size === 8 ? (
@@ -468,6 +505,41 @@ export default function TournamentLobby({
             </div>
           </div>
 
+          {/* ── Super 8 (16-player only) ── */}
+          {hasSuper8 && (
+            <div className={styles['t-section']}>
+              <div className={styles['t-section-title']}>⚡ Super 8</div>
+              {super8Drawn ? (
+                <>
+                  <div className={styles['t-group-tabs']}>
+                    {superGroups!.map((_, gi) => (
+                      <button
+                        key={gi}
+                        className={superTab === gi ? `${styles['t-group-tab']} ${styles.active}` : styles['t-group-tab']}
+                        onClick={() => setSuperTab(gi)}
+                      >
+                        Group {superGroupLabels[gi]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className={styles['t-subsection-title']}>Group {superGroupLabels[superTab]} — Standings</div>
+                  <StandingsTable rows={superGroupSorted(superTab)} pt={superPointsTable} myId={myId} />
+                  <div className={styles['t-subsection-title']}>Group {superGroupLabels[superTab]} — Fixtures</div>
+                  <div className={styles['t-fixture']}>
+                    {superGroupFixtures(superTab).map((f) => (
+                      <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className={styles['t-playoff-note']}>
+                  Top 2 of each group (A–D) qualify. When the group stage ends, the 8 qualifiers
+                  are drawn into two fresh groups of 4 (E &amp; F) — points reset, each team plays 3.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className={styles['t-section']}>
             <div className={styles['t-section-title']}>🏆 Playoffs</div>
             <div className={styles['t-fixture']}>
@@ -481,20 +553,12 @@ export default function TournamentLobby({
                         <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
                       </div>
                     ))
-                  : (size === 16
-                      ? ([
-                          ['Quarter Final 1', 'Group A #1', 'Group C #2'],
-                          ['Quarter Final 2', 'Group B #1', 'Group D #2'],
-                          ['Quarter Final 3', 'Group C #1', 'Group A #2'],
-                          ['Quarter Final 4', 'Group D #1', 'Group B #2'],
-                        ] as const)
-                      : ([
-                          ['Quarter Final 1', 'Group A #1', 'Group B #2'],
-                          ['Quarter Final 2', 'Group B #1', 'Group C #2'],
-                          ['Quarter Final 3', 'Group C #1', 'Best 3rd-placed'],
-                          ['Quarter Final 4', 'Group A #2', 'Best 3rd-placed'],
-                        ] as const)
-                    ).map(([label, p1, p2]) => (
+                  : ([
+                      ['Quarter Final 1', 'Group A #1', 'Group B #2'],
+                      ['Quarter Final 2', 'Group B #1', 'Group C #2'],
+                      ['Quarter Final 3', 'Group C #1', 'Best 3rd-placed'],
+                      ['Quarter Final 4', 'Group A #2', 'Best 3rd-placed'],
+                    ] as const).map(([label, p1, p2]) => (
                       <div key={label}>
                         <div className={styles['t-playoff-label']}>{label}</div>
                         <PlaceholderRow badge="QF" p1={p1} p2={p2} />
@@ -512,11 +576,11 @@ export default function TournamentLobby({
                 <>
                   <div>
                     <div className={styles['t-playoff-label']}>Semi Final 1</div>
-                    <PlaceholderRow badge="SF" p1={hasQuarters ? 'QF winner' : 'Group winner'} p2={hasQuarters ? 'QF winner' : 'Group runner-up'} />
+                    <PlaceholderRow badge="SF" p1={sfPlaceholders[0][0]} p2={sfPlaceholders[0][1]} />
                   </div>
                   <div>
                     <div className={styles['t-playoff-label']}>Semi Final 2</div>
-                    <PlaceholderRow badge="SF" p1={hasQuarters ? 'QF winner' : 'Group winner'} p2={hasQuarters ? 'QF winner' : 'Group runner-up'} />
+                    <PlaceholderRow badge="SF" p1={sfPlaceholders[1][0]} p2={sfPlaceholders[1][1]} />
                   </div>
                 </>
               )}

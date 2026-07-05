@@ -135,10 +135,11 @@ export default function App() {
   const [myAwards, setMyAwards] = useState<CeremonyAward[]>([]);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
   // Stage-intro overlay: 'finalist' = tap-to-start GRAND FINALE (you're playing),
-  // 'spectator' = brief timed GRAND FINALE (watching), 'knockouts' = brief timed
-  // KNOCKOUTS bumper when the semis begin.
+  // 'spectator' = brief timed GRAND FINALE (watching), 'super8' = brief timed SUPER 8
+  // bumper (16-player, when the group stage ends), 'knockouts' = brief timed KNOCKOUTS
+  // bumper when the semis begin.
   const [grandFinale, setGrandFinale] = useState<
-    null | 'finalist' | 'spectator' | 'knockouts' | 'superover'
+    null | 'finalist' | 'spectator' | 'super8' | 'knockouts' | 'superover'
   >(null);
   const [muted, setMuted] = useState(isMuted());
   // Opponent-move feed for ML training. Captured at ball_played from pre-swap
@@ -169,6 +170,9 @@ export default function App() {
   const grandFinaleShownRef = useRef(false);
   // Guards the KNOCKOUTS bumper so it shows once per tournament (when semis begin).
   const knockoutsShownRef = useRef(false);
+  // Guards the SUPER 8 bumper so it shows once per tournament (16-player, when the
+  // group stage ends and the Super 8 is drawn).
+  const super8ShownRef = useRef(false);
   // Whether we've actually entered a room this session. Guards the persist effect
   // from clearing the saved room on the INITIAL mount (when roomId starts null) —
   // doing so would wipe localStorage before refresh-recovery gets to read it.
@@ -450,6 +454,7 @@ export default function App() {
         awardsHandledRef.current = false;
         grandFinaleShownRef.current = false;
         knockoutsShownRef.current = false;
+        super8ShownRef.current = false;
         setMyAwards([]);
         setIsFinalMatch(false);
       }
@@ -487,11 +492,19 @@ export default function App() {
         }
       } else {
         setPhase((p) => (p === 'lobby' ? 'tournament_lobby' : p));
-        // KNOCKOUTS bumper for everyone the moment the group stage ends and the
-        // first knockout round is created, before the final's GRAND FINALE intro.
-        // That first round is the QUARTERS in a 16-player tournament (semis are only
-        // appended after the quarters), and the SEMIS in an 8-player one — fire on
-        // whichever appears first (the ref guard keeps it to a single showing).
+        // SUPER 8 bumper (16-player only): the group stage just ended and the two
+        // Super 8 groups were drawn — show it before the Super 8's first ball.
+        if (!super8ShownRef.current && state.fixtures.some((f) => f.stage === 'super8')) {
+          super8ShownRef.current = true;
+          sounds.toss();
+          setGrandFinale('super8');
+          setTimeout(() => setGrandFinale((m) => (m === 'super8' ? null : m)), 2800);
+        }
+        // KNOCKOUTS bumper for everyone the moment the first knockout round is
+        // created, before the final's GRAND FINALE intro. That first round is the
+        // QUARTERS in a 12-player league, and the SEMIS in an 8- or 16-player one
+        // (16 runs a Super 8 group stage in between) — fire on whichever appears
+        // first (the ref guard keeps it to a single showing).
         if (
           !knockoutsShownRef.current &&
           state.fixtures.some((f) => f.stage === 'quarter' || f.stage === 'semi')
@@ -902,25 +915,37 @@ export default function App() {
         <div className="grand-finale-overlay">
           <div className="gf-content">
             <div className="gf-trophy">
-              {grandFinale === 'knockouts' ? '⚔️' : grandFinale === 'superover' ? '🔥' : '🏆'}
+              {grandFinale === 'super8'
+                ? '⚡'
+                : grandFinale === 'knockouts'
+                  ? '⚔️'
+                  : grandFinale === 'superover'
+                    ? '🔥'
+                    : '🏆'}
             </div>
             <div className="gf-title">
-              {grandFinale === 'knockouts'
-                ? 'KNOCKOUTS'
-                : grandFinale === 'superover'
-                  ? 'SUPER OVER'
-                  : 'GRAND FINALE'}
+              {grandFinale === 'super8'
+                ? 'SUPER 8'
+                : grandFinale === 'knockouts'
+                  ? 'KNOCKOUTS'
+                  : grandFinale === 'superover'
+                    ? 'SUPER OVER'
+                    : 'GRAND FINALE'}
             </div>
             <div className="gf-sub">
-              {grandFinale === 'knockouts'
-                ? tournamentState?.fixtures.some((f) => f.stage === 'quarter')
-                  ? 'Group stage done — quarter-finals begin!'
-                  : 'Group stage done — semi-finals begin!'
-                : grandFinale === 'superover'
-                  ? 'Scores level — one over decides it!'
-                  : grandFinale === 'finalist'
-                    ? 'The top 2 face off for the title'
-                    : 'The Final is underway'}
+              {grandFinale === 'super8'
+                ? 'Top 8 advance — two fresh groups of 4!'
+                : grandFinale === 'knockouts'
+                  ? tournamentState?.fixtures.some((f) => f.stage === 'super8')
+                    ? 'Super 8 done — semi-finals begin!'
+                    : tournamentState?.fixtures.some((f) => f.stage === 'quarter')
+                      ? 'Group stage done — quarter-finals begin!'
+                      : 'Group stage done — semi-finals begin!'
+                  : grandFinale === 'superover'
+                    ? 'Scores level — one over decides it!'
+                    : grandFinale === 'finalist'
+                      ? 'The top 2 face off for the title'
+                      : 'The Final is underway'}
             </div>
             {grandFinale === 'finalist' && (
               <button className="gf-start-btn" onClick={startFinal}>

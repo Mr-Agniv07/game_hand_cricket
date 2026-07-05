@@ -509,6 +509,10 @@ export function endInnings(
             recordInnings([toInput(inn1, inn1Batter), toInput(inn2, inn2Batter)]);
           }
 
+          // Super 8 matches feed the FRESH Super 8 table; group matches the league
+          // table. (Everything else — semis/final — records no points.)
+          const table =
+            fixture.stage === 'super8' ? tournament.superPointsTable : tournament.pointsTable;
           const updateEntry = (
             pid: string,
             rs: number,
@@ -518,7 +522,7 @@ export function endInnings(
             won: boolean,
             tied: boolean
           ) => {
-            const e = tournament.pointsTable[pid];
+            const e = table?.[pid];
             if (!e) return;
             e.played += 1;
             e.runsScored += rs;
@@ -542,7 +546,7 @@ export function endInnings(
             // The final decides the champion and does NOT count toward the league
             // table. A tied final goes to the higher seed (player1).
             tournament.champion = winnerFixtureId ?? fp1.id;
-          } else if (fixture.stage === 'group') {
+          } else if (fixture.stage === 'group' || fixture.stage === 'super8') {
             // ICC-style NRR: a side that's all out is treated as having faced its
             // FULL over quota, regardless of how few balls it actually used. A side
             // that wasn't all out (overs completed, or a successful chase) counts

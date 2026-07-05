@@ -471,7 +471,7 @@ export interface TournamentPlayer {
   name: string;
 }
 
-export type FixtureStage = 'group' | 'quarter' | 'semi' | 'final';
+export type FixtureStage = 'group' | 'super8' | 'quarter' | 'semi' | 'final';
 
 export interface FixtureMatch {
   matchNum: number;
@@ -485,8 +485,9 @@ export interface FixtureMatch {
   isFinal?: boolean;
   /** Which stage this fixture belongs to. */
   stage?: FixtureStage;
-  /** Group label for group-stage matches in multi-group (8-player) tournaments. */
-  group?: 'A' | 'B' | 'C' | 'D';
+  /** Group label. A–D for the group stage of multi-group tournaments; E–F for the
+   *  16-player Super 8 stage (the two groups of 4 qualifiers). */
+  group?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
   /** Display label for knockout matches, e.g. "Semi Final 1". */
   label?: string;
   /** True if a tied knockout was decided by a Super Over. */
@@ -549,6 +550,18 @@ export interface TournamentState {
   fixtures: FixtureMatch[];
   currentMatchIndex: number;
   pointsTable: Record<string, PointsTableEntry>;
+  /**
+   * Super 8 groups (16-player tournament only): the two groups of 4 qualifiers
+   * (E and F), as player-index arrays. Null until the group stage ends and the
+   * Super 8 is drawn.
+   */
+  superGroups?: number[][] | null;
+  /**
+   * Fresh Super 8 standings (16-player tournament only), keyed by player id.
+   * Reset to 0 when the Super 8 begins — decided purely by the 3 Super 8 matches.
+   * Null until the Super 8 is drawn.
+   */
+  superPointsTable?: Record<string, PointsTableEntry> | null;
   liveScore: LiveMatchScore | null;
   /** Final winner's player id once the final is decided; null until then. */
   champion?: string | null;
