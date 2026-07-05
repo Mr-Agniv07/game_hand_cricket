@@ -7,9 +7,13 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "pnpm build && cap sync android",
+    "android:open": "cap open android",
+    "android:build": "pnpm build && cap sync android && cap open android"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.2",
@@ -17,6 +21,8 @@
     "vite": "^8.0.12"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
     "@cric/types": "workspace:*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

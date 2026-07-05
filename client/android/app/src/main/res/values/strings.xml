@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cric Flick</string>
+    <string name="title_activity_main">Cric Flick</string>
+    <string name="package_name">com.agniv.cricflick</string>
+    <string name="custom_url_scheme">com.agniv.cricflick</string>
+</resources>
