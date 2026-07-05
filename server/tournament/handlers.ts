@@ -638,18 +638,24 @@ export function advanceTournament(
 
 /**
  * A tournament player's identity is their socket.id, stored in both
- * players[].id and as the pointsTable key. Remap both together when the socket
- * id changes on reconnect, or lobby highlighting and points updates land on a
- * dead id. Centralised so the join_tournament and rejoin_room paths agree.
+ * players[].id and as the (super)pointsTable key. Remap them together when the
+ * socket id changes on reconnect, or lobby highlighting and points updates land
+ * on a dead id. Centralised so the join_tournament and rejoin_room paths agree.
  */
 export function remapTournamentSocketId(t: Tournament, oldId: string, newId: string): void {
   if (oldId === newId) return;
   const player = t.players.find((p) => p.id === oldId);
   if (player) player.id = newId;
-  const entry = t.pointsTable[oldId];
-  if (entry) {
-    t.pointsTable[newId] = entry;
-    delete t.pointsTable[oldId];
+  // Both standings tables are keyed by socket id — the league table and the fresh
+  // Super 8 table (16-player). Miss either and that player's results silently stop
+  // updating after a reconnect (their row freezes for the rest of the stage).
+  for (const table of [t.pointsTable, t.superPointsTable]) {
+    if (!table) continue;
+    const entry = table[oldId];
+    if (entry) {
+      table[newId] = entry;
+      delete table[oldId];
+    }
   }
   // The champion is also a socket id; if we don't remap it too, the result
   // screen can't match it to any player after reconnect and falls back to the
