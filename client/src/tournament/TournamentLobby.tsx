@@ -523,7 +523,7 @@ export default function TournamentLobby({
                     ))}
                   </div>
                   <div className={styles['t-subsection-title']}>Group {superGroupLabels[superTab]} — Standings</div>
-                  <StandingsTable rows={superGroupSorted(superTab)} pt={superPointsTable} myId={myId} />
+                  <StandingsTable rows={superGroupSorted(superTab)} pt={superPointsTable} myId={myId} qual={tournamentState.superQualification} />
                   <div className={styles['t-subsection-title']}>Group {superGroupLabels[superTab]} — Fixtures</div>
                   <div className={styles['t-fixture']}>
                     {superGroupFixtures(superTab).map((f) => (

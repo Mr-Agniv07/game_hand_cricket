@@ -574,6 +574,12 @@ export interface TournamentState {
    */
   qualification?: Record<string, 'Q' | 'E'>;
   /**
+   * Per-player Super 8 qualification status (16-player only), by player id: 'Q' =
+   * clinched a top-2 spot in its Super 8 group (semis-bound), 'E' = can't reach the
+   * top 2. Independent of the group-stage `qualification`. Empty before the Super 8.
+   */
+  superQualification?: Record<string, 'Q' | 'E'>;
+  /**
    * Context for the live match: a head-to-head line + qualification stakes for the
    * two teams ("must win to stay alive", "a win secures a spot", etc.). Null when
    * no match is currently live.

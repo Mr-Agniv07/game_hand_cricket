@@ -247,6 +247,7 @@ export default function TournamentResult({ tournamentState, myId, onLeave }: Tou
                   pt={superPointsTable}
                   myId={myId}
                   championId={champion}
+                  qual={tournamentState.superQualification}
                 />
               </div>
             ))}

@@ -130,6 +130,8 @@ export interface Tournament {
   /** Cache for the (expensive) brute-force qualification, keyed by games played so
    *  far — recomputed only when a result changes, not on every per-ball emit. */
   _qualCache?: { doneCount: number; result: Record<string, 'Q' | 'E'> };
+  /** Same, for the Super 8 stage (16-player) — keyed by Super 8 games played. */
+  _superQualCache?: { doneCount: number; result: Record<string, 'Q' | 'E'> };
   /** Cache for live-match insight lines, keyed by current match + games played. */
   _insightCache?: { key: string; result: { headToHead: string | null; lines: string[] } | null };
   /** NRR margin coaching for the current match, computed ONCE at its innings break
@@ -862,6 +864,69 @@ function computeQualification(t: Tournament): Record<string, 'Q' | 'E'> {
   return result;
 }
 
+/**
+ * Super 8 knockout-qualification status (16-player only): 'Q' = clinched a top-2
+ * spot in its Super 8 group (semis-bound no matter the remaining results AND NRR),
+ * 'E' = can't reach the top 2. Reads the FRESH Super 8 standings and only its own
+ * super8 fixtures, so it's independent of the group stage. Each Super 8 group is 4
+ * teams / 6 games, so the brute force is tiny (≤ 3^6). Cached by Super 8 games played.
+ */
+function computeSuperQualificationFresh(t: Tournament): Record<string, 'Q' | 'E'> {
+  const out: Record<string, 'Q' | 'E'> = {};
+  const groups = t.superGroups;
+  const table = t.superPointsTable;
+  if (!groups || !table) return out;
+  const K = 2; // top 2 of each Super 8 group reach the semis
+
+  const ptsOf = (idx: number) => table[t.players[idx]?.id ?? '']?.points ?? 0;
+  const nrrOf = (idx: number) => {
+    const e = table[t.players[idx]?.id ?? ''];
+    return e ? computeNRR(e) : 0;
+  };
+  const remPairs = (group: number[]): [number, number][] =>
+    t.fixtures
+      .filter(
+        (f) =>
+          f.stage === 'super8' &&
+          f.status !== 'done' &&
+          group.includes(f.player1Idx) &&
+          group.includes(f.player2Idx)
+      )
+      .map((f) => [f.player1Idx, f.player2Idx] as [number, number]);
+
+  for (const group of groups) {
+    const remGames = remPairs(group);
+    if (remGames.length === 0) {
+      // This Super 8 group is complete: top 2 (points → NRR) are through, rest out.
+      [...group]
+        .sort((a, b) => ptsOf(b) - ptsOf(a) || nrrOf(b) - nrrOf(a))
+        .forEach((idx, pos) => {
+          const id = t.players[idx]?.id;
+          if (id) out[id] = pos < K ? 'Q' : 'E';
+        });
+      continue;
+    }
+    const basePts = new Map(group.map((idx) => [idx, ptsOf(idx)]));
+    const cK = bruteForceClinch(basePts, group, remGames, K);
+    for (const idx of group) {
+      const id = t.players[idx]?.id;
+      if (!id) continue;
+      if (cK.guaranteed.has(idx)) out[id] = 'Q'; // clinched a semi spot
+      else if (!cK.possible.has(idx)) out[id] = 'E'; // can't reach the top 2
+    }
+  }
+  return out;
+}
+
+function computeSuperQualification(t: Tournament): Record<string, 'Q' | 'E'> {
+  if (!t.superGroups || !t.superPointsTable) return {};
+  const doneCount = t.fixtures.filter((f) => f.stage === 'super8' && f.status === 'done').length;
+  if (t._superQualCache && t._superQualCache.doneCount === doneCount) return t._superQualCache.result;
+  const result = computeSuperQualificationFresh(t);
+  t._superQualCache = { doneCount, result };
+  return result;
+}
+
 // ─── Live-match insights ────────────────────────────────────────────────────
 
 type TeamInfo = { idx: number; points: number; remaining: number };
@@ -1236,6 +1301,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
     champion: t.champion ?? null,
     awards: t.awards ?? null,
     qualification: computeQualification(t),
+    superQualification: computeSuperQualification(t),
     liveInsights: computeLiveInsights(t),
     isQualifier: t.isQualifier,
   };
