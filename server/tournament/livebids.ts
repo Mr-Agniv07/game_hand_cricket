@@ -22,6 +22,10 @@ const PICK_WINDOW_MS = 8000;
 const SPAWN_MIN_MS = 7000;
 const SPAWN_MAX_MS = 13000;
 const CAP_PER_TOURNAMENT = 25;
+// Bid cadence: at most one bid card during the between-matches (pre-match) window,
+// and two during the match itself — so a match cycle shows ~3 cards, not a stream.
+const MAX_PRE_MATCH_BIDS = 1;
+const MAX_IN_MATCH_BIDS = 2;
 
 // KILL SWITCH — flip to false to instantly disable the engine (every hook becomes
 // a no-op, no per-tournament state is created). Live bids now run on a dedicated
@@ -81,6 +85,12 @@ interface LBState {
   /** While set & unexpired, the engine offers MATCH bids for the upcoming match
    *  (the pre-match betting window); otherwise it offers tournament-long bids. */
   preMatch?: { until: number };
+  /** Markets offered so far in the CURRENT pre-match (between-matches) window —
+   *  capped at MAX_PRE_MATCH_BIDS. Reset each time a new window opens. */
+  preMatchCount: number;
+  /** Markets offered during the CURRENT match's play, capped at MAX_IN_MATCH_BIDS.
+   *  Reset when currentMatchIndex changes. */
+  playSpawn: { matchIndex: number; count: number };
   match?: { key: string; overRuns: number; consec: number };
   /** Per-current-match aggregates across BOTH innings (for match-count markets). */
   matchAgg?: { roomId: string; sixes: number; wkts: number; maxOver: number };
@@ -386,29 +396,50 @@ function sweep(s: LBState, ev: LBEvent): void {
 
 // ─── Spawning ──────────────────────────────────────────────────────────────────
 
+/** True while the between-matches (pre-match) betting window is open. Mirrors the
+ *  `inPreMatch` test inside buildMarket. */
+function inPreMatchWindow(s: LBState): boolean {
+  const liveFix = s.t.fixtures[s.t.currentMatchIndex];
+  const roomId = liveFix && liveFix.status === 'live' ? liveFix.roomId : null;
+  return !!(s.preMatch && Date.now() < s.preMatch.until && roomId && liveFix);
+}
+
 function scheduleSpawn(s: LBState): void {
   s.spawnTimer = setTimeout(
     () => {
       try {
         if (!s.open && s.t.phase === 'in_progress') {
-          const m = buildMarket(s);
-          if (m) {
-            s.open = m;
-            s.io.to('spec:' + s.tid).emit('live_bid_offer', {
-              id: m.id,
-              tournamentId: s.tid,
-              question: m.question,
-              options: m.options,
-              reward: m.reward,
-              expiresAt: m.expiresAt,
-            });
-            // Offer window closes → stop taking picks, keep awaiting its event.
-            setTimeout(() => {
-              if (s.open === m) {
-                s.open = undefined;
-                if (!m.resolved) s.pending.push(m);
-              }
-            }, PICK_WINDOW_MS + 250);
+          // Decide the phase ONCE so the cap check and the count bump agree even if
+          // the pre-match window expires mid-tick. Between matches → at most one bid;
+          // during a match → at most two (reset the counter when the match changes).
+          const pre = inPreMatchWindow(s);
+          if (!pre && s.playSpawn.matchIndex !== s.t.currentMatchIndex)
+            s.playSpawn = { matchIndex: s.t.currentMatchIndex, count: 0 };
+          const underCap = pre
+            ? s.preMatchCount < MAX_PRE_MATCH_BIDS
+            : s.playSpawn.count < MAX_IN_MATCH_BIDS;
+          if (underCap) {
+            const m = buildMarket(s);
+            if (m) {
+              if (pre) s.preMatchCount++;
+              else s.playSpawn.count++;
+              s.open = m;
+              s.io.to('spec:' + s.tid).emit('live_bid_offer', {
+                id: m.id,
+                tournamentId: s.tid,
+                question: m.question,
+                options: m.options,
+                reward: m.reward,
+                expiresAt: m.expiresAt,
+              });
+              // Offer window closes → stop taking picks, keep awaiting its event.
+              setTimeout(() => {
+                if (s.open === m) {
+                  s.open = undefined;
+                  if (!m.resolved) s.pending.push(m);
+                }
+              }, PICK_WINDOW_MS + 250);
+            }
           }
         }
       } catch {
@@ -442,6 +473,8 @@ export function liveBidsStart(io: GameServer, t: Tournament): void {
     perBotBiggestOver: new Map(),
     perBotSixes: new Map(),
     perBotWickets: new Map(),
+    preMatchCount: 0,
+    playSpawn: { matchIndex: -1, count: 0 },
   };
   states.set(t.code, s);
   scheduleSpawn(s);
@@ -456,6 +489,7 @@ export function liveBidsPreMatch(t: Tournament, windowMs: number): void {
   const s = states.get(t.code);
   if (!s) return;
   s.preMatch = { until: Date.now() + windowMs };
+  s.preMatchCount = 0; // fresh between-matches window → allow one bid again
 }
 
 /** Tournament finished → resolve every remaining market (superlatives etc.), then clean up. */

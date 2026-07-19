@@ -1819,7 +1819,7 @@ function beginTournamentMatch(
 // ─── Bot league ───────────────────────────────────────────────────────────────
 
 /** How long bidding stays open before a started bot league actually plays. */
-const BOT_LEAGUE_BID_WINDOW_MS = 5 * 60_000;
+const BOT_LEAGUE_BID_WINDOW_MS = 2 * 60_000;
 
 /** Pre-match betting window: each bot-league match is held this long before its
  *  first ball so spectators can place match bids on it. */
