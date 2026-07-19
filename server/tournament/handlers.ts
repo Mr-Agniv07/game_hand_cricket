@@ -444,8 +444,10 @@ function setupSemisFromSuper8(io: GameServer, t: Tournament): void {
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
-/** Rank group 3rd-placed teams for the best-thirds spots: NRR → wins → runs scored →
- *  wickets → sixes (all descending). */
+/** Rank group 3rd-placed teams for the best-thirds spots: POINTS → NRR → wins →
+ *  runs scored → wickets → sixes (all descending). Points come first — a team that
+ *  earned more points is the better third even on a worse NRR; NRR only breaks a
+ *  points tie. */
 function rankThirds(t: Tournament, thirds: number[]): number[] {
   const stats = tournamentStatsByName(t);
   const key = (idx: number) => {
@@ -453,6 +455,7 @@ function rankThirds(t: Tournament, thirds: number[]): number[] {
     const e = p ? t.pointsTable[p.id] : undefined;
     const s = (p && stats.get(p.name)) || { runs: 0, sixes: 0, wickets: 0 };
     return {
+      points: e?.points ?? 0,
       nrr: e ? computeNRR(e) : 0,
       wins: e?.won ?? 0,
       runs: e?.runsScored ?? 0,
@@ -464,7 +467,12 @@ function rankThirds(t: Tournament, thirds: number[]): number[] {
     const a = key(x);
     const b = key(y);
     return (
-      b.nrr - a.nrr || b.wins - a.wins || b.runs - a.runs || b.wickets - a.wickets || b.sixes - a.sixes
+      b.points - a.points ||
+      b.nrr - a.nrr ||
+      b.wins - a.wins ||
+      b.runs - a.runs ||
+      b.wickets - a.wickets ||
+      b.sixes - a.sixes
     );
   });
 }
