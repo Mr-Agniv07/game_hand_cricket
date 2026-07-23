@@ -611,7 +611,9 @@ export default function TournamentLobby({
               {fixtures.map((f) => (
                 <FixtureRow key={f.matchNum} f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
               ))}
-              {!finalFix && (
+              {/* The Qualifier is a flat round-robin with NO knockouts — no Final to
+                  tease. Only the 4-player format ends in a one-off Final. */}
+              {!finalFix && !tournamentState.isQualifier && (
                 <div>
                   <div className={styles['t-playoff-label']}>Final</div>
                   <PlaceholderRow badge="Final" p1="1st place" p2="2nd place" />
