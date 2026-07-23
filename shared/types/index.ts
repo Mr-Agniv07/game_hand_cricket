@@ -191,6 +191,10 @@ export interface BotLeagueActive {
   myBid?: string | null;
   /** Epoch ms when bidding closes & matches begin; null once underway. */
   bidsCloseAt?: number | null;
+  /** Coins it costs to back a bot in this league. */
+  bidStake?: number;
+  /** Coins won if the backed bot is champion. */
+  bidPrize?: number;
 }
 
 /** One bot's group-stage line in a finished tournament's standings snapshot. */
@@ -663,7 +667,15 @@ export interface ServerToClientEvents {
   bot_rankings_reset: () => void;
   match_found: (p: MatchFoundPayload) => void;
   match_waiting: (p: MatchWaitingPayload) => void;
-  bid_placed: (p: { tournamentId: string; botName: string }) => void;
+  bid_placed: (p: {
+    tournamentId: string;
+    botName: string;
+    /** The user's coin balance after the stake was deducted. */
+    coins: number;
+    /** Stake paid and prize on offer for this league. */
+    stake: number;
+    prize: number;
+  }) => void;
   bid_won: (p: { botName: string; reward: number; coins: number }) => void;
   live_bid_offer: (p: LiveBidOfferPayload) => void;
   live_bid_resolved: (p: LiveBidResolvedPayload) => void;

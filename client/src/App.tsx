@@ -406,6 +406,11 @@ export default function App() {
       setTimeout(() => setBidWin(null), 7000);
     });
 
+    // A champion bid was placed — its stake was just deducted; sync the coin chip.
+    socket.on('bid_placed', ({ coins }) => {
+      setUser((u) => (u ? { ...u, coins } : u));
+    });
+
     // A live in-play prediction landed — keep the coin chip in sync (the in-context
     // celebration is handled by the LiveBids overlay in the spectate view).
     socket.on('live_bid_won', ({ coins }) => {

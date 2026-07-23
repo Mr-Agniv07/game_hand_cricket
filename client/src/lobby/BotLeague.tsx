@@ -82,8 +82,8 @@ export default function BotLeague({ socket, user, onClose }: Props) {
       load();
       setTimeout(() => setMsg(''), 4000);
     }
-    function onBid({ botName }: { botName: string }) {
-      setMsg(`Backed ${botName} — win 50 🪙 if they're champion!`);
+    function onBid({ botName, prize }: { botName: string; prize: number }) {
+      setMsg(`Backed ${botName} — win ${prize} 🪙 if they're champion!`);
       load();
       setTimeout(() => setMsg(''), 4000);
     }
@@ -449,10 +449,12 @@ function BidPanel({
   biddingOpen: boolean;
   onBid: (botName: string) => void;
 }) {
+  const stake = active.bidStake ?? 0;
+  const prize = active.bidPrize ?? 0;
   if (active.myBid) {
     return (
       <div className={styles.bidNote}>
-        🎟️ You backed <strong>{active.myBid}</strong> — 50 🪙 if they win the league!
+        🎟️ You backed <strong>{active.myBid}</strong> — {prize} 🪙 if they win the league!
       </div>
     );
   }
@@ -461,15 +463,28 @@ function BidPanel({
   }
   if (!user) {
     return (
-      <div className={styles.bidNote}>🎟️ Log in to back a bot — win 50 🪙 if they take the title.</div>
+      <div className={styles.bidNote}>
+        🎟️ Log in to back a bot — {stake} 🪙 to enter, win {prize} 🪙 if they take the title.
+      </div>
     );
   }
+  const canAfford = (user.coins ?? 0) >= stake;
   return (
     <div className={styles.bidBox}>
-      <div className={styles.bidTitle}>🎟️ Back the champion — free · win 50 🪙</div>
+      <div className={styles.bidTitle}>
+        🎟️ Back the champion — {stake} 🪙 to enter · win {prize} 🪙
+      </div>
+      {!canAfford && (
+        <div className={styles.bidNote}>Not enough coins — backing a bot costs {stake} 🪙.</div>
+      )}
       <div className={styles.bidGrid}>
         {active.state.players.map((p) => (
-          <button key={p.id} className={styles.bidBtn} onClick={() => onBid(p.name)}>
+          <button
+            key={p.id}
+            className={styles.bidBtn}
+            disabled={!canAfford}
+            onClick={() => onBid(p.name)}
+          >
             {p.name}
           </button>
         ))}

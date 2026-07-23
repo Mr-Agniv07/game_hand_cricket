@@ -32,9 +32,11 @@ import {
   hasUnlock,
   overUnlockId,
   addCoins,
+  spendCoins,
   getEconomy,
   getBotHeadToHead,
   COIN_REWARDS,
+  LEAGUE_BID,
 } from '../db.ts';
 import type { UserAchievements } from '@cric/types';
 
@@ -1505,18 +1507,20 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
     }
   }
 
-  // Pay out spectator bids: anyone who backed the winning bot earns coins, and is
+  // Pay out spectator bids: anyone who backed the winning bot wins the tier prize
+  // (their up-front stake was already spent when they placed the bid), and is
   // notified live (balance + celebration) if they're online.
   if (tournament.isBotLeague && tournament.bids && tournament.champion) {
     const champName = tournament.players.find((p) => p.id === tournament.champion)?.name;
     if (champName) {
+      const prize = leagueBidTier(tournament).prize;
       for (const [userId, botName] of Object.entries(tournament.bids)) {
         if (botName !== champName) continue;
-        addCoins(userId, COIN_REWARDS.bidWin);
+        addCoins(userId, prize);
         const coins = getEconomy(userId).coins;
         for (const [, s] of io.sockets.sockets) {
           if (s.data.userId === userId) {
-            s.emit('bid_won', { botName: champName, reward: COIN_REWARDS.bidWin, coins });
+            s.emit('bid_won', { botName: champName, reward: prize, coins });
             break;
           }
         }
@@ -1938,40 +1942,63 @@ type ActiveBotLeague = {
   state: TournamentState;
   myBid: string | null;
   bidsCloseAt: number | null;
+  /** Coins it costs to back a bot in THIS league, and the prize if it wins. */
+  bidStake: number;
+  bidPrize: number;
 };
+
+/** The champion-bid stake/prize for a league (the Super League is the premium tier). */
+function leagueBidTier(t: Tournament): { stake: number; prize: number } {
+  return t.isSuperLeague ? LEAGUE_BID.super : LEAGUE_BID.normal;
+}
 
 /** Live + bidding-window bot leagues, as spectator summaries (incl. the viewer's bid). */
 export function activeBotLeagues(userId?: string | null): ActiveBotLeague[] {
   const out: ActiveBotLeague[] = [];
   for (const t of tournaments.values())
-    if (t.isBotLeague && t.phase !== 'complete')
+    if (t.isBotLeague && t.phase !== 'complete') {
+      const tier = leagueBidTier(t);
       out.push({
         id: t.id,
         format: t.format ?? t.overs,
         state: publicTournamentState(t),
         myBid: (userId && t.bids?.[userId]) || null,
         bidsCloseAt: t.bidsCloseAt ?? null,
+        bidStake: tier.stake,
+        bidPrize: tier.prize,
       });
+    }
   return out;
 }
+
+export type PlaceBidResult =
+  | { ok: true; botName: string; coins: number; stake: number; prize: number; already: boolean }
+  | { ok: false; error: string };
 
 /**
  * Place (or confirm) a spectator's bid on a bot to win a league. Only allowed
  * during the pre-match bidding window (phase 'waiting'); one bid per user per
- * league, locked in once set. Returns the backed bot, or null if not allowed.
+ * league, locked in once set. Placing a NEW bid costs the league's stake up front
+ * (refunded only if the league is aborted); re-confirming an existing bid is free.
  */
 export function placeBotLeagueBid(
   userId: string,
   tournamentId: string,
   botName: string
-): string | null {
+): PlaceBidResult {
   const t = [...tournaments.values()].find((x) => x.id === tournamentId);
-  if (!t || !t.isBotLeague || t.phase !== 'waiting') return null; // window closed / not a league
-  if (!t.players.some((p) => p.name === botName)) return null; // not a participant
+  if (!t || !t.isBotLeague || t.phase !== 'waiting')
+    return { ok: false, error: 'Bidding is closed for this league.' };
+  if (!t.players.some((p) => p.name === botName))
+    return { ok: false, error: 'That bot is not in this league.' };
+  const tier = leagueBidTier(t);
   t.bids ??= {};
-  if (t.bids[userId]) return t.bids[userId]; // already bid — locked in
+  if (t.bids[userId])
+    return { ok: true, botName: t.bids[userId], coins: getEconomy(userId).coins, ...tier, already: true };
+  if (!spendCoins(userId, tier.stake))
+    return { ok: false, error: `Not enough coins — backing a bot costs ${tier.stake} 🪙.` };
   t.bids[userId] = botName;
-  return botName;
+  return { ok: true, botName, coins: getEconomy(userId).coins, ...tier, already: false };
 }
 
 /**
@@ -1997,6 +2024,13 @@ export function recentBotLeagues(): { id: string; format: number; state: Tournam
 export function stopBotLeague(io: GameServer, rooms: Map<string, Room>, t: Tournament): void {
   t.phase = 'complete';
   liveBidsStop(t); // drop live-bid markets without paying out
+  // Refund champion-bid stakes — the league never finished, so nobody should be out
+  // of pocket. (Live-bid pick payouts are already never charged up front.)
+  if (t.bids) {
+    const stake = leagueBidTier(t).stake;
+    for (const userId of Object.keys(t.bids)) addCoins(userId, stake);
+    t.bids = {};
+  }
   tournaments.delete(t.code);
   for (const [roomId, room] of rooms) if (room.tournamentId === t.code) rooms.delete(roomId);
   t.liveScore = null;
@@ -2261,14 +2295,20 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       if (locked) socket.emit('live_bid_locked', locked);
     });
 
-    // Back a bot to win an in-progress league. Free, one pick per league; pays
-    // out coins at finalize if the backed bot is champion.
+    // Back a bot to win a league. Costs the league's stake up front (one pick per
+    // league); pays out the tier prize at finalize if the backed bot is champion.
     socket.on('place_bid', ({ tournamentId, botName }) => {
       if (!socket.data.userId) return socket.emit('error', { message: 'Log in to place a bid.' });
       if (typeof botName !== 'string' || typeof tournamentId !== 'string') return;
-      const backed = placeBotLeagueBid(socket.data.userId, tournamentId, botName);
-      if (!backed) return socket.emit('error', { message: 'Could not place that bid.' });
-      socket.emit('bid_placed', { tournamentId, botName: backed });
+      const res = placeBotLeagueBid(socket.data.userId, tournamentId, botName);
+      if (!res.ok) return socket.emit('error', { message: res.error });
+      socket.emit('bid_placed', {
+        tournamentId,
+        botName: res.botName,
+        coins: res.coins,
+        stake: res.stake,
+        prize: res.prize,
+      });
     });
   });
 }

@@ -505,8 +505,16 @@ export const COIN_REWARDS = {
   quickMatch: 5,
   // Winning a tournament that had at least one of your friends in it.
   tournamentWinWithFriend: 20,
-  // Backing the champion bot in a bot league.
-  bidWin: 50,
+};
+
+/**
+ * Champion-bid stakes: backing a bot to win a league now costs coins up front and
+ * pays out only if that bot lifts the trophy. The Super League (16 bots) is the
+ * premium event — bigger stake, bigger prize.
+ */
+export const LEAGUE_BID = {
+  normal: { stake: 20, prize: 50 }, // 5/10-over leagues (12 bots)
+  super: { stake: 50, prize: 100 }, // Super League (16 bots)
 };
 
 /** The admin account (ADMIN_USERNAME) gets everything for free. */
@@ -542,6 +550,17 @@ export function addCoins(userId: string | null | undefined, amount: number): voi
   if (!u) return;
   u.coins = Math.max(0, (u.coins ?? 0) + amount);
   persist(prisma.user.update({ where: { id: userId }, data: { coins: u.coins } }), 'addCoins');
+}
+
+/** Deduct `amount` coins if the user can afford it. Returns false (no change) when
+ *  the balance is short — so callers can reject a purchase/bet atomically. */
+export function spendCoins(userId: string | null | undefined, amount: number): boolean {
+  if (!userId || amount <= 0) return false;
+  const u = load().users.find((x) => x.id === userId);
+  if (!u || (u.coins ?? 0) < amount) return false;
+  u.coins -= amount;
+  persist(prisma.user.update({ where: { id: userId }, data: { coins: u.coins } }), 'spendCoins');
+  return true;
 }
 
 /** Buy a store item: validates balance + ownership, then deducts and records it. */
