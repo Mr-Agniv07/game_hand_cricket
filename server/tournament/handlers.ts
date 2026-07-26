@@ -1427,6 +1427,14 @@ export function pushLiveScore(
     tossDecision: room.tossDecision ?? 'bat',
   };
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+  // Spectators live in `spec:<id>` and are (intentionally) isolated from the full
+  // `tournament_state`. Push them just the fresh live score every ball so the
+  // spectate scoreboard advances ball-by-ball instead of jumping on the 3s poll.
+  io.to('spec:' + tournament.id).emit('spectator_live_score', {
+    id: tournament.id,
+    currentMatchIndex: tournament.currentMatchIndex,
+    liveScore: tournament.liveScore,
+  });
 }
 
 /**

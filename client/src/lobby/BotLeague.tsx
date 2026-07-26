@@ -9,6 +9,7 @@ import type {
   BotLeagueActive,
   BotTournamentSummary,
   TournamentState,
+  LiveMatchScore,
 } from '@cric/types';
 import type { AppSocket } from '../socket';
 import type { ClientUser } from '../types';
@@ -50,6 +51,13 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const [watchingId, setWatchingId] = useState<string | null>(null);
   const [pastView, setPastView] = useState<BotTournamentSummary | null>(null);
   const [now, setNow] = useState(Date.now());
+  // Ball-by-ball live score for the watched league, pushed between polls so the
+  // spectate scoreboard advances continuously instead of jumping every 3s.
+  const [liveOverride, setLiveOverride] = useState<{
+    id: string;
+    currentMatchIndex: number;
+    liveScore: LiveMatchScore | null;
+  } | null>(null);
 
   // Tick once a second for the bidding countdown.
   useEffect(() => {
@@ -109,13 +117,20 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   }
 
   // While watching, join the tournament's SPECTATOR-ONLY room so live-bid offers
-  // arrive. This room gets no participant `tournament_state` events, so it can't
-  // interfere with the poll-driven spectate view. Standings still come from the poll.
+  // AND the per-ball live score arrive. This room gets no participant
+  // `tournament_state` events, so it can't interfere with the poll-driven spectate
+  // view. Standings/fixtures still come from the poll; only the scoreboard is live.
   useEffect(() => {
     if (!watchingId) return;
     socket.emit('watch_tournament', { id: watchingId });
+    function onLiveScore(p: { id: string; currentMatchIndex: number; liveScore: LiveMatchScore | null }) {
+      if (p.id === watchingId) setLiveOverride(p);
+    }
+    socket.on('spectator_live_score', onLiveScore);
     return () => {
       socket.emit('unwatch_tournament', { id: watchingId });
+      socket.off('spectator_live_score', onLiveScore);
+      setLiveOverride(null);
     };
   }, [socket, watchingId]);
 
@@ -142,7 +157,18 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     : undefined;
   // Driven by the poll: when the league is gone from active/recent the view
   // clears (shows the "finished" fallback) instead of freezing on a stale snapshot.
-  const watchState: TournamentState | undefined = watching?.state;
+  // The ball-by-ball override (socket) supersedes the poll's live score, but only
+  // while it matches the currently-live match — so a match change falls back to the
+  // poll instead of showing a stale scoreboard from the previous game.
+  const baseWatch = watching?.state;
+  const watchState: TournamentState | undefined =
+    baseWatch &&
+    liveOverride &&
+    watching &&
+    liveOverride.id === watching.id &&
+    liveOverride.currentMatchIndex === baseWatch.currentMatchIndex
+      ? { ...baseWatch, liveScore: liveOverride.liveScore }
+      : baseWatch;
   const pastForFormat = (data?.history ?? []).filter(summaryForTab);
   // Reigning champion per bucket = the most recent completed tournament's winner.
   const champ5 = data?.history.find((t) => t.format === 5 && !isSuperSummary(t))?.champion ?? null;

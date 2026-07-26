@@ -681,6 +681,17 @@ export interface ServerToClientEvents {
   live_bid_resolved: (p: LiveBidResolvedPayload) => void;
   live_bid_won: (p: LiveBidWonPayload) => void;
   live_bid_locked: (p: LiveBidLockedPayload) => void;
+  /**
+   * Per-ball live score for spectators of a bot tournament, pushed to the
+   * `spec:<id>` room so the ball-by-ball score updates continuously instead of
+   * only on the 3s poll. Deliberately lightweight (just the live score) — NOT the
+   * full tournament state, which spectators must never receive.
+   */
+  spectator_live_score: (p: {
+    id: string;
+    currentMatchIndex: number;
+    liveScore: LiveMatchScore | null;
+  }) => void;
 }
 
 // ─── Client → server event payloads ─────────────────────────────────────────
