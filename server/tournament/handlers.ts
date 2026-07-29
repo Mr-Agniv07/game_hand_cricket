@@ -682,34 +682,64 @@ function qualifyCountFor(_size: number): number {
   return 2;
 }
 
-/** Remaining (not-yet-played) GROUP games involving this player index. */
-function remainingGroupGames(t: Tournament, idx: number): number {
+// ─── Stage-generic standings helpers ──────────────────────────────────────────
+// The group stage and the Super 8 are both "groups + a points table + a stage
+// filter"; the qualification/insight math is identical, only the data source
+// differs. These take the stage + its table so both can share one implementation.
+
+type StdTable = Record<string, InternalPointsEntry>;
+
+/** A stage's qualification context: which standings + groups + cutoffs to reason
+ *  over. K = direct qualifiers per group; eK = elimination cutoff (top-3 for the
+ *  12-team best-thirds league, else top-K). Null if the stage isn't set up. */
+interface StageCtx {
+  stage: 'group' | 'super8';
+  table: StdTable;
+  groups: number[][];
+  K: number;
+  eK: number;
+}
+function stageCtx(t: Tournament, stage: 'group' | 'super8'): StageCtx | null {
+  if (stage === 'super8') {
+    if (!t.superGroups || !t.superPointsTable) return null;
+    return { stage, table: t.superPointsTable, groups: t.superGroups, K: 2, eK: 2 };
+  }
+  const K = qualifyCountFor(t.size);
+  return { stage, table: t.pointsTable, groups: t.groups, K, eK: t.size === 12 ? K + 1 : K };
+}
+
+/** Points for a player index in a given standings table (0 if missing). */
+function pointsOfIn(t: Tournament, table: StdTable, idx: number): number {
+  return table[t.players[idx]?.id ?? '']?.points ?? 0;
+}
+/** NRR for a player index in a given standings table (0 if missing). */
+function nrrOfIn(t: Tournament, table: StdTable, idx: number): number {
+  const e = table[t.players[idx]?.id ?? ''];
+  return e ? computeNRR(e) : 0;
+}
+/** Remaining (not-yet-played) games in `stage` involving this player index. */
+function remainingGamesIn(t: Tournament, stage: 'group' | 'super8', idx: number): number {
   return t.fixtures.filter(
-    (f) =>
-      f.stage === 'group' &&
-      f.status !== 'done' &&
-      (f.player1Idx === idx || f.player2Idx === idx)
+    (f) => f.stage === stage && f.status !== 'done' && (f.player1Idx === idx || f.player2Idx === idx)
   ).length;
 }
-
-/** Group points per index (0 if missing). */
-function groupPointsOf(t: Tournament, idx: number): number {
-  const id = t.players[idx]?.id;
-  return (id && t.pointsTable[id]?.points) || 0;
-}
-
-/** Remaining group games WITHIN this group, as [p1Idx, p2Idx] pairs. */
-function remainingGroupPairs(t: Tournament, group: number[]): [number, number][] {
+/** Remaining games in `stage` WITHIN this group, as [p1Idx, p2Idx] pairs. */
+function remainingPairsIn(t: Tournament, stage: 'group' | 'super8', group: number[]): [number, number][] {
   return t.fixtures
     .filter(
       (f) =>
-        f.stage === 'group' &&
+        f.stage === stage &&
         f.status !== 'done' &&
         group.includes(f.player1Idx) &&
         group.includes(f.player2Idx)
     )
     .map((f) => [f.player1Idx, f.player2Idx] as [number, number]);
 }
+
+// Group-stage wrappers (the original call sites reason over the league table).
+const remainingGroupGames = (t: Tournament, idx: number) => remainingGamesIn(t, 'group', idx);
+const groupPointsOf = (t: Tournament, idx: number) => pointsOfIn(t, t.pointsTable, idx);
+const remainingGroupPairs = (t: Tournament, group: number[]) => remainingPairsIn(t, 'group', group);
 
 /**
  * Brute-force the clinch over every win/loss/tie combination of the remaining
@@ -981,28 +1011,27 @@ function removeGame(games: [number, number][], a: number, b: number): [number, n
  */
 function matchScenario(
   t: Tournament,
+  ctx: StageCtx,
   group: number[],
   remGames: [number, number][],
-  K: number,
   me: number,
   opp: number,
   name: string
 ): string | null {
-  // CRITICAL: bruteForceClinch is 3^remGames. With many games left (e.g. a Super
-  // League group of 6 = 15 games → 3^15 ≈ 14M, called 3× per team) this blocks the
-  // event loop for minutes and the whole server goes unresponsive. Gate it exactly
-  // like computeQualificationFresh: when too many games remain, fall back to the
-  // cheap floor/ceiling clinch (nothing is clinched that early anyway).
+  // CRITICAL: bruteForceClinch is 3^remGames. It's gated exactly like
+  // computeQualificationFresh: when too many games remain, fall back to the cheap
+  // floor/ceiling clinch (nothing is clinched that early anyway). Groups of 4 (both
+  // the group stage and the Super 8, ≤6 games) always take the exact path.
   // The 12-team league takes the 2 best 3rd-placed too, so "elimination" uses a top-3
-  // cutoff (finishing 3rd keeps you alive); a direct knockout spot ("through/secures")
-  // still means top 2.
-  const eK = t.size === 12 ? K + 1 : K;
+  // cutoff (finishing 3rd keeps you alive); a direct spot ("through/secures") means
+  // top 2. The Super 8 has no best-thirds, so eK === K there.
+  const { table, stage, K, eK } = ctx;
 
   if (remGames.length > MAX_BRUTE_GAMES) {
     const infos: TeamInfo[] = group.map((idx) => ({
       idx,
-      points: groupPointsOf(t, idx),
-      remaining: remainingGroupGames(t, idx),
+      points: pointsOfIn(t, table, idx),
+      remaining: remainingGamesIn(t, stage, idx),
     }));
     if (statusFromInfos(infos, me, K) === 'Q') return `${name}: already through — playing for seeding.`;
     if (statusFromInfos(infos, me, eK) === 'E') return `${name}: eliminated — pride on the line.`;
@@ -1013,9 +1042,9 @@ function matchScenario(
     return null;
   }
 
-  const basePts = new Map(group.map((i) => [i, groupPointsOf(t, i)]));
+  const basePts = new Map(group.map((i) => [i, pointsOfIn(t, table, i)]));
   // "Already through" mirrors a clinched direct top-2 (Q badge); "eliminated" means
-  // can't even reach the top-3 cutoff. Both points-rigorous.
+  // can't even reach the cutoff. Both points-rigorous.
   const baseQ = bruteForceClinch(basePts, group, remGames, K);
   if (baseQ.guaranteed.has(me)) return `${name}: already through — playing for seeding.`;
   const basePossible = eK === K ? baseQ.possible : bruteForceClinch(basePts, group, remGames, eK).possible;
@@ -1024,10 +1053,7 @@ function matchScenario(
   // The "a win secures / must win" advisory IS allowed to read net run rate: a
   // points-tie for the cutoff is resolved by current NRR (a strong predictor), so a
   // team clearly ahead on NRR is correctly told a win seals it.
-  const nrrOf = (idx: number) => {
-    const e = t.pointsTable[t.players[idx]?.id ?? ''];
-    return e ? computeNRR(e) : 0;
-  };
+  const nrrOf = (idx: number) => nrrOfIn(t, table, idx);
   const rest = removeGame(remGames, me, opp);
   const winPts = new Map(basePts);
   winPts.set(me, winPts.get(me)! + 2);
@@ -1055,19 +1081,21 @@ function qualUrgency(infos: TeamInfo[], me: number, opp: number, K: number): num
   return 0.2; // every win still helps the cause
 }
 
-/** Per-room-index qualification urgency for a group fixture (else undefined). */
+/** Per-room-index qualification urgency for a group OR Super 8 fixture (else
+ *  undefined) — so bots lift their game in must-win Super 8 matches too. */
 function groupStakesFor(t: Tournament, fixture: InternalFixtureMatch): Record<number, number> | undefined {
-  if (fixture.stage !== 'group') return undefined;
-  const K = qualifyCountFor(t.size);
-  const group = t.groups.find((g) => g.includes(fixture.player1Idx)) ?? [];
+  if (fixture.stage !== 'group' && fixture.stage !== 'super8') return undefined;
+  const ctx = stageCtx(t, fixture.stage);
+  if (!ctx) return undefined;
+  const group = ctx.groups.find((g) => g.includes(fixture.player1Idx)) ?? [];
   const infos: TeamInfo[] = group.map((idx) => ({
     idx,
-    points: (t.players[idx]?.id && t.pointsTable[t.players[idx].id]?.points) || 0,
-    remaining: remainingGroupGames(t, idx),
+    points: pointsOfIn(t, ctx.table, idx),
+    remaining: remainingGamesIn(t, ctx.stage, idx),
   }));
   return {
-    0: qualUrgency(infos, fixture.player1Idx, fixture.player2Idx, K),
-    1: qualUrgency(infos, fixture.player2Idx, fixture.player1Idx, K),
+    0: qualUrgency(infos, fixture.player1Idx, fixture.player2Idx, ctx.K),
+    1: qualUrgency(infos, fixture.player2Idx, fixture.player1Idx, ctx.K),
   };
 }
 
@@ -1111,17 +1139,19 @@ export function computeMarginInsightAtBreak(
   try {
     if (t.phase !== 'in_progress') return;
     const fx = t.fixtures[t.currentMatchIndex];
-    if (!fx || fx.stage !== 'group') return;
-    const group = t.groups.find((g) => g.includes(fx.player1Idx));
+    if (!fx || (fx.stage !== 'group' && fx.stage !== 'super8')) return;
+    const ctx = stageCtx(t, fx.stage);
+    if (!ctx) return;
+    const group = ctx.groups.find((g) => g.includes(fx.player1Idx));
     if (!group) return;
-    if (remainingGroupPairs(t, group).length !== 1) return; // only the last decisive game
+    if (remainingPairsIn(t, fx.stage, group).length !== 1) return; // only the last decisive game
 
-    const K = qualifyCountFor(t.size);
+    const K = ctx.K;
     const sixO = 6 * t.overs;
     const S = firstInningsScore;
 
     const base: NrrTot[] = group.map((idx) => {
-      const e = t.pointsTable[t.players[idx]?.id ?? ''];
+      const e = ctx.table[t.players[idx]?.id ?? ''];
       return {
         name: t.players[idx]?.name ?? '?',
         pts: e?.points ?? 0,
@@ -1235,23 +1265,25 @@ function computeLiveInsightsFresh(
   if (t.isQualifier) return headToHead ? { headToHead, lines: [] } : null;
 
   const lines: string[] = [];
-  if (fx.stage === 'group') {
-    const K = qualifyCountFor(t.size);
-    const group = t.groups.find((g) => g.includes(fx.player1Idx)) ?? [];
-    const remGames = remainingGroupPairs(t, group);
-    for (const [me, opp] of [
-      [fx.player1Idx, fx.player2Idx],
-      [fx.player2Idx, fx.player1Idx],
-    ] as const) {
-      const line = matchScenario(t, group, remGames, K, me, opp, t.players[me]?.name ?? '?');
-      if (line) lines.push(line);
+  // The group stage and the Super 8 share the same qualification-stakes + NRR-margin
+  // insights, just over different standings (league table vs the fresh Super 8 one).
+  if (fx.stage === 'group' || fx.stage === 'super8') {
+    const ctx = stageCtx(t, fx.stage);
+    if (ctx) {
+      const group = ctx.groups.find((g) => g.includes(fx.player1Idx)) ?? [];
+      const remGames = remainingPairsIn(t, fx.stage, group);
+      for (const [me, opp] of [
+        [fx.player1Idx, fx.player2Idx],
+        [fx.player2Idx, fx.player1Idx],
+      ] as const) {
+        const line = matchScenario(t, ctx, group, remGames, me, opp, t.players[me]?.name ?? '?');
+        if (line) lines.push(line);
+      }
+      // Echo the NRR margin lines computed once at this match's innings break (no work
+      // here — just a cached read, guarded against staleness from a previous match).
+      if (t._marginInsight && t._marginInsight.matchIndex === t.currentMatchIndex)
+        for (const l of t._marginInsight.lines) lines.push(l);
     }
-    // Echo the NRR margin lines computed once at this match's innings break (no work
-    // here — just a cached read, guarded against staleness from a previous match).
-    if (t._marginInsight && t._marginInsight.matchIndex === t.currentMatchIndex)
-      for (const l of t._marginInsight.lines) lines.push(l);
-  } else if (fx.stage === 'super8') {
-    lines.push(`Super 8${fx.group ? ` Group ${fx.group}` : ''} — top 2 reach the semi-finals.`);
   } else {
     lines.push(
       fx.stage === 'final'
