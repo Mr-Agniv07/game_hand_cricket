@@ -689,6 +689,11 @@
 .t-ph-text .t-vs {
   margin: 0 0.15rem;
 }
+/* A confirmed qualifier slotted into the bracket (vs a generic placeholder). */
+.t-ph-locked {
+  font-weight: 800;
+  color: #fbbf24;
+}
 
 .t-winner {
   font-weight: 800;

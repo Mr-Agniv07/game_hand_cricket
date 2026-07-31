@@ -190,14 +190,29 @@ function FixtureRow({
 /** A placeholder knockout row shown before the real participants are known.
  * Uses a single wrapping line (not the truncating two-column team layout) so the
  * matchup text — e.g. "Group A #1 vs Group B #4" — is always fully visible. */
-function PlaceholderRow({ badge, p1, p2 }: { badge: 'QF' | 'SF' | 'Final'; p1: string; p2: string }) {
+function PlaceholderRow({
+  badge,
+  p1,
+  p2,
+  p1Locked,
+  p2Locked,
+}: {
+  badge: 'QF' | 'SF' | 'Final';
+  p1: string;
+  p2: string;
+  /** True when the name is a confirmed qualifier (not a generic slot) → highlight it. */
+  p1Locked?: boolean;
+  p2Locked?: boolean;
+}) {
   return (
     <div className={`${styles['t-fixture-row']} ${styles.upcoming} ${styles['final-row']}`}>
       <span className={`${styles['t-match-badge']} ${styles.upcoming}`}>
         {badge === 'Final' ? '🏆' : badge}
       </span>
       <span className={styles['t-ph-text']}>
-        {p1} <span className={styles['t-vs']}>vs</span> {p2}
+        <span className={p1Locked ? styles['t-ph-locked'] : undefined}>{p1}</span>{' '}
+        <span className={styles['t-vs']}>vs</span>{' '}
+        <span className={p2Locked ? styles['t-ph-locked'] : undefined}>{p2}</span>
       </span>
     </div>
   );
@@ -321,21 +336,65 @@ export default function TournamentLobby({
   const superGroupFixtures = (gi: number) =>
     fixtures.filter((f) => f.stage === 'super8' && f.group === superGroupLabels[gi]);
 
-  // Placeholder pairings for the two semis before they're drawn (depends on format).
-  const sfPlaceholders: [string, string][] = hasSuper8
+  // ── Resolve a knockout bracket slot to a CONFIRMED name the moment it's known ──
+  // A slot fills in once its occupant is determined — a finished group's seed, or a
+  // decided QF/semi winner — so you see e.g. "Bot Kohli vs QF4 winner" instead of a
+  // fully generic placeholder. Until then it shows the generic bracket label.
+  type PhSlot = { text: string; locked: boolean };
+  const ph = (resolved: string | null, fallback: string): PhSlot => ({
+    text: resolved ?? fallback,
+    locked: resolved != null,
+  });
+  const stageGroupDone = (label: string, stage: 'group' | 'super8') => {
+    const gf = fixtures.filter((f) => f.stage === stage && f.group === label);
+    return gf.length > 0 && gf.every((f) => f.status === 'done');
+  };
+  // Nth-placed (1-based) team of a COMPLETED group — its seed is then fixed.
+  const seedName = (label: string, seed: number): string | null => {
+    const gi = groupLabels.indexOf(label as (typeof groupLabels)[number]);
+    return gi >= 0 && stageGroupDone(label, 'group') ? (groupSorted(gi)[seed - 1]?.name ?? null) : null;
+  };
+  const superSeedName = (label: string, seed: number): string | null => {
+    const gi = superGroupLabels.indexOf(label as (typeof superGroupLabels)[number]);
+    return gi >= 0 && stageGroupDone(label, 'super8')
+      ? (superGroupSorted(gi)[seed - 1]?.name ?? null)
+      : null;
+  };
+  // Winner of a finished knockout fixture (by its label). Tie → higher seed (p1).
+  const winnerName = (fixtureLabel: string): string | null => {
+    const fx = fixtures.find((f) => f.label === fixtureLabel);
+    if (!fx || fx.status !== 'done') return null;
+    return players[fx.result === 'p2' ? fx.player2Idx : fx.player1Idx]?.name ?? null;
+  };
+
+  // Quarterfinal bracket (12-player): fills group winners/runners-up once their
+  // group is done. Best-thirds stay generic (they depend on cross-group ranking).
+  const qfBracket: { label: string; p1: PhSlot; p2: PhSlot }[] = [
+    { label: 'Quarter Final 1', p1: ph(seedName('A', 1), 'Group A #1'), p2: ph(seedName('B', 2), 'Group B #2') },
+    { label: 'Quarter Final 2', p1: ph(seedName('B', 1), 'Group B #1'), p2: ph(seedName('C', 2), 'Group C #2') },
+    { label: 'Quarter Final 3', p1: ph(seedName('C', 1), 'Group C #1'), p2: ph(null, 'Best 3rd-placed') },
+    { label: 'Quarter Final 4', p1: ph(seedName('A', 2), 'Group A #2'), p2: ph(null, 'Best 3rd-placed') },
+  ];
+  // Semifinal bracket — sources differ by format (Super 8 seeds / QF winners / group seeds).
+  const sfBracket: { p1: PhSlot; p2: PhSlot }[] = hasSuper8
     ? [
-        ['Super 8 E #1', 'Super 8 F #2'],
-        ['Super 8 F #1', 'Super 8 E #2'],
+        { p1: ph(superSeedName('E', 1), 'Super 8 E #1'), p2: ph(superSeedName('F', 2), 'Super 8 F #2') },
+        { p1: ph(superSeedName('F', 1), 'Super 8 F #1'), p2: ph(superSeedName('E', 2), 'Super 8 E #2') },
       ]
     : hasQuarters
       ? [
-          ['QF winner', 'QF winner'],
-          ['QF winner', 'QF winner'],
+          { p1: ph(winnerName('Quarter Final 1'), 'QF1 winner'), p2: ph(winnerName('Quarter Final 4'), 'QF4 winner') },
+          { p1: ph(winnerName('Quarter Final 2'), 'QF2 winner'), p2: ph(winnerName('Quarter Final 3'), 'QF3 winner') },
         ]
       : [
-          ['Group winner', 'Group runner-up'],
-          ['Group winner', 'Group runner-up'],
+          { p1: ph(seedName('A', 1), 'Group A #1'), p2: ph(seedName('B', 2), 'Group B #2') },
+          { p1: ph(seedName('B', 1), 'Group B #1'), p2: ph(seedName('A', 2), 'Group A #2') },
         ];
+  // Final: fills each finalist once their semi is decided.
+  const finalBracket: { p1: PhSlot; p2: PhSlot } = {
+    p1: ph(winnerName('Semi Final 1'), 'SF1 winner'),
+    p2: ph(winnerName('Semi Final 2'), 'SF2 winner'),
+  };
 
   return (
     <div className={styles['t-lobby']}>
@@ -553,15 +612,10 @@ export default function TournamentLobby({
                         <FixtureRow f={f} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
                       </div>
                     ))
-                  : ([
-                      ['Quarter Final 1', 'Group A #1', 'Group B #2'],
-                      ['Quarter Final 2', 'Group B #1', 'Group C #2'],
-                      ['Quarter Final 3', 'Group C #1', 'Best 3rd-placed'],
-                      ['Quarter Final 4', 'Group A #2', 'Best 3rd-placed'],
-                    ] as const).map(([label, p1, p2]) => (
+                  : qfBracket.map(({ label, p1, p2 }) => (
                       <div key={label}>
                         <div className={styles['t-playoff-label']}>{label}</div>
-                        <PlaceholderRow badge="QF" p1={p1} p2={p2} />
+                        <PlaceholderRow badge="QF" p1={p1.text} p2={p2.text} p1Locked={p1.locked} p2Locked={p2.locked} />
                       </div>
                     )))}
 
@@ -576,11 +630,11 @@ export default function TournamentLobby({
                 <>
                   <div>
                     <div className={styles['t-playoff-label']}>Semi Final 1</div>
-                    <PlaceholderRow badge="SF" p1={sfPlaceholders[0][0]} p2={sfPlaceholders[0][1]} />
+                    <PlaceholderRow badge="SF" p1={sfBracket[0].p1.text} p2={sfBracket[0].p2.text} p1Locked={sfBracket[0].p1.locked} p2Locked={sfBracket[0].p2.locked} />
                   </div>
                   <div>
                     <div className={styles['t-playoff-label']}>Semi Final 2</div>
-                    <PlaceholderRow badge="SF" p1={sfPlaceholders[1][0]} p2={sfPlaceholders[1][1]} />
+                    <PlaceholderRow badge="SF" p1={sfBracket[1].p1.text} p2={sfBracket[1].p2.text} p1Locked={sfBracket[1].p1.locked} p2Locked={sfBracket[1].p2.locked} />
                   </div>
                 </>
               )}
@@ -589,7 +643,7 @@ export default function TournamentLobby({
                 {finalFix ? (
                   <FixtureRow f={finalFix} players={players} myId={myId} overs={overs} wickets={wickets} onOpenCard={setCard} />
                 ) : (
-                  <PlaceholderRow badge="Final" p1="SF1 winner" p2="SF2 winner" />
+                  <PlaceholderRow badge="Final" p1={finalBracket.p1.text} p2={finalBracket.p2.text} p1Locked={finalBracket.p1.locked} p2Locked={finalBracket.p2.locked} />
                 )}
               </div>
             </div>
