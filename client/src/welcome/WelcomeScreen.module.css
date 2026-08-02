@@ -28,11 +28,15 @@
 }
 
 .hint {
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 0.82rem;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 800;
+  padding: 0.7rem 1.6rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
   animation: wl-pulse 1.7s ease-in-out infinite;
 }
 
