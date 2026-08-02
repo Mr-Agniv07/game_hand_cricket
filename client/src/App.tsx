@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { socket, getClientId } from './socket';
 import { apiGet } from './api';
 import AuthScreen from './auth/AuthScreen';
+import WelcomeScreen from './welcome/WelcomeScreen';
 import FriendsPanel from './friends/FriendsPanel';
 import ProfilePanel from './profile/ProfilePanel';
 import Store from './store/Store';
@@ -102,6 +103,8 @@ function loadTournamentCode(): string | null {
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>('loading');
+  // Branded landing screen shown once per app launch, before login/lobby.
+  const [introDone, setIntroDone] = useState(false);
   const [user, setUser] = useState<ClientUser | null>(null);
   const [myId, setMyId] = useState<string | null>(null);
   const [myPlayerIdx, setMyPlayerIdx] = useState<number | null>(null);
@@ -765,6 +768,7 @@ export default function App() {
 
   return (
     <div className="app">
+      {!introDone && <WelcomeScreen onDone={() => setIntroDone(true)} />}
       <header className="app-header">
         <span className="logo">🏏</span>
         <h1>Cric Flick</h1>
