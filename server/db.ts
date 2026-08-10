@@ -409,6 +409,66 @@ export async function initDb(): Promise<void> {
       }
     }
     if (healed) console.log(`[db] healed ${healed} bot trophy count(s) from championship history`);
+
+    // Rebuild each bot's batting-first record and each pair's most-recent meeting
+    // from every stored match scorecard (idempotent, like the trophy heal above).
+    // This backfills the whole history; live per-match recording keeps them fresh
+    // DURING a running league on top of this base. Oldest→newest so "last meeting"
+    // ends up as the genuinely newest. Only changed rows are written.
+    const prevBf = new Map([...botRankings].map(([k, r]) => [k, `${r.batFirst}|${r.batFirstWins}`]));
+    const prevH2H = new Map(
+      [...botH2H].map(([k, r]) => [k, `${r.lastWinner}|${r.lastMargin}|${r.lastByWickets}`])
+    );
+    for (const r of botRankings.values()) { r.batFirst = 0; r.batFirstWins = 0; }
+    for (const r of botH2H.values()) { r.lastWinner = null; r.lastMargin = null; r.lastByWickets = null; }
+    let bfMatches = 0;
+    for (const t of all) {
+      const st = t.state as unknown as TournamentState | null;
+      if (!st?.fixtures?.length || !st.players?.length) continue;
+      const wktQuota = st.wickets;
+      for (const fx of st.fixtures) {
+        const sc = fx.scorecard;
+        if (fx.status !== 'done' || !sc || sc.innings.length < 2) continue;
+        const inn1 = sc.innings[0]; // batted first
+        const inn2 = sc.innings[1]; // chased
+        const firstBatName = inn1.batter;
+        const p1 = st.players[fx.player1Idx]?.name;
+        const p2 = st.players[fx.player2Idx]?.name;
+        if (!p1 || !p2 || !firstBatName) continue;
+        const winner = fx.result === 'p1' ? p1 : fx.result === 'p2' ? p2 : null;
+        // Batting-first tally for the side that batted first.
+        const fbRow = getOrCreateBotRow(firstBatName, t.format);
+        fbRow.batFirst++;
+        if (winner === firstBatName) fbRow.batFirstWins++;
+        // Last meeting: winner + margin (defended by runs / chased by wickets; none
+        // for a Super Over or a tie).
+        let margin: { value: number; byWickets: boolean } | null = null;
+        if (winner && !fx.superOver) {
+          margin =
+            winner === firstBatName
+              ? { value: Math.max(1, inn1.runs - inn2.runs), byWickets: false }
+              : { value: Math.max(1, wktQuota - inn2.wickets), byWickets: true };
+        }
+        const { pair, nameA, nameB } = h2hPair(p1, p2);
+        const hk = h2hCacheKey(pair, t.format);
+        let h = botH2H.get(hk);
+        if (!h) {
+          h = { pair, format: t.format, nameA, nameB, aWins: 0, bWins: 0, ties: 0, lastWinner: null, lastMargin: null, lastByWickets: null };
+          botH2H.set(hk, h);
+        }
+        h.lastWinner = winner;
+        h.lastMargin = margin?.value ?? null;
+        h.lastByWickets = margin?.byWickets ?? null;
+        bfMatches++;
+      }
+    }
+    let bfHealed = 0;
+    for (const [k, r] of botRankings)
+      if (prevBf.get(k) !== `${r.batFirst}|${r.batFirstWins}`) { persistBotRow(r); bfHealed++; }
+    for (const [k, r] of botH2H)
+      if (prevH2H.get(k) !== `${r.lastWinner}|${r.lastMargin}|${r.lastByWickets}`) persistBotH2H(r);
+    if (bfMatches)
+      console.log(`[db] rebuilt bot batting-first + last-meeting from ${bfMatches} matches (${bfHealed} rows updated)`);
   } catch (err) {
     console.error(
       '[db] bot tournament history unavailable (is the BotTournament migration applied?):',
