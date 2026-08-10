@@ -1262,15 +1262,16 @@ function computeLiveInsightsFresh(
         : `Head-to-head (${fmt}-over): ${p1.name} ${h.xWins}–${h.yWins} ${p2.name}` +
           (h.ties ? ` (${h.ties} tie${h.ties > 1 ? 's' : ''}).` : '.');
 
-    // Last meeting result (winner + margin).
-    if (h.last) {
+    // Last meeting result (winner + margin). Only shown once a decisive meeting has
+    // actually been recorded in the new system — a null winner here means either a
+    // not-yet-recorded pair (old data predates this feature) OR a genuine tie, and we
+    // can't tell them apart, so we skip it rather than mislabel every old pair a "tie".
+    if (h.last && h.last.winner) {
       const L = h.last;
       const res =
-        L.winner === null
-          ? 'was a tie'
-          : L.margin === null
-            ? `${L.winner} won in a Super Over`
-            : `${L.winner} won by ${L.margin} ${L.byWickets ? 'wicket' : 'run'}${L.margin > 1 ? 's' : ''}`;
+        L.margin === null
+          ? `${L.winner} won in a Super Over`
+          : `${L.winner} won by ${L.margin} ${L.byWickets ? 'wicket' : 'run'}${L.margin > 1 ? 's' : ''}`;
       h2hLines.push(`Last ${fmt}-over meet: ${res}.`);
     }
 
