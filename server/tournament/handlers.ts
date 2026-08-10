@@ -35,6 +35,7 @@ import {
   spendCoins,
   getEconomy,
   getBotHeadToHead,
+  getBotBatFirst,
   COIN_REWARDS,
   LEAGUE_BID,
 } from '../db.ts';
@@ -1248,8 +1249,10 @@ function computeLiveInsightsFresh(
   if (!p1 || !p2) return null;
 
   // Lifetime head-to-head for THIS format (5- and 10-over kept separate) — only
-  // meaningful between two roster bots.
+  // meaningful between two roster bots. Plus the last meeting result and each side's
+  // win% batting first, shown as extra lines under the H2H tally.
   let headToHead: string | null = null;
+  const h2hLines: string[] = [];
   if (p1.isBot && p2.isBot) {
     const fmt = t.format ?? t.overs;
     const h = getBotHeadToHead(p1.name, p2.name, fmt);
@@ -1258,11 +1261,34 @@ function computeLiveInsightsFresh(
         ? `First-ever ${fmt}-over meeting between ${p1.name} and ${p2.name}.`
         : `Head-to-head (${fmt}-over): ${p1.name} ${h.xWins}–${h.yWins} ${p2.name}` +
           (h.ties ? ` (${h.ties} tie${h.ties > 1 ? 's' : ''}).` : '.');
+
+    // Last meeting result (winner + margin).
+    if (h.last) {
+      const L = h.last;
+      const res =
+        L.winner === null
+          ? 'was a tie'
+          : L.margin === null
+            ? `${L.winner} won in a Super Over`
+            : `${L.winner} won by ${L.margin} ${L.byWickets ? 'wicket' : 'run'}${L.margin > 1 ? 's' : ''}`;
+      h2hLines.push(`Last ${fmt}-over meet: ${res}.`);
+    }
+
+    // Win% batting first for each side (only once a bot has batted first).
+    const batFirstPct = (name: string): string | null => {
+      const s = getBotBatFirst(name, fmt);
+      return s.batFirst > 0 ? `${Math.round((s.batFirstWins / s.batFirst) * 100)}%` : null;
+    };
+    const b1 = batFirstPct(p1.name);
+    const b2 = batFirstPct(p2.name);
+    if (b1 || b2)
+      h2hLines.push(`Batting first — ${p1.name}: ${b1 ?? 'n/a'} · ${p2.name}: ${b2 ?? 'n/a'} win rate.`);
   }
 
   // Qualifier: no knockout to chase, so no qualification stakes/margin lines — just
-  // the head-to-head.
-  if (t.isQualifier) return headToHead ? { headToHead, lines: [] } : null;
+  // the head-to-head context.
+  if (t.isQualifier)
+    return headToHead || h2hLines.length ? { headToHead, lines: h2hLines } : null;
 
   const lines: string[] = [];
   // The group stage and the Super 8 share the same qualification-stakes + NRR-margin
@@ -1292,8 +1318,11 @@ function computeLiveInsightsFresh(
     );
   }
 
-  if (!headToHead && lines.length === 0) return null;
-  return { headToHead, lines };
+  // H2H context (last meeting + batting-first) sits right under the head-to-head,
+  // before the qualification/margin lines.
+  const allLines = [...h2hLines, ...lines];
+  if (!headToHead && allLines.length === 0) return null;
+  return { headToHead, lines: allLines };
 }
 
 export function publicTournamentState(t: Tournament): TournamentState {

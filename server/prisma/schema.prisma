@@ -143,6 +143,9 @@ model BotRanking {
   trophies    Int      @default(0)
   runsFor     Int      @default(0)
   runsAgainst Int      @default(0)
+  // Batting-first split (for the "win% batting first" insight).
+  batFirst     Int     @default(0) // matches this bot batted first
+  batFirstWins Int     @default(0) // wins when it batted first
   updatedAt   DateTime @updatedAt
 
   @@unique([botName, format])
@@ -160,6 +163,10 @@ model BotHeadToHead {
   aWins     Int      @default(0)
   bWins     Int      @default(0)
   ties      Int      @default(0)
+  // Most-recent meeting (for the "last meet" insight line). Overwritten each match.
+  lastWinner    String?  // winning bot name; null = the last meeting was a tie
+  lastMargin    Int?     // winning margin; null = decided by Super Over (or a tie)
+  lastByWickets Boolean? // true = won by wickets, false = by runs; null = tie/Super Over
   updatedAt DateTime @updatedAt
 
   @@unique([pair, format])

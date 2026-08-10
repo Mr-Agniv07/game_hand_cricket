@@ -314,6 +314,8 @@ export async function initDb(): Promise<void> {
         trophies: r.trophies,
         runsFor: r.runsFor,
         runsAgainst: r.runsAgainst,
+        batFirst: r.batFirst ?? 0,
+        batFirstWins: r.batFirstWins ?? 0,
       });
     seedBotRankings(); // backfill any missing (bot, format) rows
   } catch (err) {
@@ -337,6 +339,9 @@ export async function initDb(): Promise<void> {
         aWins: r.aWins,
         bWins: r.bWins,
         ties: r.ties,
+        lastWinner: r.lastWinner ?? null,
+        lastMargin: r.lastMargin ?? null,
+        lastByWickets: r.lastByWickets ?? null,
       });
   } catch (err) {
     console.error(
@@ -985,6 +990,8 @@ interface BotRankingRow {
   trophies: number;
   runsFor: number;
   runsAgainst: number;
+  batFirst: number;
+  batFirstWins: number;
 }
 
 const botRankings = new Map<string, BotRankingRow>(); // keyed by `${botName}|${format}`
@@ -995,7 +1002,20 @@ const botKey = (name: string, format: number) => `${name}|${format}`;
 // accumulated across every bot-league match (group + knockouts). Keyed by the two
 // names sorted into "A|B" plus the format; aWins/bWins follow nameA/nameB. Loaded
 // at boot, updated per match, reset on reset.
-type BotH2HRow = { pair: string; format: number; nameA: string; nameB: string; aWins: number; bWins: number; ties: number };
+type BotH2HRow = {
+  pair: string;
+  format: number;
+  nameA: string;
+  nameB: string;
+  aWins: number;
+  bWins: number;
+  ties: number;
+  // Most-recent meeting: winner (null = tie), margin (null = Super Over/tie), and
+  // whether that margin is wickets (true) or runs (false; null = tie/Super Over).
+  lastWinner: string | null;
+  lastMargin: number | null;
+  lastByWickets: boolean | null;
+};
 const botH2H = new Map<string, BotH2HRow>(); // keyed by `${pair}|${format}`
 const h2hCacheKey = (pair: string, format: number) => `${pair}|${format}`;
 
@@ -1006,44 +1026,81 @@ function h2hPair(x: string, y: string): { pair: string; nameA: string; nameB: st
 }
 
 function persistBotH2H(row: BotH2HRow): void {
+  const fields = {
+    aWins: row.aWins,
+    bWins: row.bWins,
+    ties: row.ties,
+    lastWinner: row.lastWinner,
+    lastMargin: row.lastMargin,
+    lastByWickets: row.lastByWickets,
+  };
   persist(
     prisma.botHeadToHead.upsert({
       where: { pair_format: { pair: row.pair, format: row.format } },
-      create: { pair: row.pair, format: row.format, nameA: row.nameA, nameB: row.nameB, aWins: row.aWins, bWins: row.bWins, ties: row.ties },
-      update: { aWins: row.aWins, bWins: row.bWins, ties: row.ties },
+      create: { pair: row.pair, format: row.format, nameA: row.nameA, nameB: row.nameB, ...fields },
+      update: fields,
     }),
     'botH2H'
   );
 }
 
-/** Fold one finished bot-vs-bot match into the per-format head-to-head record. */
-function recordBotH2H(aName: string, bName: string, winnerName: string | null, format: number): void {
+/**
+ * Fold one finished bot-vs-bot match into the per-format head-to-head record:
+ * bump the win/tie tally AND overwrite the "last meeting" (winner + margin).
+ * `margin` is the winning margin with its unit; null margin = decided by Super Over
+ * (or a tie, when winnerName is null).
+ */
+function recordBotH2H(
+  aName: string,
+  bName: string,
+  winnerName: string | null,
+  format: number,
+  margin: { value: number; byWickets: boolean } | null
+): void {
   if (aName === bName) return;
   const { pair, nameA, nameB } = h2hPair(aName, bName);
   const key = h2hCacheKey(pair, format);
   let row = botH2H.get(key);
   if (!row) {
-    row = { pair, format, nameA, nameB, aWins: 0, bWins: 0, ties: 0 };
+    row = { pair, format, nameA, nameB, aWins: 0, bWins: 0, ties: 0, lastWinner: null, lastMargin: null, lastByWickets: null };
     botH2H.set(key, row);
   }
   if (winnerName === null) row.ties++;
   else if (winnerName === row.nameA) row.aWins++;
   else row.bWins++;
+  row.lastWinner = winnerName;
+  row.lastMargin = margin?.value ?? null;
+  row.lastByWickets = margin?.byWickets ?? null;
   persistBotH2H(row);
 }
 
 /** Lifetime head-to-head between two bots for a format, oriented to (x, y). */
-export function getBotHeadToHead(
-  x: string,
-  y: string,
-  format: number
-): { played: number; xWins: number; yWins: number; ties: number } {
+export interface BotH2HResult {
+  played: number;
+  xWins: number;
+  yWins: number;
+  ties: number;
+  /** The most-recent meeting (null if they've never met in this format). */
+  last: { winner: string | null; margin: number | null; byWickets: boolean | null } | null;
+}
+export function getBotHeadToHead(x: string, y: string, format: number): BotH2HResult {
   const row = botH2H.get(h2hCacheKey(h2hPair(x, y).pair, format));
-  if (!row) return { played: 0, xWins: 0, yWins: 0, ties: 0 };
+  if (!row) return { played: 0, xWins: 0, yWins: 0, ties: 0, last: null };
   const xIsA = row.nameA === x;
   const xWins = xIsA ? row.aWins : row.bWins;
   const yWins = xIsA ? row.bWins : row.aWins;
-  return { played: xWins + yWins + row.ties, xWins, yWins, ties: row.ties };
+  const played = xWins + yWins + row.ties;
+  const last =
+    played > 0
+      ? { winner: row.lastWinner, margin: row.lastMargin, byWickets: row.lastByWickets }
+      : null;
+  return { played, xWins, yWins, ties: row.ties, last };
+}
+
+/** A bot's batting-first record for a format (for the "win% batting first" insight). */
+export function getBotBatFirst(name: string, format: number): { batFirst: number; batFirstWins: number } {
+  const row = botRankings.get(botKey(name, format));
+  return { batFirst: row?.batFirst ?? 0, batFirstWins: row?.batFirstWins ?? 0 };
 }
 
 function freshBotRow(botName: string, format: number): BotRankingRow {
@@ -1058,6 +1115,8 @@ function freshBotRow(botName: string, format: number): BotRankingRow {
     trophies: 0,
     runsFor: 0,
     runsAgainst: 0,
+    batFirst: 0,
+    batFirstWins: 0,
   };
 }
 
@@ -1085,6 +1144,8 @@ function persistBotRow(row: BotRankingRow): void {
         trophies: row.trophies,
         runsFor: row.runsFor,
         runsAgainst: row.runsAgainst,
+        batFirst: row.batFirst,
+        batFirstWins: row.batFirstWins,
       },
     }),
     'botRanking'
@@ -1109,7 +1170,7 @@ function seedBotRankings(reset = false): void {
             where: { botName_format: { botName: name, format } },
             create: { ...row },
             update: reset
-              ? { rating: ELO_BASE, played: 0, wins: 0, losses: 0, ties: 0, trophies: 0, runsFor: 0, runsAgainst: 0 }
+              ? { rating: ELO_BASE, played: 0, wins: 0, losses: 0, ties: 0, trophies: 0, runsFor: 0, runsAgainst: 0, batFirst: 0, batFirstWins: 0 }
               : {}, // boot: leave any existing row exactly as it is
           }),
           'seedBotRanking'
@@ -1131,8 +1192,12 @@ export function recordBotLeagueMatch(input: {
   bName: string;
   bScore: number;
   result: 'a' | 'b' | 'tie';
+  /** Which bot batted first (for the batting-first split). */
+  firstBatName?: string;
+  /** Winning margin + unit; null = tie or Super Over (for the "last meeting" line). */
+  margin?: { value: number; byWickets: boolean } | null;
 }): void {
-  const { format, aName, aScore, bName, bScore, result } = input;
+  const { format, aName, aScore, bName, bScore, result, firstBatName, margin } = input;
   const a = getOrCreateBotRow(aName, format);
   const b = getOrCreateBotRow(bName, format);
 
@@ -1160,11 +1225,22 @@ export function recordBotLeagueMatch(input: {
     b.ties++;
   }
 
+  // Batting-first split: only the side that batted first counts, and only counts a
+  // win if it went on to win (Elo `result` is authoritative — covers Super Overs).
+  const winnerName = result === 'a' ? aName : result === 'b' ? bName : null;
+  if (firstBatName) {
+    const firstRow = firstBatName === aName ? a : firstBatName === bName ? b : null;
+    if (firstRow) {
+      firstRow.batFirst++;
+      if (winnerName === firstBatName) firstRow.batFirstWins++;
+    }
+  }
+
   persistBotRow(a);
   persistBotRow(b);
 
-  // Lifetime head-to-head (per format): winner by the authoritative result.
-  recordBotH2H(aName, bName, result === 'a' ? aName : result === 'b' ? bName : null, format);
+  // Lifetime head-to-head (per format): winner + last-meeting margin.
+  recordBotH2H(aName, bName, winnerName, format, margin ?? null);
 }
 
 /**

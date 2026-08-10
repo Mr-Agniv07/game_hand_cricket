@@ -475,13 +475,30 @@ export function endInnings(
           // Bot league: fold this match into the global per-format bot rankings
           // (every group/semi/final match counts toward a bot's win % and Elo).
           if (tournament.isBotLeague) {
+            const aName = tournament.players[fixture.player1Idx].name;
+            const bName = tournament.players[fixture.player2Idx].name;
+            // inn1Pid is the team that batted first (innings 1).
+            const firstBatName = inn1Pid === fp1.id ? aName : bName;
+            const winnerName =
+              fixture.result === 'p1' ? aName : fixture.result === 'p2' ? bName : null;
+            // Winning margin: a chasing winner wins by wickets in hand; a defending
+            // winner by the run gap. No margin for a tie or a Super Over (scores level).
+            let margin: { value: number; byWickets: boolean } | null = null;
+            if (winnerName && !viaSuperOver) {
+              margin =
+                winnerName === firstBatName
+                  ? { value: Math.max(1, inn1.score - inn2.score), byWickets: false }
+                  : { value: Math.max(1, room.wickets - inn2.wicketsLost), byWickets: true };
+            }
             recordBotLeagueMatch({
               format: tournament.format ?? room.overs,
-              aName: tournament.players[fixture.player1Idx].name,
+              aName,
               aScore: fixture.p1Score,
-              bName: tournament.players[fixture.player2Idx].name,
+              bName,
               bScore: fixture.p2Score,
               result: fixture.result === 'p1' ? 'a' : fixture.result === 'p2' ? 'b' : 'tie',
+              firstBatName,
+              margin,
             });
           }
 
