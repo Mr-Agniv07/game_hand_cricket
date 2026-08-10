@@ -1,6 +1,6 @@
 # Cric Flick CLI
 
-A terminal client for [Cric Flick](https://crickflick.netlify.app) — play the full
+A terminal client for [Cric Flick](https://cricflick.netlify.app) — play the full
 game (auth, lobby, 1v1, vs-bot, tournaments, friends/challenges) from a terminal. It
 connects to the production server by default, so there's nothing to configure.
 

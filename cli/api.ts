@@ -1,6 +1,6 @@
 // Mirrors client/src/api.ts — same endpoints, same error-shape handling, just
 // backed by Node's built-in fetch instead of the browser's.
-// Defaults to the production backend (the same one crickflick.netlify.app talks to)
+// Defaults to the production backend (the same one cricflick.netlify.app talks to)
 // so a downloaded binary works out of the box; set CRIC_SERVER_URL to point at a
 // local `pnpm --filter server run dev` instead.
 export const SERVER_URL = process.env.CRIC_SERVER_URL || 'https://cric-flick.onrender.com';
