@@ -1539,6 +1539,11 @@ export function recordBalls(events: BallEventInput[]): void {
     if (!e.isBot)
       observeHuman(e.role, e.innings, phaseOf(e.ballIndex, e.overs * 6), e.prevMove ?? null, e.move);
   }
-  ballQueue.push(...events);
+  // Persist HUMAN balls only. Bot-vs-bot balls were ~95% of the ball log (~170 MB)
+  // yet are never read: the move model + per-user profiles both use human balls only,
+  // and match records/stats/Hall of Fame live in other tables. A bot's move in a
+  // human match is still captured as `opponentMove` on the human's row, so no signal
+  // is lost — this just stops the storage bloat.
+  ballQueue.push(...events.filter((e) => !e.isBot));
   scheduleBallFlush();
 }
