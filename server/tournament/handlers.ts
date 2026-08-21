@@ -29,6 +29,8 @@ import {
   recordBotTournament,
   noteTitleLeaguePlayed,
   leagueCategory,
+  canStartLeague,
+  forceEndBotSeason,
   resetBotRankings,
   findById,
   hasUnlock,
@@ -2282,6 +2284,10 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         return socket.emit('error', { message: 'Not authorized to start a bot league.' });
 
       const fmt = Number(format) === 10 ? 10 : 5;
+      if (!canStartLeague(leagueCategory(fmt, false)))
+        return socket.emit('error', {
+          message: `This season's ${fmt}-over cap is full — end the season to start more.`,
+        });
       const tournament = startBotLeague(io, rooms, fmt);
       if (!tournament)
         return socket.emit('error', { message: `A ${fmt}-over bot league is already running.` });
@@ -2297,6 +2303,10 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
       if (!adminName || !user || user.username !== adminName)
         return socket.emit('error', { message: 'Not authorized to start the Super League.' });
 
+      if (!canStartLeague(leagueCategory(10, true)))
+        return socket.emit('error', {
+          message: "This season's Super League cap is full — end the season to start more.",
+        });
       const tournament = startBotLeague(io, rooms, 10, true);
       if (!tournament)
         return socket.emit('error', {
@@ -2337,6 +2347,25 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         });
       resetBotRankings();
       socket.emit('bot_rankings_reset');
+    });
+
+    // Admin-only: force the current bot season to end now (crown + reset), before its
+    // caps are reached. Refused while a league is live so it can't race live writes.
+    socket.on('end_bot_season', () => {
+      const adminName = process.env.ADMIN_USERNAME;
+      const uid = socket.data.userId;
+      const user = uid ? findById(uid) : null;
+      if (!adminName || !user || user.username !== adminName)
+        return socket.emit('error', { message: 'Not authorized to end the season.' });
+      if (activeBotLeagues().length > 0)
+        return socket.emit('error', { message: 'Finish or stop the live league before ending the season.' });
+      const ended = forceEndBotSeason();
+      if (!ended) return socket.emit('error', { message: 'No active season to end.' });
+      io.emit('bot_season_ended', {
+        number: ended.number,
+        champion: ended.champion,
+        championTrophies: ended.championTrophies,
+      });
     });
 
     // Admin-only: abort a running bot league (by id, else all running ones). Drops

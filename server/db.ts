@@ -1620,6 +1620,21 @@ export function getBotSeasonInfo(): import('@cric/types').BotSeasonInfo {
   };
 }
 
+/** Whether another title league of this category may start (its season cap isn't hit
+ *  yet). Qualifiers don't count toward a season, so callers shouldn't gate them. */
+export function canStartLeague(category: LeagueCategory): boolean {
+  if (!currentSeason) return true; // seasons unavailable → don't block starts
+  if (category === 'five') return currentSeason.leagues5 < SEASON_CAPS.five;
+  if (category === 'ten') return currentSeason.leagues10 < SEASON_CAPS.ten;
+  return currentSeason.leaguesSuper < SEASON_CAPS.super;
+}
+
+/** Admin: force the current season to roll over now (crown champion + reset), before
+ *  the caps are reached. Returns the just-ended season summary (null if unavailable). */
+export function forceEndBotSeason(): { number: number; champion: string | null; championTrophies: number } | null {
+  return currentSeason ? endSeason() : null;
+}
+
 // ─── Admin stats ───────────────────────────────────────────────────────────────
 
 /**

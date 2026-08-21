@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { findById, getAdminStats } from '../db.ts';
+import { findById, getAdminStats, getBotSeasonInfo } from '../db.ts';
 import { requireAuth, type AuthRequest } from '../auth/routes.ts';
 import { onlineUsers, adminLiveMatches, queueWaitingCount } from '../game/handlers.ts';
 import { adminTournaments } from '../tournament/handlers.ts';
@@ -31,6 +31,7 @@ adminRouter.get('/api/admin', requireAuth, (req: Request, res: Response) => {
     },
     liveMatches,
     tournaments,
+    season: getBotSeasonInfo(),
   };
   res.json(data);
 });

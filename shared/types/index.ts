@@ -335,6 +335,8 @@ export interface AdminData {
   stats: AdminStats;
   liveMatches: AdminLiveMatch[];
   tournaments: AdminTournament[];
+  /** Current bot season + per-format progress (so full formats can be locked). */
+  season: BotSeasonInfo;
 }
 
 // ─── Live in-play bids (bot tournaments) ─────────────────────────────────────
@@ -706,7 +708,7 @@ export interface ServerToClientEvents {
   bot_league_started: (p: { id: string; format: number }) => void;
   bot_league_stopped: (p: { id: string | null }) => void;
   bot_rankings_reset: () => void;
-  /** A bot season just ended (all caps met): its champion + number, for a celebration. */
+  /** A bot season just ended (caps met OR admin-forced): its champion + number. */
   bot_season_ended: (p: { number: number; champion: string | null; championTrophies: number }) => void;
   match_found: (p: MatchFoundPayload) => void;
   match_waiting: (p: MatchWaitingPayload) => void;
@@ -822,6 +824,8 @@ export interface ClientToServerEvents {
   start_bot_qualifier: (p: { format: number }) => void;
   stop_bot_league: (p: { id?: string }) => void;
   reset_bot_rankings: () => void;
+  /** Admin: force-end the current bot season now (crown + reset), before the caps. */
+  end_bot_season: () => void;
   find_match: (p: FindMatchPayload) => void;
   cancel_match: () => void;
   place_bid: (p: { tournamentId: string; botName: string }) => void;

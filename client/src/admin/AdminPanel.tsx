@@ -51,14 +51,18 @@ export default function AdminPanel({ socket, user, onClose }: Props) {
     const onStopped = () => flash('League stopped ⏹');
     const onReset = () => flash('Rankings reset 🔄');
     const onErr = ({ message }: { message: string }) => flash(message);
+    const onSeasonEnded = ({ number, champion }: { number: number; champion: string | null }) =>
+      flash(`🏆 Season ${number} ended — champion ${champion ?? '—'}. Season ${number + 1} started.`);
     socket.on('bot_league_started', onStarted);
     socket.on('bot_league_stopped', onStopped);
     socket.on('bot_rankings_reset', onReset);
+    socket.on('bot_season_ended', onSeasonEnded);
     socket.on('error', onErr);
     return () => {
       socket.off('bot_league_started', onStarted);
       socket.off('bot_league_stopped', onStopped);
       socket.off('bot_rankings_reset', onReset);
+      socket.off('bot_season_ended', onSeasonEnded);
       socket.off('error', onErr);
     };
   }, [socket, load]);
@@ -66,6 +70,15 @@ export default function AdminPanel({ socket, user, onClose }: Props) {
   const startLeague = (format: number) => socket.emit('start_bot_league', { format });
   const startSuper = () => socket.emit('start_bot_super_league');
   const startQualifier = (format: number) => socket.emit('start_bot_qualifier', { format });
+  const endSeason = () => {
+    if (window.confirm('End the current bot season now? The champion is crowned and every bot’s season stats reset.'))
+      socket.emit('end_bot_season');
+  };
+  // Per-format season caps: a format that has hit its cap can't start another league.
+  const season = data?.season;
+  const full5 = !!season && season.leagues5 >= season.caps.five;
+  const full10 = !!season && season.leagues10 >= season.caps.ten;
+  const fullSuper = !!season && season.leaguesSuper >= season.caps.super;
   const stopLeagues = () => {
     if (window.confirm('Stop ALL running bot leagues? They will be dropped with no result.'))
       socket.emit('stop_bot_league', {});
@@ -111,15 +124,36 @@ export default function AdminPanel({ socket, user, onClose }: Props) {
 
           {/* Bot-league controls */}
           <div className={styles.section}>Bot League Controls</div>
+          {season && (
+            <div className={styles.msg}>
+              🗓️ Season {season.number} — 5-over {season.leagues5}/{season.caps.five} · 10-over{' '}
+              {season.leagues10}/{season.caps.ten} · Super {season.leaguesSuper}/{season.caps.super}
+            </div>
+          )}
           <div className={styles.controls}>
-            <button className={styles.start} onClick={() => startLeague(5)}>
-              ▶ Start 5-Over
+            <button
+              className={styles.start}
+              onClick={() => startLeague(5)}
+              disabled={full5}
+              title={full5 ? "This season's 5-over cap is full" : ''}
+            >
+              ▶ Start 5-Over{full5 ? ' 🔒' : ''}
             </button>
-            <button className={styles.start} onClick={() => startLeague(10)}>
-              ▶ Start 10-Over
+            <button
+              className={styles.start}
+              onClick={() => startLeague(10)}
+              disabled={full10}
+              title={full10 ? "This season's 10-over cap is full" : ''}
+            >
+              ▶ Start 10-Over{full10 ? ' 🔒' : ''}
             </button>
-            <button className={styles.super} onClick={startSuper}>
-              🏆 Super League
+            <button
+              className={styles.super}
+              onClick={startSuper}
+              disabled={fullSuper}
+              title={fullSuper ? "This season's Super League cap is full" : ''}
+            >
+              🏆 Super League{fullSuper ? ' 🔒' : ''}
             </button>
             <button className={styles.start} onClick={() => startQualifier(5)}>
               🎟 5-Over Qualifier
@@ -132,6 +166,9 @@ export default function AdminPanel({ socket, user, onClose }: Props) {
             </button>
             <button className={styles.reset} onClick={resetRankings}>
               🔄 Reset
+            </button>
+            <button className={styles.super} onClick={endSeason}>
+              🏁 End Season
             </button>
           </div>
 
