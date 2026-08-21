@@ -316,6 +316,13 @@ export async function initDb(): Promise<void> {
         runsAgainst: r.runsAgainst,
         batFirst: r.batFirst ?? 0,
         batFirstWins: r.batFirstWins ?? 0,
+        careerPlayed: r.careerPlayed ?? 0,
+        careerWins: r.careerWins ?? 0,
+        careerLosses: r.careerLosses ?? 0,
+        careerTies: r.careerTies ?? 0,
+        careerTrophies: r.careerTrophies ?? 0,
+        careerRunsFor: r.careerRunsFor ?? 0,
+        careerRunsAgainst: r.careerRunsAgainst ?? 0,
       });
     seedBotRankings(); // backfill any missing (bot, format) rows
   } catch (err) {
@@ -387,12 +394,12 @@ export async function initDb(): Promise<void> {
         state: (t.state as unknown as TournamentState) ?? null,
       });
 
-    // Self-heal trophy counts from the authoritative championship record: a bot's
-    // trophies for a format == how many tournaments of that format it has won. This
-    // repairs any ranking row whose trophy count drifted (e.g. got zeroed by a stale
-    // fresh-row overwrite) and keeps it honest on every boot. Leaves correct rows
-    // untouched. (Super Leagues are stored as format 10, matching how titles are
-    // credited, so counting by format stays consistent.)
+    // Self-heal CAREER trophy counts from the authoritative championship record: a
+    // bot's lifetime trophies for a format == how many tournaments of that format it
+    // has ever won. Repairs drift and keeps it honest on every boot. (Season trophies
+    // are live-tracked and reset each season, so they are NOT rebuilt here — that
+    // would un-reset them.) Super Leagues are stored as format 10, matching how titles
+    // are credited, so counting by format stays consistent.
     const trophyByKey = new Map<string, number>();
     for (const t of all)
       if (t.champion) {
@@ -402,13 +409,13 @@ export async function initDb(): Promise<void> {
     let healed = 0;
     for (const [key, row] of botRankings) {
       const correct = trophyByKey.get(key) ?? 0;
-      if (row.trophies !== correct) {
-        row.trophies = correct;
+      if (row.careerTrophies !== correct) {
+        row.careerTrophies = correct;
         persistBotRow(row);
         healed++;
       }
     }
-    if (healed) console.log(`[db] healed ${healed} bot trophy count(s) from championship history`);
+    if (healed) console.log(`[db] healed ${healed} bot career-trophy count(s) from championship history`);
 
     // Rebuild each bot's batting-first record and each pair's most-recent meeting
     // from every stored match scorecard (idempotent, like the trophy heal above).
@@ -475,6 +482,9 @@ export async function initDb(): Promise<void> {
       (err as Error)?.message ?? err
     );
   }
+
+  // Bot seasons: load the open season + past champions (opens Season 1 if none).
+  await loadBotSeasons();
 
   const balls = await prisma.ballEvent.findMany({
     where: { userId: { not: null } },
@@ -1042,6 +1052,7 @@ const ELO_K = 32;
 interface BotRankingRow {
   botName: string;
   format: number;
+  // Current-season stats (reset at a season rollover).
   rating: number;
   played: number;
   wins: number;
@@ -1050,8 +1061,16 @@ interface BotRankingRow {
   trophies: number;
   runsFor: number;
   runsAgainst: number;
+  // Lifetime (never reset).
   batFirst: number;
   batFirstWins: number;
+  careerPlayed: number;
+  careerWins: number;
+  careerLosses: number;
+  careerTies: number;
+  careerTrophies: number;
+  careerRunsFor: number;
+  careerRunsAgainst: number;
 }
 
 const botRankings = new Map<string, BotRankingRow>(); // keyed by `${botName}|${format}`
@@ -1177,6 +1196,13 @@ function freshBotRow(botName: string, format: number): BotRankingRow {
     runsAgainst: 0,
     batFirst: 0,
     batFirstWins: 0,
+    careerPlayed: 0,
+    careerWins: 0,
+    careerLosses: 0,
+    careerTies: 0,
+    careerTrophies: 0,
+    careerRunsFor: 0,
+    careerRunsAgainst: 0,
   };
 }
 
@@ -1206,6 +1232,13 @@ function persistBotRow(row: BotRankingRow): void {
         runsAgainst: row.runsAgainst,
         batFirst: row.batFirst,
         batFirstWins: row.batFirstWins,
+        careerPlayed: row.careerPlayed,
+        careerWins: row.careerWins,
+        careerLosses: row.careerLosses,
+        careerTies: row.careerTies,
+        careerTrophies: row.careerTrophies,
+        careerRunsFor: row.careerRunsFor,
+        careerRunsAgainst: row.careerRunsAgainst,
       },
     }),
     'botRanking'
@@ -1230,7 +1263,7 @@ function seedBotRankings(reset = false): void {
             where: { botName_format: { botName: name, format } },
             create: { ...row },
             update: reset
-              ? { rating: ELO_BASE, played: 0, wins: 0, losses: 0, ties: 0, trophies: 0, runsFor: 0, runsAgainst: 0, batFirst: 0, batFirstWins: 0 }
+              ? { rating: ELO_BASE, played: 0, wins: 0, losses: 0, ties: 0, trophies: 0, runsFor: 0, runsAgainst: 0, batFirst: 0, batFirstWins: 0, careerPlayed: 0, careerWins: 0, careerLosses: 0, careerTies: 0, careerTrophies: 0, careerRunsFor: 0, careerRunsAgainst: 0 }
               : {}, // boot: leave any existing row exactly as it is
           }),
           'seedBotRanking'
@@ -1270,19 +1303,31 @@ export function recordBotLeagueMatch(input: {
 
   a.played++;
   b.played++;
+  a.careerPlayed++;
+  b.careerPlayed++;
   a.runsFor += aScore;
   a.runsAgainst += bScore;
   b.runsFor += bScore;
   b.runsAgainst += aScore;
+  a.careerRunsFor += aScore;
+  a.careerRunsAgainst += bScore;
+  b.careerRunsFor += bScore;
+  b.careerRunsAgainst += aScore;
   if (sA === 1) {
     a.wins++;
     b.losses++;
+    a.careerWins++;
+    b.careerLosses++;
   } else if (sA === 0) {
     a.losses++;
     b.wins++;
+    a.careerLosses++;
+    b.careerWins++;
   } else {
     a.ties++;
     b.ties++;
+    a.careerTies++;
+    b.careerTies++;
   }
 
   // Batting-first split: only the side that batted first counts, and only counts a
@@ -1324,10 +1369,12 @@ export function resetBotRankings(): void {
   persist(prisma.botHeadToHead.deleteMany({}), 'resetBotH2H');
 }
 
-/** Award a bot-league trophy (a tournament title) to the winning bot for a format. */
+/** Award a bot-league trophy (a tournament title) to the winning bot for a format —
+ *  counts toward BOTH the current season and the lifetime career tally. */
 export function recordBotTrophy(botName: string, format: number): void {
   const row = getOrCreateBotRow(botName, format);
   row.trophies++;
+  row.careerTrophies++;
   persistBotRow(row);
 }
 
@@ -1415,7 +1462,157 @@ export function getBotRankings(format: number): BotRankingEntry[] {
     ties: r.ties,
     trophies: r.trophies,
     winPct: r.played ? Math.round((r.wins / r.played) * 100) : 0,
+    careerPlayed: r.careerPlayed,
+    careerWins: r.careerWins,
+    careerTrophies: r.careerTrophies,
+    careerWinPct: r.careerPlayed ? Math.round((r.careerWins / r.careerPlayed) * 100) : 0,
   }));
+}
+
+// ─── Bot seasons ────────────────────────────────────────────────────────────────
+// A season = a competitive block of title leagues. It ends once all three caps are
+// met (20 five-over + 20 ten-over + 10 Super League), at which point the champion is
+// crowned (most SEASON trophies across formats → win% → wins → runs), the season is
+// archived, and every bot's SEASON stats reset to base for the next season. Lifetime
+// data (career totals, head-to-head, records, tournament history) is never touched.
+
+const SEASON_CAPS = { five: 20, ten: 20, super: 10 } as const;
+type LeagueCategory = 'five' | 'ten' | 'super';
+
+interface SeasonRow {
+  number: number;
+  leagues5: number;
+  leagues10: number;
+  leaguesSuper: number;
+}
+let currentSeason: SeasonRow | null = null;
+const pastSeasons: import('@cric/types').BotSeasonArchive[] = []; // newest first
+
+/** Load the open season (+ past champions) at boot; opens Season 1 if none exists. */
+async function loadBotSeasons(): Promise<void> {
+  try {
+    const rows = await prisma.botSeason.findMany({ orderBy: { number: 'desc' } });
+    pastSeasons.length = 0;
+    for (const s of rows)
+      if (s.endedAt)
+        pastSeasons.push({
+          number: s.number,
+          champion: s.champion,
+          championTrophies: s.championTrophies,
+          endedAt: s.endedAt.toISOString(),
+        });
+    const open = rows.find((s) => !s.endedAt);
+    if (open) {
+      currentSeason = { number: open.number, leagues5: open.leagues5, leagues10: open.leagues10, leaguesSuper: open.leaguesSuper };
+    } else {
+      const nextNum = (rows[0]?.number ?? 0) + 1;
+      currentSeason = { number: nextNum, leagues5: 0, leagues10: 0, leaguesSuper: 0 };
+      persist(prisma.botSeason.create({ data: { number: nextNum } }), 'openBotSeason');
+    }
+  } catch (err) {
+    console.error('[db] bot seasons unavailable (is the BotSeason migration applied?):', (err as Error)?.message ?? err);
+    currentSeason = null;
+  }
+}
+
+/** Category of a finished title league, for the per-format season caps. */
+export function leagueCategory(format: number, isSuperLeague: boolean): LeagueCategory {
+  return isSuperLeague ? 'super' : format === 5 ? 'five' : 'ten';
+}
+
+/**
+ * Count one finished TITLE league toward the current season, and roll the season
+ * over (crown + reset) once every cap is met. Returns the just-ended season summary
+ * when it rolled over, else null. Qualifiers must NOT be passed here.
+ */
+export function noteTitleLeaguePlayed(category: LeagueCategory): { number: number; champion: string | null; championTrophies: number } | null {
+  if (!currentSeason) return null;
+  if (category === 'five' && currentSeason.leagues5 < SEASON_CAPS.five) currentSeason.leagues5++;
+  else if (category === 'ten' && currentSeason.leagues10 < SEASON_CAPS.ten) currentSeason.leagues10++;
+  else if (category === 'super' && currentSeason.leaguesSuper < SEASON_CAPS.super) currentSeason.leaguesSuper++;
+  const s = currentSeason;
+  persist(
+    prisma.botSeason.update({
+      where: { number: s.number },
+      data: { leagues5: s.leagues5, leagues10: s.leagues10, leaguesSuper: s.leaguesSuper },
+    }),
+    'botSeasonProgress'
+  );
+  if (s.leagues5 >= SEASON_CAPS.five && s.leagues10 >= SEASON_CAPS.ten && s.leaguesSuper >= SEASON_CAPS.super) {
+    return endSeason();
+  }
+  return null;
+}
+
+/** Crown the season champion, archive the season, reset all SEASON stats, open next. */
+function endSeason(): { number: number; champion: string | null; championTrophies: number } {
+  const number = currentSeason!.number;
+  // Aggregate each bot's SEASON stats across both formats.
+  const agg = new Map<string, { trophies: number; wins: number; played: number; runs: number }>();
+  for (const r of botRankings.values()) {
+    const e = agg.get(r.botName) ?? { trophies: 0, wins: 0, played: 0, runs: 0 };
+    e.trophies += r.trophies;
+    e.wins += r.wins;
+    e.played += r.played;
+    e.runs += r.runsFor;
+    agg.set(r.botName, e);
+  }
+  const ranked = [...agg.entries()]
+    .map(([name, s]) => ({ name, ...s, winPct: s.played ? s.wins / s.played : 0 }))
+    .sort((a, b) => b.trophies - a.trophies || b.winPct - a.winPct || b.wins - a.wins || b.runs - a.runs);
+  const champion = ranked[0]?.name ?? null;
+  const championTrophies = ranked[0]?.trophies ?? 0;
+  const standings = ranked.map((r) => ({
+    name: r.name,
+    trophies: r.trophies,
+    wins: r.wins,
+    played: r.played,
+    winPct: Math.round(r.winPct * 100),
+    runs: r.runs,
+  }));
+
+  // Archive the finished season.
+  persist(
+    prisma.botSeason.update({
+      where: { number },
+      data: { endedAt: new Date(), champion, championTrophies, standings: standings as unknown as Prisma.InputJsonValue },
+    }),
+    'archiveBotSeason'
+  );
+  pastSeasons.unshift({ number, champion, championTrophies, endedAt: new Date().toISOString() });
+
+  // Reset every bot's SEASON stats to base (career + batFirst untouched).
+  for (const r of botRankings.values()) {
+    r.rating = ELO_BASE;
+    r.played = 0;
+    r.wins = 0;
+    r.losses = 0;
+    r.ties = 0;
+    r.trophies = 0;
+    r.runsFor = 0;
+    r.runsAgainst = 0;
+    persistBotRow(r);
+  }
+
+  // Open the next season.
+  const nextNum = number + 1;
+  currentSeason = { number: nextNum, leagues5: 0, leagues10: 0, leaguesSuper: 0 };
+  persist(prisma.botSeason.create({ data: { number: nextNum } }), 'openBotSeason');
+
+  console.log(`[db] Season ${number} ended — champion: ${champion ?? 'none'} (${championTrophies} trophies). Season ${nextNum} opened.`);
+  return { number, champion, championTrophies };
+}
+
+/** Current season + progress + past champions, for the client. */
+export function getBotSeasonInfo(): import('@cric/types').BotSeasonInfo {
+  return {
+    number: currentSeason?.number ?? 1,
+    leagues5: currentSeason?.leagues5 ?? 0,
+    leagues10: currentSeason?.leagues10 ?? 0,
+    leaguesSuper: currentSeason?.leaguesSuper ?? 0,
+    caps: { ...SEASON_CAPS },
+    pastChampions: pastSeasons,
+  };
 }
 
 // ─── Admin stats ───────────────────────────────────────────────────────────────

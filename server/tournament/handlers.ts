@@ -27,6 +27,8 @@ import {
   getBotRankings,
   recordBotTrophy,
   recordBotTournament,
+  noteTitleLeaguePlayed,
+  leagueCategory,
   resetBotRankings,
   findById,
   hasUnlock,
@@ -1575,6 +1577,16 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
         state: publicTournamentState(tournament),
       });
     }
+
+    // Count this title league toward the current season; roll the season over
+    // (crown + reset) once all caps are met. Qualifiers are excluded above.
+    const ended = noteTitleLeaguePlayed(leagueCategory(tournament.format, !!tournament.isSuperLeague));
+    if (ended)
+      io.emit('bot_season_ended', {
+        number: ended.number,
+        champion: ended.champion,
+        championTrophies: ended.championTrophies,
+      });
   }
 
   // Pay out spectator bids: anyone who backed the winning bot wins the tier prize

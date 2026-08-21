@@ -131,6 +131,9 @@ model BallEvent {
 // overs — the only bot-tournament formats). One row per (botName, format). The
 // rating is an ICC/Elo-style number updated after every bot-league match, so
 // beating a higher-rated bot is worth more. Trophies count bot-league titles.
+// Per (botName, format). The rating + played/W-L-T/trophies/runs are CURRENT-SEASON
+// stats — they reset to base when a season ends. The career* columns are lifetime
+// totals that never reset (a bot's all-time record across every season).
 model BotRanking {
   id          Int      @id @default(autoincrement())
   botName     String
@@ -143,12 +146,39 @@ model BotRanking {
   trophies    Int      @default(0)
   runsFor     Int      @default(0)
   runsAgainst Int      @default(0)
-  // Batting-first split (for the "win% batting first" insight).
+  // Batting-first split — lifetime (for the "win% batting first" insight).
   batFirst     Int     @default(0) // matches this bot batted first
   batFirstWins Int     @default(0) // wins when it batted first
+  // ── Lifetime career totals (never reset by a season rollover) ──
+  careerPlayed      Int @default(0)
+  careerWins        Int @default(0)
+  careerLosses      Int @default(0)
+  careerTies        Int @default(0)
+  careerTrophies    Int @default(0)
+  careerRunsFor     Int @default(0)
+  careerRunsAgainst Int @default(0)
   updatedAt   DateTime @updatedAt
 
   @@unique([botName, format])
+}
+
+// One row per bot SEASON. The current season is the row with endedAt = null. When a
+// season ends (after N title leagues) it's stamped with its champion + final
+// standings, and the next season row is opened. Head-to-head, records, tournament
+// history and the career* totals above are NOT touched by a rollover.
+model BotSeason {
+  id             Int      @id @default(autoincrement())
+  number         Int      @unique
+  startedAt      DateTime @default(now())
+  endedAt        DateTime? // null = the current, in-progress season
+  // Title leagues completed this season, per category. The season ends once all
+  // three caps are met (20 five-over + 20 ten-over + 10 Super League = 50 total).
+  leagues5     Int @default(0)
+  leagues10    Int @default(0)
+  leaguesSuper Int @default(0)
+  champion       String? // season champion bot name (set at rollover)
+  championTrophies Int? // the champion's season trophy count
+  standings      Json? // final season leaderboard snapshot at rollover
 }
 
 // Lifetime head-to-head between two specific bots, across all bot-league matches

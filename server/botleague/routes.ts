@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { getBotRankings, getBotTournaments } from '../db.ts';
+import { getBotRankings, getBotTournaments, getBotSeasonInfo } from '../db.ts';
 import { activeBotLeagues, recentBotLeagues } from '../tournament/handlers.ts';
 import { verifyTokenGetUserId } from '../auth/auth.ts';
 import type { BotLeagueData } from '@cric/types';
@@ -19,6 +19,7 @@ botLeagueRouter.get('/api/bot-league', (req: Request, res: Response) => {
     active: activeBotLeagues(userId),
     recent: recentBotLeagues(),
     history: getBotTournaments(),
+    season: getBotSeasonInfo(),
   };
   res.json(data);
 });

@@ -173,6 +173,7 @@ export interface BotRankingEntry {
   rank: number;
   botName: string;
   format: number;
+  // Current-season stats.
   rating: number;
   played: number;
   wins: number;
@@ -180,6 +181,30 @@ export interface BotRankingEntry {
   ties: number;
   trophies: number;
   winPct: number;
+  // Lifetime career totals (never reset by a season).
+  careerPlayed: number;
+  careerWins: number;
+  careerTrophies: number;
+  careerWinPct: number;
+}
+
+/** One finished season's archived result (for the champions list). */
+export interface BotSeasonArchive {
+  number: number;
+  champion: string | null;
+  championTrophies: number | null;
+  endedAt: string;
+}
+
+/** Current bot season + progress toward its end + past champions. */
+export interface BotSeasonInfo {
+  number: number;
+  /** Title leagues completed this season, per category, and their caps. */
+  leagues5: number;
+  leagues10: number;
+  leaguesSuper: number;
+  caps: { five: number; ten: number; super: number };
+  pastChampions: BotSeasonArchive[];
 }
 
 /** Lightweight summary of an in-progress bot-league tournament, for spectating. */
@@ -227,6 +252,8 @@ export interface BotLeagueData {
   recent: BotLeagueActive[];
   /** Durable history of past completed tournaments (newest first), both formats. */
   history: BotTournamentSummary[];
+  /** Current bot season, its progress, and past season champions. */
+  season: BotSeasonInfo;
 }
 
 /** A purchasable unlock in the coin store. */
@@ -665,6 +692,8 @@ export interface ServerToClientEvents {
   bot_league_started: (p: { id: string; format: number }) => void;
   bot_league_stopped: (p: { id: string | null }) => void;
   bot_rankings_reset: () => void;
+  /** A bot season just ended (all caps met): its champion + number, for a celebration. */
+  bot_season_ended: (p: { number: number; champion: string | null; championTrophies: number }) => void;
   match_found: (p: MatchFoundPayload) => void;
   match_waiting: (p: MatchWaitingPayload) => void;
   bid_placed: (p: {
