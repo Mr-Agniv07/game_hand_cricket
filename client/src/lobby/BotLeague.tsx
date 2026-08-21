@@ -50,6 +50,10 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const [msg, setMsg] = useState('');
   const [watchingId, setWatchingId] = useState<string | null>(null);
   const [pastView, setPastView] = useState<BotTournamentSummary | null>(null);
+  // Rankings view: 'season' (current-season stats) vs 'career' (all-time totals).
+  const [rankView, setRankView] = useState<'season' | 'career'>('season');
+  // A past season being browsed (its standings + that season's tournaments), or null.
+  const [seasonView, setSeasonView] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   // Ball-by-ball live score for the watched league, pushed between polls so the
   // spectate scoreboard advances continuously instead of jumping every 3s.
@@ -100,15 +104,22 @@ export default function BotLeague({ socket, user, onClose }: Props) {
       load();
       setTimeout(() => setMsg(''), 4000);
     }
+    function onSeasonEnded({ number, champion }: { number: number; champion: string | null }) {
+      setMsg(`🏆 Season ${number} champion: ${champion ?? '—'}! Season ${number + 1} begins.`);
+      load();
+      setTimeout(() => setMsg(''), 8000);
+    }
     socket.on('bot_league_started', onStarted);
     socket.on('bot_rankings_reset', onReset);
     socket.on('bid_placed', onBid);
     socket.on('bot_league_stopped', onStopped);
+    socket.on('bot_season_ended', onSeasonEnded);
     return () => {
       socket.off('bot_league_started', onStarted);
       socket.off('bot_rankings_reset', onReset);
       socket.off('bid_placed', onBid);
       socket.off('bot_league_stopped', onStopped);
+      socket.off('bot_season_ended', onSeasonEnded);
     };
   }, [socket, load]);
 
@@ -146,6 +157,16 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     isSuper ? isSuperSummary(t) : t.format === format && !isSuperSummary(t);
 
   const rankings = data?.rankings[format] ?? [];
+  // In 'career' view, re-sort the (season-sorted) rows by all-time totals.
+  const displayRankings =
+    rankView === 'career'
+      ? [...rankings].sort(
+          (a, b) =>
+            b.careerTrophies - a.careerTrophies ||
+            b.careerWinPct - a.careerWinPct ||
+            b.careerWins - a.careerWins
+        )
+      : rankings;
   const liveForFormat: BotLeagueActive | undefined = data?.active.find(activeForTab);
   // Most recently finished league for this tab (shows the winner once it ends).
   const recentForFormat: BotLeagueActive | undefined = data?.recent
@@ -222,6 +243,39 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 </div>
               </div>
 
+              {/* Season banner: current season + progress toward its end + past champions. */}
+              {data.season && (
+                <div className={styles.seasonBanner}>
+                  <div className={styles.seasonHead}>
+                    <span className={styles.seasonTitle}>🗓️ Season {data.season.number}</span>
+                    <span className={styles.seasonSub}>ends at 20 · 20 · 10 leagues</span>
+                  </div>
+                  <div className={styles.seasonProgress}>
+                    <span>5-over <strong>{data.season.leagues5}</strong>/{data.season.caps.five}</span>
+                    <span>10-over <strong>{data.season.leagues10}</strong>/{data.season.caps.ten}</span>
+                    <span>Super <strong>{data.season.leaguesSuper}</strong>/{data.season.caps.super}</span>
+                  </div>
+                  {data.season.pastChampions.length > 0 && (
+                    <div className={styles.pastChamps}>
+                      <div className={styles.pastChampsTitle}>Past Seasons — tap to open</div>
+                      {data.season.pastChampions.map((s) => (
+                        <button
+                          key={s.number}
+                          className={styles.pastChampRow}
+                          onClick={() => setSeasonView(s.number)}
+                        >
+                          <span>Season {s.number} ›</span>
+                          <span>
+                            🏆 <strong>{s.champion ?? '—'}</strong>
+                            {s.championTrophies != null ? ` · ${s.championTrophies} 🏆` : ''}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {liveForFormat &&
                 (liveForFormat.state.phase === 'waiting' ? (
                   <>
@@ -266,25 +320,40 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 </div>
               )}
 
-              <div className={styles.sectionTitle}>
-                {isSuper ? 'Bot Rankings (10-Over rating)' : `${format}-Over Rankings`}
+              <div className={styles.rankHead}>
+                <div className={styles.sectionTitle}>
+                  {isSuper ? 'Bot Rankings (10-Over)' : `${format}-Over Rankings`}
+                </div>
+                <div className={styles.viewToggle}>
+                  <button
+                    className={rankView === 'season' ? styles.viewOn : styles.viewOff}
+                    onClick={() => setRankView('season')}
+                  >
+                    Season
+                  </button>
+                  <button
+                    className={rankView === 'career' ? styles.viewOn : styles.viewOff}
+                    onClick={() => setRankView('career')}
+                  >
+                    All-time
+                  </button>
+                </div>
               </div>
               <div className={styles.tableHead}>
                 <span className={styles.rank}>#</span>
                 <span>Bot</span>
                 <span className={styles.num}>Win%</span>
                 <span className={styles.num}>🏆</span>
-                <span className={styles.rating}>Rating</span>
+                <span className={styles.rating}>{rankView === 'career' ? 'Played' : 'Rating'}</span>
               </div>
-              {rankings.map((r) => (
+              {displayRankings.map((r, i) => (
                 <div
                   key={r.botName}
                   className={[
                     styles.row,
-                    // Super League fields all 16, so no band there. For 5/10: top 12
-                    // make the league (1–10 safely in green), 11–12 are on the bubble
-                    // (amber — in the league but also in the Qualifier), 13–16 out.
-                    isSuper
+                    // The green/amber league-qualification bands only apply to the
+                    // current-season standings (they're about who's seeded into leagues).
+                    rankView === 'career' || isSuper
                       ? ''
                       : r.rank <= 10
                         ? styles.qualified
@@ -295,16 +364,18 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                     .filter(Boolean)
                     .join(' ')}
                 >
-                  <span className={styles.rank}>{r.rank}</span>
+                  <span className={styles.rank}>{rankView === 'career' ? i + 1 : r.rank}</span>
                   <span className={styles.nameCell}>
                     <span className={styles.name}>{r.botName}</span>
                     <span className={styles.sub}>
-                      {r.played}P · {r.wins}-{r.losses}-{r.ties}
+                      {rankView === 'career'
+                        ? `${r.careerPlayed}P · ${r.careerWins}W career`
+                        : `${r.played}P · ${r.wins}-${r.losses}-${r.ties}`}
                     </span>
                   </span>
-                  <span className={styles.num}>{r.winPct}%</span>
-                  <span className={styles.num}>{r.trophies}</span>
-                  <span className={styles.rating}>{r.rating}</span>
+                  <span className={styles.num}>{rankView === 'career' ? r.careerWinPct : r.winPct}%</span>
+                  <span className={styles.num}>{rankView === 'career' ? r.careerTrophies : r.trophies}</span>
+                  <span className={styles.rating}>{rankView === 'career' ? r.careerPlayed : r.rating}</span>
                 </div>
               ))}
               <p className={styles.qualNote}>
@@ -395,6 +466,72 @@ export default function BotLeague({ socket, user, onClose }: Props) {
       {pastView?.state && (
         <ResultOverlay state={pastView.state} title={pastView.name} onClose={() => setPastView(null)} />
       )}
+
+      {/* Past-season browser: that season's final standings + its tournaments. */}
+      {seasonView != null &&
+        (() => {
+          const arc = data?.season.pastChampions.find((s) => s.number === seasonView);
+          const tours = (data?.history ?? []).filter((t) => t.season === seasonView);
+          return (
+            <div className={styles.specOverlay} onClick={() => setSeasonView(null)}>
+              <div className={styles.specCard} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.specHeader}>
+                  <h2>🗓️ Season {seasonView}</h2>
+                  <button className={styles.close} onClick={() => setSeasonView(null)} aria-label="Close">
+                    ✕
+                  </button>
+                </div>
+                <div className={styles.specBody}>
+                  {arc?.champion && (
+                    <div className={styles.champ}>
+                      <span>
+                        🏆 Champion: <strong>{arc.champion}</strong>
+                        {arc.championTrophies != null ? ` · ${arc.championTrophies} trophies` : ''}
+                      </span>
+                    </div>
+                  )}
+                  <div className={styles.sectionTitle}>Final Standings</div>
+                  {arc && arc.standings.length > 0 ? (
+                    <>
+                      <div className={styles.tableHead}>
+                        <span className={styles.rank}>#</span>
+                        <span>Bot</span>
+                        <span className={styles.num}>🏆</span>
+                        <span className={styles.num}>Win%</span>
+                        <span className={styles.num}>Runs</span>
+                      </div>
+                      {arc.standings.map((s, i) => (
+                        <div key={s.name} className={styles.row}>
+                          <span className={styles.rank}>{i + 1}</span>
+                          <span className={styles.nameCell}>
+                            <span className={styles.name}>{s.name}</span>
+                            <span className={styles.sub}>
+                              {s.played}P · {s.wins}W
+                            </span>
+                          </span>
+                          <span className={styles.num}>{s.trophies}</span>
+                          <span className={styles.num}>{s.winPct}%</span>
+                          <span className={styles.num}>{s.runs}</span>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <p className={styles.empty}>Final standings weren’t recorded for this season.</p>
+                  )}
+
+                  <div className={styles.sectionTitle}>Leagues this season ({tours.length})</div>
+                  {tours.length === 0 ? (
+                    <p className={styles.empty}>No tournaments from this season are still on record.</p>
+                  ) : (
+                    tours.map((t, i) => (
+                      <PastCard key={`${t.finishedAt}-${i}`} t={t} onView={() => setPastView(t)} />
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

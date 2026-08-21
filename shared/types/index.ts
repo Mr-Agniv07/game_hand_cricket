@@ -188,12 +188,24 @@ export interface BotRankingEntry {
   careerWinPct: number;
 }
 
-/** One finished season's archived result (for the champions list). */
+/** One bot's line in a season's final standings snapshot. */
+export interface BotSeasonStanding {
+  name: string;
+  trophies: number;
+  wins: number;
+  played: number;
+  winPct: number;
+  runs: number;
+}
+
+/** One finished season's archived result (champion + full final standings). */
 export interface BotSeasonArchive {
   number: number;
   champion: string | null;
   championTrophies: number | null;
   endedAt: string;
+  /** Final season leaderboard (all bots, best first). */
+  standings: BotSeasonStanding[];
 }
 
 /** Current bot season + progress toward its end + past champions. */
@@ -232,6 +244,8 @@ export interface BotTournamentStanding {
 /** A durable record of one completed bot-league tournament (for the history cards). */
 export interface BotTournamentSummary {
   format: number;
+  /** The season this tournament was played in (1 for all pre-seasons history). */
+  season: number;
   /** Sequential display name per format, e.g. "Bot League 5#3". */
   name: string;
   champion: string;

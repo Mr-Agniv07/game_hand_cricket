@@ -386,6 +386,7 @@ export async function initDb(): Promise<void> {
     for (const t of [...all].reverse().slice(0, BOT_HISTORY_CAP))
       botTournaments.push({
         format: t.format,
+        season: t.season ?? 1,
         name: t.name ?? botLeagueName(t.format, 0),
         champion: t.champion,
         runnerUp: t.runnerUp,
@@ -1409,8 +1410,10 @@ export function recordBotTournament(input: {
         input.format,
         (botTournamentCount[input.format] = (botTournamentCount[input.format] ?? 0) + 1)
       );
+  const season = currentSeason?.number ?? 1;
   const summary: BotTournamentSummary = {
     format: input.format,
+    season,
     name,
     champion: input.champion,
     runnerUp: input.runnerUp,
@@ -1424,6 +1427,7 @@ export function recordBotTournament(input: {
     prisma.botTournament.create({
       data: {
         format: input.format,
+        season,
         name: summary.name,
         champion: input.champion,
         runnerUp: input.runnerUp ?? undefined,
@@ -1500,6 +1504,7 @@ async function loadBotSeasons(): Promise<void> {
           champion: s.champion,
           championTrophies: s.championTrophies,
           endedAt: s.endedAt.toISOString(),
+          standings: (s.standings as unknown as import('@cric/types').BotSeasonStanding[]) ?? [],
         });
     const open = rows.find((s) => !s.endedAt);
     if (open) {
@@ -1579,7 +1584,7 @@ function endSeason(): { number: number; champion: string | null; championTrophie
     }),
     'archiveBotSeason'
   );
-  pastSeasons.unshift({ number, champion, championTrophies, endedAt: new Date().toISOString() });
+  pastSeasons.unshift({ number, champion, championTrophies, endedAt: new Date().toISOString(), standings });
 
   // Reset every bot's SEASON stats to base (career + batFirst untouched).
   for (const r of botRankings.values()) {
