@@ -362,28 +362,42 @@ export async function initDb(): Promise<void> {
   // keep the newest BOT_HISTORY_CAP for the in-memory cache. Names missing or
   // wrong are backfilled in place — this self-heals legacy rows on first boot.
   try {
-    const all = await prisma.botTournament.findMany({ orderBy: { finishedAt: 'asc' } });
+    // Load tournament SUMMARIES only (never the heavy `state` JSON) to derive
+    // names/counts, the career-trophy heal, and the history cards. `state` is pulled
+    // just for the recent few (below) + the one-time backfill — so a normal boot no
+    // longer transfers every tournament's full state, which was a big egress cost.
+    const summaries = await prisma.botTournament.findMany({
+      orderBy: { finishedAt: 'asc' },
+      select: {
+        id: true, format: true, season: true, isSuperLeague: true, name: true,
+        champion: true, runnerUp: true, standings: true, finishedAt: true,
+      },
+    });
     for (const f of BOT_FORMATS) botTournamentCount[f] = 0;
     botSuperLeagueCount = 0;
-    for (const t of all) {
-      // Super Leagues (12-team final state) get their own running sequence and are
-      // kept out of the per-format count, matching how new ones are named.
-      const want = isSuperLeagueState(t.state as unknown as TournamentState | null)
+    for (const t of summaries) {
+      const want = t.isSuperLeague
         ? botSuperLeagueName((botSuperLeagueCount += 1))
-        : botLeagueName(
-            t.format,
-            (botTournamentCount[t.format] = (botTournamentCount[t.format] ?? 0) + 1)
-          );
+        : botLeagueName(t.format, (botTournamentCount[t.format] = (botTournamentCount[t.format] ?? 0) + 1));
       if (t.name !== want) {
         t.name = want; // fix the local copy used below
-        persist(
-          prisma.botTournament.update({ where: { id: t.id }, data: { name: want } }),
-          'backfillBotTournamentName'
-        );
+        persist(prisma.botTournament.update({ where: { id: t.id }, data: { name: want } }), 'backfillBotTournamentName');
       }
     }
+
+    // History cache: newest BOT_HISTORY_CAP, with `state` pulled ONLY for those (a
+    // bounded read) so their detail view still works.
+    const recent = [...summaries].reverse().slice(0, BOT_HISTORY_CAP);
+    const stateById = new Map<number, TournamentState | null>();
+    if (recent.length) {
+      const rows = await prisma.botTournament.findMany({
+        where: { id: { in: recent.map((t) => t.id) } },
+        select: { id: true, state: true },
+      });
+      for (const r of rows) stateById.set(r.id, (r.state as unknown as TournamentState) ?? null);
+    }
     botTournaments.length = 0;
-    for (const t of [...all].reverse().slice(0, BOT_HISTORY_CAP))
+    for (const t of recent)
       botTournaments.push({
         format: t.format,
         season: t.season ?? 1,
@@ -392,17 +406,13 @@ export async function initDb(): Promise<void> {
         runnerUp: t.runnerUp,
         finishedAt: t.finishedAt.toISOString(),
         standings: (t.standings as unknown as BotTournamentStanding[]) ?? [],
-        state: (t.state as unknown as TournamentState) ?? null,
+        state: stateById.get(t.id) ?? null,
       });
 
-    // Self-heal CAREER trophy counts from the authoritative championship record: a
-    // bot's lifetime trophies for a format == how many tournaments of that format it
-    // has ever won. Repairs drift and keeps it honest on every boot. (Season trophies
-    // are live-tracked and reset each season, so they are NOT rebuilt here — that
-    // would un-reset them.) Super Leagues are stored as format 10, matching how titles
-    // are credited, so counting by format stays consistent.
+    // Self-heal CAREER trophy counts from the championship record (no state needed).
+    // Season trophies are live-tracked + reset per season, so they're NOT rebuilt.
     const trophyByKey = new Map<string, number>();
-    for (const t of all)
+    for (const t of summaries)
       if (t.champion) {
         const k = botKey(t.champion, t.format);
         trophyByKey.set(k, (trophyByKey.get(k) ?? 0) + 1);
@@ -410,73 +420,56 @@ export async function initDb(): Promise<void> {
     let healed = 0;
     for (const [key, row] of botRankings) {
       const correct = trophyByKey.get(key) ?? 0;
-      if (row.careerTrophies !== correct) {
-        row.careerTrophies = correct;
-        persistBotRow(row);
-        healed++;
-      }
+      if (row.careerTrophies !== correct) { row.careerTrophies = correct; persistBotRow(row); healed++; }
     }
     if (healed) console.log(`[db] healed ${healed} bot career-trophy count(s) from championship history`);
 
-    // Rebuild each bot's batting-first record and each pair's most-recent meeting
-    // from every stored match scorecard (idempotent, like the trophy heal above).
-    // This backfills the whole history; live per-match recording keeps them fresh
-    // DURING a running league on top of this base. Oldest→newest so "last meeting"
-    // ends up as the genuinely newest. Only changed rows are written.
-    const prevBf = new Map([...botRankings].map(([k, r]) => [k, `${r.batFirst}|${r.batFirstWins}`]));
-    const prevH2H = new Map(
-      [...botH2H].map(([k, r]) => [k, `${r.lastWinner}|${r.lastMargin}|${r.lastByWickets}`])
-    );
-    for (const r of botRankings.values()) { r.batFirst = 0; r.batFirstWins = 0; }
-    for (const r of botH2H.values()) { r.lastWinner = null; r.lastMargin = null; r.lastByWickets = null; }
-    let bfMatches = 0;
-    for (const t of all) {
-      const st = t.state as unknown as TournamentState | null;
-      if (!st?.fixtures?.length || !st.players?.length) continue;
-      const wktQuota = st.wickets;
-      for (const fx of st.fixtures) {
-        const sc = fx.scorecard;
-        if (fx.status !== 'done' || !sc || sc.innings.length < 2) continue;
-        const inn1 = sc.innings[0]; // batted first
-        const inn2 = sc.innings[1]; // chased
-        const firstBatName = inn1.batter;
-        const p1 = st.players[fx.player1Idx]?.name;
-        const p2 = st.players[fx.player2Idx]?.name;
-        if (!p1 || !p2 || !firstBatName) continue;
-        const winner = fx.result === 'p1' ? p1 : fx.result === 'p2' ? p2 : null;
-        // Batting-first tally for the side that batted first.
-        const fbRow = getOrCreateBotRow(firstBatName, t.format);
-        fbRow.batFirst++;
-        if (winner === firstBatName) fbRow.batFirstWins++;
-        // Last meeting: winner + margin (defended by runs / chased by wickets; none
-        // for a Super Over or a tie).
-        let margin: { value: number; byWickets: boolean } | null = null;
-        if (winner && !fx.superOver) {
-          margin =
-            winner === firstBatName
+    // Batting-first + last-meeting rebuild from every match scorecard — run ONLY when
+    // not already populated (fresh DB / post-reset). Reading all states is expensive,
+    // so a normal boot skips it; live per-match recording keeps these fresh thereafter.
+    const alreadyBuilt = [...botRankings.values()].some((r) => r.batFirst > 0);
+    if (!alreadyBuilt) {
+      const withState = await prisma.botTournament.findMany({
+        orderBy: { finishedAt: 'asc' },
+        select: { format: true, state: true },
+      });
+      let bfMatches = 0;
+      for (const t of withState) {
+        const st = t.state as unknown as TournamentState | null;
+        if (!st?.fixtures?.length || !st.players?.length) continue;
+        const wktQuota = st.wickets;
+        for (const fx of st.fixtures) {
+          const sc = fx.scorecard;
+          if (fx.status !== 'done' || !sc || sc.innings.length < 2) continue;
+          const inn1 = sc.innings[0];
+          const inn2 = sc.innings[1];
+          const firstBatName = inn1.batter;
+          const p1 = st.players[fx.player1Idx]?.name;
+          const p2 = st.players[fx.player2Idx]?.name;
+          if (!p1 || !p2 || !firstBatName) continue;
+          const winner = fx.result === 'p1' ? p1 : fx.result === 'p2' ? p2 : null;
+          const fbRow = getOrCreateBotRow(firstBatName, t.format);
+          fbRow.batFirst++;
+          if (winner === firstBatName) fbRow.batFirstWins++;
+          let margin: { value: number; byWickets: boolean } | null = null;
+          if (winner && !fx.superOver)
+            margin = winner === firstBatName
               ? { value: Math.max(1, inn1.runs - inn2.runs), byWickets: false }
               : { value: Math.max(1, wktQuota - inn2.wickets), byWickets: true };
+          const { pair, nameA, nameB } = h2hPair(p1, p2);
+          const hk = h2hCacheKey(pair, t.format);
+          let h = botH2H.get(hk);
+          if (!h) { h = { pair, format: t.format, nameA, nameB, aWins: 0, bWins: 0, ties: 0, lastWinner: null, lastMargin: null, lastByWickets: null }; botH2H.set(hk, h); }
+          h.lastWinner = winner;
+          h.lastMargin = margin?.value ?? null;
+          h.lastByWickets = margin?.byWickets ?? null;
+          bfMatches++;
         }
-        const { pair, nameA, nameB } = h2hPair(p1, p2);
-        const hk = h2hCacheKey(pair, t.format);
-        let h = botH2H.get(hk);
-        if (!h) {
-          h = { pair, format: t.format, nameA, nameB, aWins: 0, bWins: 0, ties: 0, lastWinner: null, lastMargin: null, lastByWickets: null };
-          botH2H.set(hk, h);
-        }
-        h.lastWinner = winner;
-        h.lastMargin = margin?.value ?? null;
-        h.lastByWickets = margin?.byWickets ?? null;
-        bfMatches++;
       }
+      for (const r of botRankings.values()) persistBotRow(r);
+      for (const r of botH2H.values()) persistBotH2H(r);
+      if (bfMatches) console.log(`[db] built bot batting-first + last-meeting from ${bfMatches} matches`);
     }
-    let bfHealed = 0;
-    for (const [k, r] of botRankings)
-      if (prevBf.get(k) !== `${r.batFirst}|${r.batFirstWins}`) { persistBotRow(r); bfHealed++; }
-    for (const [k, r] of botH2H)
-      if (prevH2H.get(k) !== `${r.lastWinner}|${r.lastMargin}|${r.lastByWickets}`) persistBotH2H(r);
-    if (bfMatches)
-      console.log(`[db] rebuilt bot batting-first + last-meeting from ${bfMatches} matches (${bfHealed} rows updated)`);
   } catch (err) {
     console.error(
       '[db] bot tournament history unavailable (is the BotTournament migration applied?):',
@@ -487,32 +480,25 @@ export async function initDb(): Promise<void> {
   // Bot seasons: load the open season + past champions (opens Season 1 if none).
   await loadBotSeasons();
 
+  // Human balls only ever exist now (bot balls aren't persisted), so ONE read feeds
+  // both the per-user profiles (rows with a userId) and the global move model (all
+  // human balls) — instead of two near-identical scans of the same rows.
   const balls = await prisma.ballEvent.findMany({
-    where: { userId: { not: null } },
-    orderBy: { id: 'desc' },
-    take: 50000,
-    select: { userId: true, role: true, move: true, prevMove: true },
-  });
-  balls.reverse();
-  for (const b of balls)
-    applyToProfile(b.userId!, b.role as 'bat' | 'bowl', b.move, b.prevMove ?? undefined);
-
-  // Train the global, context-aware human-move model from history (human balls
-  // only — predicting bots would be pointless). Bots use it as a prior so they
-  // read a human well from ball one; it sharpens as more games are logged.
-  const humanBalls = await prisma.ballEvent.findMany({
     where: { isBot: false },
     orderBy: { id: 'desc' },
-    take: 100000,
-    select: { role: true, innings: true, ballIndex: true, overs: true, prevMove: true, move: true },
+    take: 60000,
+    select: { userId: true, role: true, innings: true, ballIndex: true, overs: true, prevMove: true, move: true },
   });
+  balls.reverse();
   resetOpponentModel();
-  for (const b of humanBalls)
+  for (const b of balls) {
+    if (b.userId) applyToProfile(b.userId, b.role as 'bat' | 'bowl', b.move, b.prevMove ?? undefined);
     observeHuman(b.role as Role, b.innings, phaseOf(b.ballIndex, b.overs * 6), b.prevMove ?? null, b.move);
+  }
 
   console.log(
-    `[db] ready — ${cache.users.length} users, ${recs.length} records, ${balls.length} ball-events replayed; ` +
-      `human-move model trained on ${humanBalls.length} balls (ready=${opponentModelReady()})`
+    `[db] ready — ${cache.users.length} users, ${recs.length} records; ` +
+      `human-move model trained on ${balls.length} balls (ready=${opponentModelReady()})`
   );
 }
 
@@ -1382,7 +1368,9 @@ export function recordBotTrophy(botName: string, format: number): void {
 // Durable history of completed bot-league tournaments, newest first. Loaded at
 // boot and appended on each finalize; capped in memory (DB keeps everything).
 const botTournaments: BotTournamentSummary[] = [];
-const BOT_HISTORY_CAP = 50;
+// Newest N kept in memory WITH their heavy state (for the detail view). Kept modest
+// to bound the per-boot state read; older tournaments still count toward stats/names.
+const BOT_HISTORY_CAP = 20;
 // Total completed tournaments per format (the sequence number for naming, e.g.
 // "Bot League 5#3"). Loaded at boot, incremented per finalize, reset on reset.
 // The 12-bot Super League has its own sequence ("Bot Super League 3") and is kept
@@ -1404,7 +1392,8 @@ export function recordBotTournament(input: {
   standings: BotTournamentStanding[];
   state: TournamentState;
 }): void {
-  const name = isSuperLeagueState(input.state)
+  const isSuper = isSuperLeagueState(input.state);
+  const name = isSuper
     ? botSuperLeagueName((botSuperLeagueCount += 1))
     : botLeagueName(
         input.format,
@@ -1428,6 +1417,7 @@ export function recordBotTournament(input: {
       data: {
         format: input.format,
         season,
+        isSuperLeague: isSuper,
         name: summary.name,
         champion: input.champion,
         runnerUp: input.runnerUp ?? undefined,
