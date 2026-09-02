@@ -471,6 +471,15 @@ export default function App() {
       setPhase((p) => (p === 'tournament_result' || p === 'tournament_awards' ? p : 'tournament_lobby'));
     });
 
+    // Between balls the server pushes ONLY the lightweight live score (not the full
+    // tournament state, which is costly to recompute/serialize every ball). Merge it
+    // into the current tournament so the waiting-lobby scoreboard advances ball-by-ball.
+    socket.on('spectator_live_score', ({ id, currentMatchIndex, liveScore }) => {
+      setTournamentState((prev) =>
+        prev && prev.id === id ? { ...prev, currentMatchIndex, liveScore } : prev
+      );
+    });
+
     socket.on('tournament_state', (state) => {
       setTournamentState(state);
       if (state.phase === 'complete') {
@@ -751,7 +760,10 @@ export default function App() {
 
   function handleDeclare() {
     socket.emit('declare');
-    resetToLobby();
+    // In a tournament, conceding just forfeits this match — the server advances the
+    // bracket and keeps you in the event, so go back to the tournament lobby (not home).
+    if (isTournamentMatchRef.current) resetToTournamentLobby();
+    else resetToLobby();
   }
 
   function startFinal() {

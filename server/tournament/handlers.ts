@@ -1492,15 +1492,21 @@ export function pushLiveScore(
     tossWinnerName: room.tossWinnerName ?? '',
     tossDecision: room.tossDecision ?? 'bat',
   };
-  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
-  // Spectators live in `spec:<id>` and are (intentionally) isolated from the full
-  // `tournament_state`. Push them just the fresh live score every ball so the
-  // spectate scoreboard advances ball-by-ball instead of jumping on the 3s poll.
-  io.to('spec:' + tournament.id).emit('spectator_live_score', {
+  // Per BALL, push ONLY the tiny live score — never the full tournament state.
+  // Recomputing publicTournamentState every ball (NRR, qualification + super
+  // qualification scenarios, live insights, and every fixture's scorecard) blocked
+  // the event loop AND sent a huge payload each ball, making matches lag badly.
+  // The full state changes only at match transitions (start/finish), which emit it
+  // there; between balls nothing but liveScore moves. Participants (waiting-lobby
+  // viewers) and spectators both merge this lightweight update client-side.
+  const liveMsg = {
     id: tournament.id,
     currentMatchIndex: tournament.currentMatchIndex,
     liveScore: tournament.liveScore,
-  });
+  };
+  io.to('t:' + tournament.id)
+    .to('spec:' + tournament.id)
+    .emit('spectator_live_score', liveMsg);
 }
 
 /**
