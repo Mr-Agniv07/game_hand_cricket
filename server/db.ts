@@ -385,13 +385,15 @@ export async function initDb(): Promise<void> {
       }
     }
 
-    // History cache: newest BOT_HISTORY_CAP, with `state` pulled ONLY for those (a
-    // bounded read) so their detail view still works.
+    // History cache: keep the newest BOT_HISTORY_CAP SUMMARIES (cheap — already
+    // loaded above) so past-season browsing lists every league, but pull the heavy
+    // `state` JSON ONLY for the newest BOT_STATE_CAP — that bounds per-boot egress.
     const recent = [...summaries].reverse().slice(0, BOT_HISTORY_CAP);
+    const withState = recent.slice(0, BOT_STATE_CAP);
     const stateById = new Map<number, TournamentState | null>();
-    if (recent.length) {
+    if (withState.length) {
       const rows = await prisma.botTournament.findMany({
-        where: { id: { in: recent.map((t) => t.id) } },
+        where: { id: { in: withState.map((t) => t.id) } },
         select: { id: true, state: true },
       });
       for (const r of rows) stateById.set(r.id, (r.state as unknown as TournamentState) ?? null);
@@ -1368,9 +1370,13 @@ export function recordBotTrophy(botName: string, format: number): void {
 // Durable history of completed bot-league tournaments, newest first. Loaded at
 // boot and appended on each finalize; capped in memory (DB keeps everything).
 const botTournaments: BotTournamentSummary[] = [];
-// Newest N kept in memory WITH their heavy state (for the detail view). Kept modest
-// to bound the per-boot state read; older tournaments still count toward stats/names.
-const BOT_HISTORY_CAP = 20;
+// How many completed tournaments to keep in memory as SUMMARY cards (cheap — no
+// heavy state). Generous so past-season browsing lists every league across several
+// seasons; the DB still keeps everything.
+const BOT_HISTORY_CAP = 500;
+// Of those, only the newest N carry their heavy `state` JSON (for the detail view).
+// Kept small to bound the per-boot state read — the main Neon egress cost.
+const BOT_STATE_CAP = 20;
 // Total completed tournaments per format (the sequence number for naming, e.g.
 // "Bot League 5#3"). Loaded at boot, incremented per finalize, reset on reset.
 // The 12-bot Super League has its own sequence ("Bot Super League 3") and is kept

@@ -196,10 +196,14 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   const pastForFormat = (data?.history ?? []).filter(
     (t) => summaryForTab(t) && (curSeason == null || t.season === curSeason)
   );
-  // Reigning champion per bucket = the most recent completed tournament's winner.
-  const champ5 = data?.history.find((t) => t.format === 5 && !isSuperSummary(t))?.champion ?? null;
-  const champ10 = data?.history.find((t) => t.format === 10 && !isSuperSummary(t))?.champion ?? null;
-  const champSuper = data?.history.find(isSuperSummary)?.champion ?? null;
+  // Reigning champion per bucket = the most recent completed tournament's winner
+  // THIS season (a fresh season shows blank until its first title is decided).
+  const seasonHistory = (data?.history ?? []).filter(
+    (t) => curSeason == null || t.season === curSeason
+  );
+  const champ5 = seasonHistory.find((t) => t.format === 5 && !isSuperSummary(t))?.champion ?? null;
+  const champ10 = seasonHistory.find((t) => t.format === 10 && !isSuperSummary(t))?.champion ?? null;
+  const champSuper = seasonHistory.find(isSuperSummary)?.champion ?? null;
 
   return (
     <div className={styles.overlay} onClick={onClose}>
