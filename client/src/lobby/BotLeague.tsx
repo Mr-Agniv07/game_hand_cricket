@@ -190,7 +190,12 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     liveOverride.currentMatchIndex === baseWatch.currentMatchIndex
       ? { ...baseWatch, liveScore: liveOverride.liveScore }
       : baseWatch;
-  const pastForFormat = (data?.history ?? []).filter(summaryForTab);
+  // Past tournaments here are the CURRENT season's only — earlier seasons live
+  // behind the "Past Seasons" browser, so this list stays uncluttered.
+  const curSeason = data?.season?.number;
+  const pastForFormat = (data?.history ?? []).filter(
+    (t) => summaryForTab(t) && (curSeason == null || t.season === curSeason)
+  );
   // Reigning champion per bucket = the most recent completed tournament's winner.
   const champ5 = data?.history.find((t) => t.format === 5 && !isSuperSummary(t))?.champion ?? null;
   const champ10 = data?.history.find((t) => t.format === 10 && !isSuperSummary(t))?.champion ?? null;
@@ -390,8 +395,8 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               {pastForFormat.length === 0 ? (
                 <p className={styles.empty}>
                   {isSuper
-                    ? 'No Super Leagues recorded yet — finish one and the winner shows up here.'
-                    : `No ${format}-over tournaments recorded yet — finish a league and the winner shows up here.`}
+                    ? 'No Super Leagues this season yet — open Past Seasons above for earlier ones.'
+                    : `No ${format}-over tournaments this season yet — open Past Seasons above for earlier ones.`}
                 </p>
               ) : (
                 pastForFormat.map((t, i) => (
@@ -523,9 +528,24 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                   {tours.length === 0 ? (
                     <p className={styles.empty}>No tournaments from this season are still on record.</p>
                   ) : (
-                    tours.map((t, i) => (
-                      <PastCard key={`${t.finishedAt}-${i}`} t={t} onView={() => setPastView(t)} />
-                    ))
+                    (
+                      [
+                        ['5 Over', tours.filter((t) => t.format === 5 && !isSuperSummary(t))],
+                        ['10 Over', tours.filter((t) => t.format === 10 && !isSuperSummary(t))],
+                        ['🏆 Super League', tours.filter(isSuperSummary)],
+                      ] as [string, BotTournamentSummary[]][]
+                    ).map(([label, list]) =>
+                      list.length === 0 ? null : (
+                        <div key={label}>
+                          <div className={styles.subSectionTitle}>
+                            {label} ({list.length})
+                          </div>
+                          {list.map((t, i) => (
+                            <PastCard key={`${t.finishedAt}-${i}`} t={t} onView={() => setPastView(t)} />
+                          ))}
+                        </div>
+                      )
+                    )
                   )}
                 </div>
               </div>
