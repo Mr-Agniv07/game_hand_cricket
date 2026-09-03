@@ -1471,6 +1471,7 @@ export function generateFixture(tournament: Tournament): void {
 
 export function pushLiveScore(
   io: GameServer,
+  roomId: string,
   room: Room,
   lastBall: LiveMatchScore['lastBall']
 ): void {
@@ -1492,21 +1493,24 @@ export function pushLiveScore(
     tossWinnerName: room.tossWinnerName ?? '',
     tossDecision: room.tossDecision ?? 'bat',
   };
-  // Per BALL, push ONLY the tiny live score — never the full tournament state.
-  // Recomputing publicTournamentState every ball (NRR, qualification + super
-  // qualification scenarios, live insights, and every fixture's scorecard) blocked
-  // the event loop AND sent a huge payload each ball, making matches lag badly.
-  // The full state changes only at match transitions (start/finish), which emit it
-  // there; between balls nothing but liveScore moves. Participants (waiting-lobby
-  // viewers) and spectators both merge this lightweight update client-side.
-  const liveMsg = {
+  // Waiting-lobby spectators get the full state so their scoreboard (and standings)
+  // stay live — but EXCLUDE the two players currently in this match: they're on the
+  // GameScreen driven by game `state`/`ball_played` events and don't need it, and
+  // pushing them the big per-ball tournament payload (all fixtures + scorecards) on
+  // top of their game state is what made THEIR moves feel laggy. `.except(roomId)`
+  // drops the sockets in the live match room. Insights/qualification are cached
+  // (keyed by done-count), so this per-ball call is cheap CPU-wise.
+  io.to('t:' + tournament.id)
+    .except(roomId)
+    .emit('tournament_state', publicTournamentState(tournament));
+  // Bot-league spectators live in `spec:<id>` (isolated from `tournament_state`);
+  // push them just the fresh live score every ball so their scoreboard advances
+  // ball-by-ball instead of jumping on the 3s poll.
+  io.to('spec:' + tournament.id).emit('spectator_live_score', {
     id: tournament.id,
     currentMatchIndex: tournament.currentMatchIndex,
     liveScore: tournament.liveScore,
-  };
-  io.to('t:' + tournament.id)
-    .to('spec:' + tournament.id)
-    .emit('spectator_live_score', liveMsg);
+  });
 }
 
 /**

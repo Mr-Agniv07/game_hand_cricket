@@ -107,7 +107,7 @@ function milestoneBall(inn: RoomInnings, target: number): number | null {
 }
 
 /** Delay before a bot acts, so its toss/choice/moves feel paced rather than instant. */
-const BOT_DELAY_MS = 650;
+const BOT_DELAY_MS = 350;
 
 /**
  * Schedule a bot action. The body is wrapped in try/catch because an uncaught
@@ -232,7 +232,7 @@ export function resolveBall(
       endInnings(io, roomId, room, rooms, allOut ? 'all_out' : 'overs_complete');
     } else {
       io.to(roomId).emit('state', publicState(room, roomId));
-      pushLiveScore(io, room, { scored: 0, isOut: true, batsmanMove: batMove, bowlerMove: bowlMove });
+      pushLiveScore(io, roomId, room, { scored: 0, isOut: true, batsmanMove: batMove, bowlerMove: bowlMove });
     }
   } else {
     inn.score += batMove;
@@ -257,7 +257,7 @@ export function resolveBall(
       return;
     }
 
-    pushLiveScore(io, room, { scored: batMove, isOut: false, batsmanMove: batMove, bowlerMove: bowlMove });
+    pushLiveScore(io, roomId, room, { scored: batMove, isOut: false, batsmanMove: batMove, bowlerMove: bowlMove });
   }
 }
 
