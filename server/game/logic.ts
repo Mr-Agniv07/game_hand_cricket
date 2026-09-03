@@ -579,7 +579,12 @@ export function endInnings(
           // semi: no points table change; fixture.result (set above) decides who advances.
 
           tournament.liveScore = null;
-          io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+          // Never let a state-emit failure stop the tournament from advancing.
+          try {
+            io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+          } catch (e) {
+            console.error('[tournament] end-of-match state emit failed:', (e as Error)?.message ?? e);
+          }
 
           setTimeout(() => {
             // The match is over; drop its room so finished tournament rooms

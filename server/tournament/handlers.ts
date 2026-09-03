@@ -1492,7 +1492,21 @@ export function pushLiveScore(
     tossWinnerName: room.tossWinnerName ?? '',
     tossDecision: room.tossDecision ?? 'bat',
   };
-  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+  // Broadcast the full state to participants OFF the ball-resolution path. Building
+  // publicTournamentState (every fixture + insights) inline blocked the game loop each
+  // ball, and any throw inside it propagated into resolveBall and killed the bot-drive
+  // chain — a stuck match. setImmediate + try/catch isolates both: the loop keeps
+  // moving and a bad emit can never freeze a match. The guard skips a now-stale emit if
+  // the match already ended (endInnings nulls liveScore and emits fresh state itself).
+  const tourney = tournament;
+  setImmediate(() => {
+    if (tourney.liveScore === null) return;
+    try {
+      io.to('t:' + tourney.id).emit('tournament_state', publicTournamentState(tourney));
+    } catch (e) {
+      console.error('[tournament] live tournament_state emit failed:', (e as Error)?.message ?? e);
+    }
+  });
   // Spectators live in `spec:<id>` and are (intentionally) isolated from the full
   // `tournament_state`. Push them just the fresh live score every ball so the
   // spectate scoreboard advances ball-by-ball instead of jumping on the 3s poll.
