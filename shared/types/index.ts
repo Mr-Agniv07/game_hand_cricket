@@ -268,6 +268,9 @@ export interface BotLeagueData {
   history: BotTournamentSummary[];
   /** Current bot season, its progress, and past season champions. */
   season: BotSeasonInfo;
+  /** Auto-generated "league news" headlines, newest/juiciest first. Each line is
+   *  derived purely from recorded results/standings (no invented facts). */
+  news: string[];
 }
 
 /** A purchasable unlock in the coin store. */

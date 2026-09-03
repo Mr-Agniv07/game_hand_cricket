@@ -92,6 +92,54 @@
 .sectionTitle:first-child {
   margin-top: 0;
 }
+/* ── League News feed ── */
+.news {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.02));
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem 0.8rem;
+  margin-bottom: 0.9rem;
+}
+.newsTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #22c55e;
+  margin-bottom: 0.5rem;
+}
+.newsDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: newsPulse 1.6s infinite;
+}
+@keyframes newsPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+.newsItem {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--text);
+  padding: 0.35rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.newsItem:first-of-type {
+  border-top: none;
+}
+
 /* Per-format sub-header inside the past-season browser (5 Over / 10 Over / Super). */
 .subSectionTitle {
   font-size: 0.72rem;

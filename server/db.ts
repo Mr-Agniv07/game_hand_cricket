@@ -1616,6 +1616,92 @@ export function getBotSeasonInfo(): import('@cric/types').BotSeasonInfo {
   };
 }
 
+/**
+ * Auto-generated "league news" headlines, built PURELY from recorded data — every
+ * line is derived from real results, standings and head-to-head, so nothing is
+ * invented. Returned newest/juiciest first for the Bot League news ticker. Season
+ * stats (.trophies) reset each season; career totals, H2H and batting-first are
+ * lifetime, and the wording reflects that so the facts stay accurate.
+ */
+export function generateBotNews(): string[] {
+  const news: string[] = [];
+  const isSuper = (t: BotTournamentSummary) =>
+    t.name.startsWith('Bot Super League') || t.state?.size === 16;
+  const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+  const seasonNo = currentSeason?.number ?? 1;
+
+  // 1) The latest title decided.
+  const latest = botTournaments[0];
+  if (latest) {
+    const label = isSuper(latest) ? 'Super League' : `${latest.format}-over`;
+    news.push(
+      latest.runnerUp
+        ? `🏆 ${latest.champion} lift the ${label} crown, beating ${latest.runnerUp} in the final.`
+        : `🏆 ${latest.champion} are the latest ${label} champions.`
+    );
+  }
+
+  // Trophy tallies per bot: season (resets) and career (lifetime), summed across formats.
+  const seasonT = new Map<string, number>();
+  const careerT = new Map<string, number>();
+  for (const r of botRankings.values()) {
+    seasonT.set(r.botName, (seasonT.get(r.botName) ?? 0) + r.trophies);
+    careerT.set(r.botName, (careerT.get(r.botName) ?? 0) + r.careerTrophies);
+  }
+
+  // 2) Who leads THIS season.
+  const leader = [...seasonT.entries()].filter(([, t]) => t > 0).sort((a, b) => b[1] - a[1])[0];
+  if (leader) news.push(`📈 Season ${seasonNo} race: ${leader[0]} out front with ${plural(leader[1], 'title')}.`);
+
+  // 3) Reigning past-season champion still title-less this season.
+  const lastPast = pastSeasons[0]; // newest archived season
+  if (lastPast?.champion && (seasonT.get(lastPast.champion) ?? 0) === 0)
+    news.push(`📰 Season ${lastPast.number} champion ${lastPast.champion} still without a title in Season ${seasonNo}…`);
+
+  // 4) Consecutive-title streaks per bucket.
+  const buckets: Array<{ label: string; pick: (t: BotTournamentSummary) => boolean }> = [
+    { label: '5-over', pick: (t) => t.format === 5 && !isSuper(t) },
+    { label: '10-over', pick: (t) => t.format === 10 && !isSuper(t) },
+    { label: 'Super League', pick: (t) => isSuper(t) },
+  ];
+  for (const b of buckets) {
+    const seq = botTournaments.filter(b.pick); // newest first
+    if (seq.length >= 2 && seq[0].champion) {
+      let k = 1;
+      while (k < seq.length && seq[k].champion === seq[0].champion) k++;
+      if (k >= 2) news.push(`🔥 ${seq[0].champion} on a ${k}-title streak in the ${b.label}.`);
+    }
+  }
+
+  // 5) Biggest all-time rivalry (lifetime head-to-head).
+  let riv: { win: string; lose: string; w: number; l: number; total: number } | null = null;
+  for (const h of botH2H.values()) {
+    const total = h.aWins + h.bWins + h.ties;
+    if (total < 4) continue;
+    const [win, lose, w, l] =
+      h.aWins >= h.bWins ? [h.nameA, h.nameB, h.aWins, h.bWins] : [h.nameB, h.nameA, h.bWins, h.aWins];
+    if (!riv || total > riv.total) riv = { win, lose, w: w as number, l: l as number, total };
+  }
+  if (riv && riv.w > riv.l) news.push(`🥊 Rivalry: ${riv.win} lead ${riv.w}–${riv.l} all-time against ${riv.lose}.`);
+
+  // 6) All-time honours leader (lifetime titles).
+  const goat = [...careerT.entries()].filter(([, t]) => t > 0).sort((a, b) => b[1] - a[1])[0];
+  if (goat) news.push(`👑 All-time: ${goat[0]} tops the honours board with ${plural(goat[1], 'career title')}.`);
+
+  // 7) Strongest batting-first record (lifetime, per format, decent sample).
+  let bf: { name: string; pct: number; fmt: number } | null = null;
+  for (const r of botRankings.values()) {
+    if (r.batFirst < 6) continue;
+    const pct = Math.round((r.batFirstWins / r.batFirst) * 100);
+    if (!bf || pct > bf.pct) bf = { name: r.botName, pct, fmt: r.format };
+  }
+  if (bf) news.push(`🏏 ${bf.name} win ${bf.pct}% of their ${bf.fmt}-over games batting first.`);
+
+  if (news.length === 0)
+    news.push('📰 The Bot League is warming up — headlines appear as titles are decided.');
+  return news.slice(0, 10);
+}
+
 /** Whether another title league of this category may start (its season cap isn't hit
  *  yet). Qualifiers don't count toward a season, so callers shouldn't gate them. */
 export function canStartLeague(category: LeagueCategory): boolean {

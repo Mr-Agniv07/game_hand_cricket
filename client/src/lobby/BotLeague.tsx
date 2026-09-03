@@ -236,6 +236,19 @@ export default function BotLeague({ socket, user, onClose }: Props) {
             </div>
           ) : (
             <>
+              {data.news.length > 0 && (
+                <div className={styles.news}>
+                  <div className={styles.newsTitle}>
+                    <span className={styles.newsDot} /> League News
+                  </div>
+                  {data.news.slice(0, 6).map((n, i) => (
+                    <div key={i} className={styles.newsItem}>
+                      {n}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className={styles.currentChamps}>
                 <div className={styles.ccTitle}>👑 Current Champions</div>
                 <div className={styles.ccRow}>
