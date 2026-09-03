@@ -1649,9 +1649,24 @@ export function generateBotNews(): string[] {
     careerT.set(r.botName, (careerT.get(r.botName) ?? 0) + r.careerTrophies);
   }
 
-  // 2) Who leads THIS season.
-  const leader = [...seasonT.entries()].filter(([, t]) => t > 0).sort((a, b) => b[1] - a[1])[0];
-  if (leader) news.push(`📈 Season ${seasonNo} race: ${leader[0]} out front with ${plural(leader[1], 'title')}.`);
+  // Tie-aware "who's on top" of a per-bot tally: returns every bot sharing the max.
+  const topOf = (m: Map<string, number>) => {
+    const ranked = [...m.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    if (!ranked.length) return null;
+    const value = ranked[0][1];
+    return { leaders: ranked.filter(([, v]) => v === value).map(([n]) => n), value };
+  };
+
+  // 2) Who leads THIS season (tie-aware).
+  const sLead = topOf(seasonT);
+  if (sLead)
+    news.push(
+      sLead.leaders.length === 1
+        ? `📈 Season ${seasonNo} race: ${sLead.leaders[0]} out front with ${plural(sLead.value, 'title')}.`
+        : sLead.leaders.length === 2
+          ? `📈 Season ${seasonNo} race: ${sLead.leaders[0]} & ${sLead.leaders[1]} tied at the top with ${plural(sLead.value, 'title')} each.`
+          : `📈 Season ${seasonNo} race: ${sLead.leaders.length} bots tied on ${plural(sLead.value, 'title')}.`
+    );
 
   // 3) Reigning past-season champion still title-less this season.
   const lastPast = pastSeasons[0]; // newest archived season
@@ -1702,9 +1717,16 @@ export function generateBotNews(): string[] {
   if (riv && riv.w > riv.l)
     news.push(`🥊 Rivalry: ${riv.win} lead ${riv.w}–${riv.l} all-time (both formats) against ${riv.lose}.`);
 
-  // 6) All-time honours leader (lifetime titles).
-  const goat = [...careerT.entries()].filter(([, t]) => t > 0).sort((a, b) => b[1] - a[1])[0];
-  if (goat) news.push(`👑 All-time: ${goat[0]} tops the honours board with ${plural(goat[1], 'career title')}.`);
+  // 6) All-time honours leader (lifetime titles, tie-aware).
+  const cLead = topOf(careerT);
+  if (cLead)
+    news.push(
+      cLead.leaders.length === 1
+        ? `👑 All-time: ${cLead.leaders[0]} tops the honours board with ${plural(cLead.value, 'career title')}.`
+        : cLead.leaders.length === 2
+          ? `👑 All-time: ${cLead.leaders[0]} & ${cLead.leaders[1]} share top spot with ${plural(cLead.value, 'career title')} each.`
+          : `👑 All-time: ${cLead.leaders.length} bots share top spot with ${plural(cLead.value, 'career title')} each.`
+    );
 
   // 7) Strongest batting-first record (lifetime, per format, decent sample).
   let bf: { name: string; pct: number; fmt: number } | null = null;
@@ -1715,9 +1737,44 @@ export function generateBotNews(): string[] {
   }
   if (bf) news.push(`🏏 ${bf.name} win ${bf.pct}% of their ${bf.fmt}-over games batting first.`);
 
+  // 8) Top-rated bot per format (rating is season-scoped; only once games are played).
+  for (const fmt of [5, 10] as const) {
+    let tr: { name: string; rating: number } | null = null;
+    for (const r of botRankings.values()) {
+      if (r.format !== fmt || r.played === 0) continue;
+      if (!tr || r.rating > tr.rating) tr = { name: r.botName, rating: Math.round(r.rating) };
+    }
+    if (tr) news.push(`⚡ Season ${seasonNo} ${fmt}-over ratings led by ${tr.name} (${tr.rating}).`);
+  }
+
+  // 9) Most career wins (lifetime, tie-aware).
+  const careerW = new Map<string, number>();
+  for (const r of botRankings.values()) careerW.set(r.botName, (careerW.get(r.botName) ?? 0) + r.careerWins);
+  const wLead = topOf(careerW);
+  if (wLead)
+    news.push(
+      wLead.leaders.length === 1
+        ? `🎯 ${wLead.leaders[0]} has the most career wins (${wLead.value}).`
+        : `🎯 ${wLead.leaders.slice(0, 2).join(' & ')} lead career wins with ${plural(wLead.value, 'win')} each.`
+    );
+
+  // 10) Latest decisive meeting between two bots (from head-to-head).
+  let recentMeet: { line: string } | null = null;
+  for (const h of botH2H.values()) {
+    if (!h.lastWinner) continue;
+    const loser = h.lastWinner === h.nameA ? h.nameB : h.nameA;
+    const how =
+      h.lastMargin == null
+        ? 'in a Super Over'
+        : `by ${plural(h.lastMargin, h.lastByWickets ? 'wicket' : 'run')}`;
+    recentMeet = { line: `🤝 Last meeting: ${h.lastWinner} beat ${loser} ${how} (${h.format}-over).` };
+    break; // first available; the pool is shuffled client-side anyway
+  }
+  if (recentMeet) news.push(recentMeet.line);
+
   if (news.length === 0)
     news.push('📰 The Bot League is warming up — headlines appear as titles are decided.');
-  return news.slice(0, 10);
+  return news.slice(0, 12);
 }
 
 /** Whether another title league of this category may start (its season cap isn't hit

@@ -139,6 +139,25 @@
 .newsItem:first-of-type {
   border-top: none;
 }
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.95em;
+  margin-left: 1px;
+  background: #22c55e;
+  vertical-align: text-bottom;
+  animation: caretBlink 0.8s steps(1) infinite;
+}
+@keyframes caretBlink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
 
 /* Per-format sub-header inside the past-season browser (5 Over / 10 Over / Super). */
 .subSectionTitle {

@@ -55,6 +55,9 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   // A past season being browsed (its standings + that season's tournaments), or null.
   const [seasonView, setSeasonView] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  // 3 headlines shown at a time, picked at random from the news pool and rotated
+  // every few seconds so the feed feels alive and looks different each time.
+  const [newsShown, setNewsShown] = useState<string[]>([]);
   // Ball-by-ball live score for the watched league, pushed between polls so the
   // spectate scoreboard advances continuously instead of jumping every 3s.
   const [liveOverride, setLiveOverride] = useState<{
@@ -68,6 +71,28 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Rotate 3 random headlines from the news pool every 7s. Keyed on the pool's
+  // content so it re-picks only when the news actually changes (not every 3s poll),
+  // which keeps the rotation steady instead of flickering.
+  const newsKey = (data?.news ?? []).join('|');
+  useEffect(() => {
+    const pool = newsKey ? newsKey.split('|') : [];
+    if (pool.length === 0) {
+      setNewsShown([]);
+      return;
+    }
+    const pick = () => {
+      const bag = [...pool];
+      const out: string[] = [];
+      const n = Math.min(3, bag.length);
+      while (out.length < n) out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
+      setNewsShown(out);
+    };
+    pick();
+    const id = setInterval(pick, 7000);
+    return () => clearInterval(id);
+  }, [newsKey]);
 
   const load = useCallback(() => {
     apiGet<BotLeagueData>('/api/bot-league', user?.token)
@@ -236,14 +261,14 @@ export default function BotLeague({ socket, user, onClose }: Props) {
             </div>
           ) : (
             <>
-              {data.news.length > 0 && (
+              {newsShown.length > 0 && (
                 <div className={styles.news}>
                   <div className={styles.newsTitle}>
                     <span className={styles.newsDot} /> League News
                   </div>
-                  {data.news.slice(0, 6).map((n, i) => (
-                    <div key={i} className={styles.newsItem}>
-                      {n}
+                  {newsShown.map((n, i) => (
+                    <div key={n} className={styles.newsItem}>
+                      <TypedLine text={n} delay={i * 500} />
                     </div>
                   ))}
                 </div>
@@ -570,6 +595,35 @@ export default function BotLeague({ socket, user, onClose }: Props) {
           );
         })()}
     </div>
+  );
+}
+
+/** A news headline that types itself out (with a blinking caret) for a live-newsroom
+ *  feel. Re-types whenever the text changes; `delay` staggers the three lines. */
+function TypedLine({ text, delay = 0, speed = 24 }: { text: string; delay?: number; speed?: number }) {
+  const [shown, setShown] = useState('');
+  useEffect(() => {
+    setShown('');
+    let i = 0;
+    let typer: ReturnType<typeof setInterval> | undefined;
+    const starter = setTimeout(() => {
+      typer = setInterval(() => {
+        i += 1;
+        setShown(text.slice(0, i));
+        if (i >= text.length && typer) clearInterval(typer);
+      }, speed);
+    }, delay);
+    return () => {
+      clearTimeout(starter);
+      if (typer) clearInterval(typer);
+    };
+  }, [text, delay, speed]);
+  const typing = shown.length < text.length;
+  return (
+    <>
+      {shown}
+      {typing && <span className={styles.caret} />}
+    </>
   );
 }
 
