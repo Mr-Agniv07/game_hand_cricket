@@ -232,7 +232,7 @@ export function resolveBall(
       endInnings(io, roomId, room, rooms, allOut ? 'all_out' : 'overs_complete');
     } else {
       io.to(roomId).emit('state', publicState(room, roomId));
-      pushLiveScore(io, roomId, room, { scored: 0, isOut: true, batsmanMove: batMove, bowlerMove: bowlMove });
+      pushLiveScore(io, room, { scored: 0, isOut: true, batsmanMove: batMove, bowlerMove: bowlMove });
     }
   } else {
     inn.score += batMove;
@@ -257,7 +257,7 @@ export function resolveBall(
       return;
     }
 
-    pushLiveScore(io, roomId, room, { scored: batMove, isOut: false, batsmanMove: batMove, bowlerMove: bowlMove });
+    pushLiveScore(io, room, { scored: batMove, isOut: false, batsmanMove: batMove, bowlerMove: bowlMove });
   }
 }
 

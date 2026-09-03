@@ -471,16 +471,6 @@ export default function App() {
       setPhase((p) => (p === 'tournament_result' || p === 'tournament_awards' ? p : 'tournament_lobby'));
     });
 
-    // Between balls the server pushes ONLY the lightweight live score (the full
-    // tournament state is emitted at match transitions). Merge just the live score
-    // into the current tournament so the waiting-lobby scoreboard advances ball-by-ball
-    // without the server re-serialising the whole tournament every ball.
-    socket.on('spectator_live_score', ({ id, currentMatchIndex, liveScore }) => {
-      setTournamentState((prev) =>
-        prev && prev.id === id ? { ...prev, currentMatchIndex, liveScore } : prev
-      );
-    });
-
     socket.on('tournament_state', (state) => {
       setTournamentState(state);
       if (state.phase === 'complete') {

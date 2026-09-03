@@ -1471,7 +1471,6 @@ export function generateFixture(tournament: Tournament): void {
 
 export function pushLiveScore(
   io: GameServer,
-  roomId: string,
   room: Room,
   lastBall: LiveMatchScore['lastBall']
 ): void {
@@ -1493,23 +1492,15 @@ export function pushLiveScore(
     tossWinnerName: room.tossWinnerName ?? '',
     tossDecision: room.tossDecision ?? 'bat',
   };
-  // Per BALL, push ONLY the tiny live score — NEVER the full tournament state.
-  // publicTournamentState serialises every fixture (with scorecards) and this runs
-  // inside the bot-drive chain: doing it per ball congested the event loop (bot
-  // moves fired late = "the bot takes too long") and, if it ever threw, killed the
-  // drive chain outright = a stuck match. The full state changes only at match
-  // transitions (start/finish), which emit it there; between balls nothing but the
-  // live score moves. Waiting participants and spectators merge this client-side.
-  // Exclude the two players currently in the match (they're on the GameScreen).
-  const liveMsg = {
+  io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
+  // Spectators live in `spec:<id>` and are (intentionally) isolated from the full
+  // `tournament_state`. Push them just the fresh live score every ball so the
+  // spectate scoreboard advances ball-by-ball instead of jumping on the 3s poll.
+  io.to('spec:' + tournament.id).emit('spectator_live_score', {
     id: tournament.id,
     currentMatchIndex: tournament.currentMatchIndex,
     liveScore: tournament.liveScore,
-  };
-  io.to('t:' + tournament.id)
-    .except(roomId)
-    .to('spec:' + tournament.id)
-    .emit('spectator_live_score', liveMsg);
+  });
 }
 
 /**
