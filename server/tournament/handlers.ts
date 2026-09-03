@@ -1493,24 +1493,23 @@ export function pushLiveScore(
     tossWinnerName: room.tossWinnerName ?? '',
     tossDecision: room.tossDecision ?? 'bat',
   };
-  // Waiting-lobby spectators get the full state so their scoreboard (and standings)
-  // stay live — but EXCLUDE the two players currently in this match: they're on the
-  // GameScreen driven by game `state`/`ball_played` events and don't need it, and
-  // pushing them the big per-ball tournament payload (all fixtures + scorecards) on
-  // top of their game state is what made THEIR moves feel laggy. `.except(roomId)`
-  // drops the sockets in the live match room. Insights/qualification are cached
-  // (keyed by done-count), so this per-ball call is cheap CPU-wise.
-  io.to('t:' + tournament.id)
-    .except(roomId)
-    .emit('tournament_state', publicTournamentState(tournament));
-  // Bot-league spectators live in `spec:<id>` (isolated from `tournament_state`);
-  // push them just the fresh live score every ball so their scoreboard advances
-  // ball-by-ball instead of jumping on the 3s poll.
-  io.to('spec:' + tournament.id).emit('spectator_live_score', {
+  // Per BALL, push ONLY the tiny live score — NEVER the full tournament state.
+  // publicTournamentState serialises every fixture (with scorecards) and this runs
+  // inside the bot-drive chain: doing it per ball congested the event loop (bot
+  // moves fired late = "the bot takes too long") and, if it ever threw, killed the
+  // drive chain outright = a stuck match. The full state changes only at match
+  // transitions (start/finish), which emit it there; between balls nothing but the
+  // live score moves. Waiting participants and spectators merge this client-side.
+  // Exclude the two players currently in the match (they're on the GameScreen).
+  const liveMsg = {
     id: tournament.id,
     currentMatchIndex: tournament.currentMatchIndex,
     liveScore: tournament.liveScore,
-  });
+  };
+  io.to('t:' + tournament.id)
+    .except(roomId)
+    .to('spec:' + tournament.id)
+    .emit('spectator_live_score', liveMsg);
 }
 
 /**
