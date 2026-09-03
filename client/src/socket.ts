@@ -21,4 +21,17 @@ export function getClientId(): string {
   return id;
 }
 
-export const socket: AppSocket = io(import.meta.env.VITE_SERVER_URL || '', { autoConnect: false });
+// Connect over a real WebSocket, NOT Socket.io's default (start on HTTP
+// long-polling, then upgrade). Desktop browsers upgrade instantly, but the Android
+// WebView frequently gets stuck on long-polling — which turns every ball into a
+// separate slow HTTP round-trip. That's the app-only, per-ball latency (the web,
+// which upgrades cleanly, stays smooth). WebSocket is confirmed working to the
+// server, so we skip polling entirely; 'polling' stays as a last-resort fallback
+// for the rare network that blocks WebSockets outright.
+export const socket: AppSocket = io(import.meta.env.VITE_SERVER_URL || '', {
+  autoConnect: false,
+  transports: ['websocket', 'polling'],
+  // Try WebSocket first; if it can't connect on this network, fall back to polling
+  // within the same attempt instead of failing (socket.io-client 4.8+).
+  tryAllTransports: true,
+});
