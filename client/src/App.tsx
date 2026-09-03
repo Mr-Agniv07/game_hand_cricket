@@ -130,6 +130,8 @@ export default function App() {
   const [tournamentState, setTournamentState] = useState<TournamentState | null>(null);
   const [isTournamentMatch, setIsTournamentMatch] = useState(false);
   const isTournamentMatchRef = useRef(false);
+  // Live socket round-trip latency (ms) — diagnostic badge so lag is measurable.
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   // True only while the current tournament match is the FINAL — used to suppress
   // the "next match starting…" notice on the result screen after the final.
   const [isFinalMatch, setIsFinalMatch] = useState(false);
@@ -471,6 +473,9 @@ export default function App() {
       setPhase((p) => (p === 'tournament_result' || p === 'tournament_awards' ? p : 'tournament_lobby'));
     });
 
+    // Latency probe reply: RTT = now − when we sent the ping.
+    socket.on('latency_pong', (clientSentAt) => setLatencyMs(Date.now() - clientSentAt));
+
     socket.on('tournament_state', (state) => {
       setTournamentState(state);
       if (state.phase === 'complete') {
@@ -769,6 +774,14 @@ export default function App() {
     setPhase('tournament_lobby');
   }
 
+  // Measure live socket round-trip latency every 2s (diagnostic badge).
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (socket.connected) socket.emit('latency_ping', Date.now());
+    }, 2000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="app">
       {!introDone && <WelcomeScreen onDone={() => setIntroDone(true)} />}
@@ -779,6 +792,22 @@ export default function App() {
           phase !== 'lobby' &&
           phase !== 'tournament_lobby' &&
           phase !== 'tournament_result' && <span className="room-badge">Room: {roomId}</span>}
+        {latencyMs != null && phase !== 'loading' && phase !== 'auth' && (
+          <span
+            title="Live round-trip latency to the server (lower is smoother)"
+            style={{
+              marginLeft: 8,
+              fontSize: '0.68rem',
+              fontWeight: 800,
+              padding: '2px 7px',
+              borderRadius: 999,
+              color: '#fff',
+              background: latencyMs < 120 ? '#16a34a' : latencyMs < 300 ? '#d97706' : '#dc2626',
+            }}
+          >
+            {latencyMs} ms
+          </span>
+        )}
         {user?.username?.toLowerCase() === 'shreyansh' &&
           (phase === 'waiting' ||
             phase === 'toss_call' ||

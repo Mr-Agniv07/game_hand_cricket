@@ -133,6 +133,10 @@ export function registerGameHandlers(io: GameServer): void {
     console.log('connected', socket.id);
     if (socket.data.userId) onlineUsers.set(socket.data.userId, socket.id);
 
+    // Latency probe: echo the client's timestamp straight back so the client can
+    // measure true round-trip time on the live socket (diagnosing move lag).
+    socket.on('latency_ping', (clientSentAt) => socket.emit('latency_pong', clientSentAt));
+
     socket.on('create_room', ({ playerName, overs, wickets }) => {
       removeFromQueue(socket.id);
       const ov = clampCount(overs, 1);

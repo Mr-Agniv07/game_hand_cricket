@@ -681,6 +681,8 @@ export interface SendEmotePayload {
 }
 
 export interface ServerToClientEvents {
+  /** Echo of a latency_ping, carrying back the client's original timestamp. */
+  latency_pong: (clientSentAt: number) => void;
   room_created: (p: RoomCreatedPayload) => void;
   state: (p: GameState) => void;
   toss_start: (p: TossStartPayload) => void;
@@ -802,6 +804,8 @@ export interface RejoinRoomPayload {
 }
 
 export interface ClientToServerEvents {
+  /** Round-trip latency probe: the server echoes it straight back as latency_pong. */
+  latency_ping: (clientSentAt: number) => void;
   create_room: (p: CreateRoomPayload) => void;
   play_vs_bot: (p: PlayVsBotPayload) => void;
   join_room: (p: JoinRoomPayload) => void;
