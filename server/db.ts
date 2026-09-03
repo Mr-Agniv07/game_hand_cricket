@@ -1673,16 +1673,34 @@ export function generateBotNews(): string[] {
     }
   }
 
-  // 5) Biggest all-time rivalry (lifetime head-to-head).
-  let riv: { win: string; lose: string; w: number; l: number; total: number } | null = null;
+  // 5) Biggest all-time rivalry — COMBINED across both formats. H2H is stored per
+  // format, so sum the 5-over and 10-over records for each pair (nameA/nameB are the
+  // same sorted orientation across formats, so aWins/bWins line up) for a true
+  // overall head-to-head.
+  const rivalry = new Map<string, { nameA: string; nameB: string; a: number; b: number; ties: number }>();
   for (const h of botH2H.values()) {
-    const total = h.aWins + h.bWins + h.ties;
-    if (total < 4) continue;
-    const [win, lose, w, l] =
-      h.aWins >= h.bWins ? [h.nameA, h.nameB, h.aWins, h.bWins] : [h.nameB, h.nameA, h.bWins, h.aWins];
-    if (!riv || total > riv.total) riv = { win, lose, w: w as number, l: l as number, total };
+    const e = rivalry.get(h.pair) ?? { nameA: h.nameA, nameB: h.nameB, a: 0, b: 0, ties: 0 };
+    e.a += h.aWins;
+    e.b += h.bWins;
+    e.ties += h.ties;
+    rivalry.set(h.pair, e);
   }
-  if (riv && riv.w > riv.l) news.push(`🥊 Rivalry: ${riv.win} lead ${riv.w}–${riv.l} all-time against ${riv.lose}.`);
+  let riv: { win: string; lose: string; w: number; l: number; total: number } | null = null;
+  for (const e of rivalry.values()) {
+    const total = e.a + e.b + e.ties;
+    if (total < 4) continue;
+    const aLeads = e.a >= e.b;
+    const cand = {
+      win: aLeads ? e.nameA : e.nameB,
+      lose: aLeads ? e.nameB : e.nameA,
+      w: aLeads ? e.a : e.b,
+      l: aLeads ? e.b : e.a,
+      total,
+    };
+    if (!riv || cand.total > riv.total) riv = cand;
+  }
+  if (riv && riv.w > riv.l)
+    news.push(`🥊 Rivalry: ${riv.win} lead ${riv.w}–${riv.l} all-time (both formats) against ${riv.lose}.`);
 
   // 6) All-time honours leader (lifetime titles).
   const goat = [...careerT.entries()].filter(([, t]) => t > 0).sort((a, b) => b[1] - a[1])[0];
