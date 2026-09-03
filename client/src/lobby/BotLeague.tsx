@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { apiGet } from '../api';
 import styles from './BotLeague.module.css';
 import TournamentLobby from '../tournament/TournamentLobby';
@@ -72,26 +72,21 @@ export default function BotLeague({ socket, user, onClose }: Props) {
     return () => clearInterval(t);
   }, []);
 
-  // Rotate 3 random headlines from the news pool every 7s. Keyed on the pool's
-  // content so it re-picks only when the news actually changes (not every 3s poll),
-  // which keeps the rotation steady instead of flickering.
+  // Pick 3 random headlines ONCE per open — the first time the news pool loads after
+  // this window is mounted. They stay fixed while it's open; closing and reopening the
+  // Bot League window remounts this component, which re-picks a fresh random 3.
   const newsKey = (data?.news ?? []).join('|');
+  const newsPickedRef = useRef(false);
   useEffect(() => {
+    if (newsPickedRef.current) return; // already chose this session's headlines
     const pool = newsKey ? newsKey.split('|') : [];
-    if (pool.length === 0) {
-      setNewsShown([]);
-      return;
-    }
-    const pick = () => {
-      const bag = [...pool];
-      const out: string[] = [];
-      const n = Math.min(3, bag.length);
-      while (out.length < n) out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
-      setNewsShown(out);
-    };
-    pick();
-    const id = setInterval(pick, 7000);
-    return () => clearInterval(id);
+    if (pool.length === 0) return; // wait for the first non-empty load
+    const bag = [...pool];
+    const out: string[] = [];
+    const n = Math.min(3, bag.length);
+    while (out.length < n) out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
+    setNewsShown(out);
+    newsPickedRef.current = true;
   }, [newsKey]);
 
   const load = useCallback(() => {
