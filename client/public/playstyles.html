@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Twelve minds — Hand Cricket playstyles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Karla:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ground:#DCE0E6;
+    --ink:#161A24;
+    --ink-2:#1E2431;
+    --chalk:#EEF1F5;
+    --muted:#8A93A3;
+    --rule:rgba(238,241,245,.14);
+    --pad:clamp(18px,4vw,40px);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--ground);
+    background-image:radial-gradient(120% 70% at 50% -10%, #EAEDF1 0%, rgba(234,237,241,0) 60%);
+    color:var(--ink);
+    font-family:Karla,"Helvetica Neue",Arial,sans-serif;
+    font-size:16px;line-height:1.55;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:var(--pad)}
+
+  /* ---------------- hero ---------------- */
+  .hero{
+    display:grid;grid-template-columns:minmax(0,1fr) 236px;
+    gap:clamp(24px,5vw,64px);align-items:end;
+    padding:clamp(28px,6vw,76px) 0 clamp(30px,5vw,54px);
+    border-bottom:2px solid var(--ink);
+  }
+  .mark{display:flex;align-items:center;gap:11px;margin:0 0 26px}
+  .mark svg{width:34px;height:34px;flex:none}
+  .mark span{font-family:Anton,Impact,sans-serif;font-size:17px;letter-spacing:.045em}
+  h1{
+    font-family:Anton,Impact,sans-serif;font-weight:400;
+    font-size:clamp(42px,8.2vw,100px);line-height:.92;letter-spacing:.005em;margin:0 0 18px;
+  }
+  h1 span{display:block}
+  .lede{margin:0;max-width:44ch;font-size:clamp(16px,1.6vw,19px);color:#3D4553}
+
+  .unknown{
+    position:relative;aspect-ratio:5/7;border-radius:14px;background:var(--ink);color:var(--chalk);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+    box-shadow:0 18px 34px -22px rgba(22,26,36,.9);overflow:hidden;
+  }
+  .unknown::after{content:"";position:absolute;inset:9px;border:1px solid var(--rule);border-radius:8px}
+  .unknown .qmark{font-family:Anton,Impact,sans-serif;font-size:62px;line-height:1;color:#3A4353}
+  .unknown b{font-family:Anton,Impact,sans-serif;font-weight:400;font-size:25px;line-height:1;min-height:25px;text-align:center;padding:0 10px}
+  .unknown small{font-size:12.5px;color:var(--muted)}
+
+  /* ---------------- grid ---------------- */
+  .set{display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:20px;padding:clamp(30px,5vw,56px) 0 0}
+
+  .card{
+    perspective:1500px;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;
+    text-align:left;cursor:pointer;height:472px;
+  }
+  .card:focus-visible{outline:3px solid var(--ink);outline-offset:5px;border-radius:16px}
+  .inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .58s cubic-bezier(.2,.75,.25,1)}
+  .card[aria-pressed="true"] .inner{transform:rotateY(180deg)}
+  .face{
+    position:absolute;inset:0;-webkit-backface-visibility:hidden;backface-visibility:hidden;
+    background:var(--ink);color:var(--chalk);border-radius:14px;padding:18px 20px 16px;
+    display:flex;flex-direction:column;box-shadow:0 16px 30px -22px rgba(22,26,36,.85);overflow:hidden;
+  }
+  .face::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--accent)}
+  .back{transform:rotateY(180deg);background:var(--ink-2)}
+
+  .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .setno{font-size:12px;color:var(--muted);letter-spacing:.04em;flex:none}
+  .epithet{font-size:13.5px;color:var(--accent);font-style:italic}
+  h2{font-family:Anton,Impact,sans-serif;font-weight:400;font-size:32px;line-height:1;letter-spacing:.012em;margin:2px 0 9px}
+  .blurb{margin:0;font-size:14px;line-height:1.5;color:#C6CDD8;max-width:32ch}
+
+  .stage{height:150px;margin:6px 0 4px;display:flex;align-items:center;justify-content:center}
+  .emblem{width:150px;height:150px;overflow:visible}
+
+  .fp{margin-top:auto;padding-top:14px}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:34px}
+  .bars i{flex:1;display:block;border-radius:2px 2px 0 0;background:var(--accent);opacity:.9}
+  .fpcap{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--rule);font-size:12px;color:var(--muted)}
+
+  .back h3{font-family:Anton,Impact,sans-serif;font-weight:400;font-size:15px;letter-spacing:.03em;margin:0 0 5px;color:var(--accent)}
+  .back p{margin:0 0 18px;font-size:14.5px;line-height:1.5;color:#C6CDD8}
+  .traits{margin-top:auto;padding-top:14px;border-top:1px solid var(--rule)}
+  .trait{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12.5px;color:var(--muted)}
+  .trait span{flex:none;width:62px}
+  .pips{display:flex;gap:4px}
+  .pips u{width:16px;height:5px;border-radius:1px;background:#333B4B;display:block}
+  .pips u.on{background:var(--accent)}
+  .backname{font-size:12px;color:var(--muted);letter-spacing:.04em;margin-top:12px}
+
+  footer{border-top:2px solid var(--ink);margin-top:clamp(38px,6vw,72px);padding:26px 0 22px;font-size:14.5px;color:#4A5261;max-width:56ch}
+
+  .cta{
+    display:inline-flex;align-items:center;gap:8px;margin:0 0 60px;
+    font-family:Anton,Impact,sans-serif;font-size:18px;letter-spacing:.03em;
+    background:var(--ink);color:var(--chalk);text-decoration:none;
+    padding:14px 26px;border-radius:10px;transition:transform .15s ease, box-shadow .15s ease;
+    box-shadow:0 12px 24px -16px rgba(22,26,36,.9);
+  }
+  .cta:hover{transform:translateY(-2px);box-shadow:0 16px 30px -16px rgba(22,26,36,.9)}
+
+  @media (max-width:760px){
+    .hero{grid-template-columns:1fr;align-items:start}
+    .unknown{max-width:206px}
+  }
+
+  /* ============ emblem motion ============ */
+  .emblem *{transform-box:fill-box;transform-origin:center;animation-play-state:paused}
+  .card[data-live="1"] .emblem *{animation-play-state:running}
+
+  /* Maestro — one unbroken stroke, drawn without effort */
+  .e-maestro .m-arc{stroke-dasharray:210;animation:m-draw 4.4s cubic-bezier(.4,0,.2,1) infinite}
+  .e-maestro .m-ball{transform-box:view-box;offset-path:path("M18 118C40 34 104 22 132 74");offset-rotate:0deg;animation:m-glide 4.4s cubic-bezier(.4,0,.2,1) infinite}
+  @keyframes m-draw{0%{stroke-dashoffset:210;opacity:1}48%{stroke-dashoffset:0;opacity:1}84%{opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+  @keyframes m-glide{0%{offset-distance:0%;opacity:0}8%{opacity:1}48%{offset-distance:100%}84%{offset-distance:100%;opacity:1}100%{offset-distance:100%;opacity:0}}
+
+  /* Trickster — shell game; the ball is never where you looked */
+  .e-trickster .t-ball{animation:t-swap 3.6s cubic-bezier(.7,0,.2,1) infinite}
+  .e-trickster .t-r1{animation:t-pop 3.6s ease-in-out infinite;animation-delay:-.15s}
+  .e-trickster .t-r2{animation:t-pop 3.6s ease-in-out infinite;animation-delay:.65s}
+  .e-trickster .t-r3{animation:t-pop 3.6s ease-in-out infinite;animation-delay:1.45s}
+  @keyframes t-swap{0%,10%{transform:translateX(0)}22%,32%{transform:translateX(46px)}44%,54%{transform:translateX(92px)}66%,76%{transform:translateX(46px)}88%,100%{transform:translateX(0)}}
+  @keyframes t-pop{0%,86%,100%{transform:scale(1);opacity:.5}92%{transform:scale(1.12);opacity:.9}}
+
+  /* Wall — the ball moves, the wall does not */
+  .e-wall .w-ball{animation:w-ball 2.9s cubic-bezier(.3,0,.5,1) infinite}
+  .e-wall .w-bricks{animation:w-shudder 2.9s linear infinite}
+  @keyframes w-ball{0%{transform:translateX(-24px)}36%{transform:translateX(46px) scaleX(1)}40%{transform:translateX(48px) scaleX(.62)}46%{transform:translateX(40px) scaleX(1)}100%{transform:translateX(-24px)}}
+  @keyframes w-shudder{0%,36%{transform:translateX(0)}39%{transform:translateX(2px)}44%{transform:translateX(0)}100%{transform:translateX(0)}}
+
+  /* Strategist — a plotted route, node by node */
+  .e-strategist .s-path{stroke-dasharray:230;animation:s-draw 4.6s ease-in-out infinite}
+  .e-strategist .s-n{animation:s-node 4.6s ease-out infinite;opacity:.2}
+  .e-strategist .s-n1{animation-delay:.1s}
+  .e-strategist .s-n2{animation-delay:.9s}
+  .e-strategist .s-n3{animation-delay:1.7s}
+  .e-strategist .s-n4{animation-delay:2.5s}
+  @keyframes s-draw{0%{stroke-dashoffset:230;opacity:1}62%,88%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+  @keyframes s-node{0%{opacity:.2;transform:scale(1)}6%{opacity:1;transform:scale(1.7)}14%,80%{opacity:1;transform:scale(1)}100%{opacity:.2;transform:scale(1)}}
+
+  /* Counter-Puncher — takes a small one, returns a big one */
+  .e-counter .cp-in{animation:cp-in 3.1s ease-in infinite}
+  .e-counter .cp-core{animation:cp-core 3.1s cubic-bezier(.3,1.6,.4,1) infinite}
+  .e-counter .cp-out{animation:cp-out 3.1s cubic-bezier(.2,.9,.3,1) infinite}
+  @keyframes cp-in{0%{transform:translateX(-26px);opacity:0}14%{opacity:.85}38%{transform:translateX(6px);opacity:0}100%{opacity:0}}
+  @keyframes cp-core{0%,36%{transform:scale(1)}46%{transform:scale(1.34)}64%,100%{transform:scale(1)}}
+  @keyframes cp-out{0%,44%{transform:translateX(-12px) scale(.55);opacity:0}54%{opacity:1}86%{transform:translateX(30px) scale(1.2);opacity:0}100%{opacity:0}}
+
+  /* Aggressor — swing first, think later */
+  .e-aggressor .a-bat{transform-box:view-box;transform-origin:75px 26px;animation:a-swing 2.2s cubic-bezier(.85,0,.2,1) infinite}
+  .e-aggressor .a-ring{animation:a-ring 2.2s ease-out infinite}
+  .e-aggressor .a-ring2{animation-delay:.09s}
+  @keyframes a-swing{0%,46%{transform:rotate(-56deg)}62%{transform:rotate(40deg)}74%{transform:rotate(32deg)}100%{transform:rotate(-56deg)}}
+  @keyframes a-ring{0%,54%{transform:scale(.25);opacity:0}60%{opacity:.75}92%,100%{transform:scale(1.75);opacity:0}}
+
+  /* Hunter — drifts, then snaps shut */
+  .e-hunter .h-cross{animation:h-drift 3.8s cubic-bezier(.25,0,.15,1) infinite}
+  .e-hunter .h-lock{animation:h-lock 3.8s cubic-bezier(.3,0,.1,1) infinite}
+  .e-hunter .h-prey{animation:h-prey 3.8s ease-out infinite}
+  @keyframes h-drift{0%{transform:translate(-20px,14px)}40%{transform:translate(16px,-11px)}58%,86%{transform:translate(0,0)}100%{transform:translate(-20px,14px)}}
+  @keyframes h-lock{0%,52%{transform:scale(1.4);opacity:.4}60%,86%{transform:scale(1);opacity:1}100%{transform:scale(1.4);opacity:.4}}
+  @keyframes h-prey{0%,54%{transform:scale(1);opacity:.45}62%{transform:scale(1.9);opacity:1}76%,100%{transform:scale(1);opacity:.45}}
+
+  /* Gambler — flip, and live with it */
+  .e-gambler .g-coin{transform-box:view-box;transform-origin:75px 75px;animation:g-flip 2.6s cubic-bezier(.5,0,.5,1) infinite}
+  .e-gambler .g-fa{animation:g-fa 2.6s steps(1) infinite}
+  .e-gambler .g-fb{animation:g-fb 2.6s steps(1) infinite}
+  @keyframes g-flip{0%{transform:scaleX(1)}22%{transform:scaleX(.04)}50%{transform:scaleX(1)}72%{transform:scaleX(.04)}100%{transform:scaleX(1)}}
+  @keyframes g-fa{0%,21%{opacity:1}22%,71%{opacity:0}72%,100%{opacity:1}}
+  @keyframes g-fb{0%,21%{opacity:0}22%,71%{opacity:1}72%,100%{opacity:0}}
+
+  /* Finisher — nothing, nothing, nothing, everything */
+  .e-finisher .f-fill{transform-box:view-box;transform-origin:75px 116px;animation:f-fill 4.2s linear infinite}
+  .e-finisher .f-burst{animation:f-burst 4.2s ease-out infinite}
+  @keyframes f-fill{0%{transform:scaleY(.05)}70%{transform:scaleY(.38)}82%{transform:scaleY(1)}96%{transform:scaleY(1)}100%{transform:scaleY(.05)}}
+  @keyframes f-burst{0%,80%{transform:scale(.25);opacity:0}85%{opacity:.85}98%,100%{transform:scale(1.85);opacity:0}}
+
+  /* All-Rounder — every facet, equally */
+  .e-allrounder .ar-sweep{transform-box:view-box;transform-origin:75px 75px;animation:ar-sweep 4s linear infinite}
+  .e-allrounder .ar-v{animation:ar-v 4s linear infinite;opacity:.28}
+  .e-allrounder .ar-v1{animation-delay:0s}
+  .e-allrounder .ar-v2{animation-delay:.667s}
+  .e-allrounder .ar-v3{animation-delay:1.333s}
+  .e-allrounder .ar-v4{animation-delay:2s}
+  .e-allrounder .ar-v5{animation-delay:2.667s}
+  .e-allrounder .ar-v6{animation-delay:3.333s}
+  @keyframes ar-sweep{to{transform:rotate(360deg)}}
+  @keyframes ar-v{0%{opacity:1;transform:scale(1.5)}18%,100%{opacity:.28;transform:scale(1)}}
+
+  /* Guardian — the wicket does not get touched */
+  .e-guardian .gd-ball{animation:gd-ball 3.4s cubic-bezier(.4,0,.5,1) infinite}
+  .e-guardian .gd-shield{animation:gd-shield 3.4s ease-out infinite}
+  @keyframes gd-ball{0%{transform:translate(-14px,-52px);opacity:0}12%{opacity:1}42%{transform:translate(0,-6px)}52%{transform:translate(-16px,-34px)}78%{transform:translate(-48px,-84px);opacity:0}100%{opacity:0}}
+  @keyframes gd-shield{0%,40%{opacity:.35;transform:scale(1)}47%{opacity:1;transform:scale(1.05)}62%,100%{opacity:.35;transform:scale(1)}}
+
+  /* Chaos — no pattern, and it isn't pretending */
+  .e-chaos circle{animation-timing-function:steps(1);animation-iteration-count:infinite}
+  .e-chaos .c1{animation-name:c-a;animation-duration:1.15s}
+  .e-chaos .c2{animation-name:c-b;animation-duration:.9s;animation-delay:-.3s}
+  .e-chaos .c3{animation-name:c-c;animation-duration:1.35s;animation-delay:-.7s}
+  .e-chaos .c4{animation-name:c-a;animation-duration:.78s;animation-delay:-.45s}
+  .e-chaos .c5{animation-name:c-b;animation-duration:1.5s;animation-delay:-.9s}
+  .e-chaos .c6{animation-name:c-c;animation-duration:.95s;animation-delay:-.15s}
+  .e-chaos .c7{animation-name:c-a;animation-duration:1.7s;animation-delay:-1.1s}
+  @keyframes c-a{0%{transform:translate(0,0)}20%{transform:translate(26px,-18px)}40%{transform:translate(-14px,20px)}60%{transform:translate(31px,12px)}80%{transform:translate(-23px,-26px)}100%{transform:translate(0,0)}}
+  @keyframes c-b{0%{transform:translate(0,0)}25%{transform:translate(-29px,9px)}50%{transform:translate(17px,27px)}75%{transform:translate(6px,-31px)}100%{transform:translate(0,0)}}
+  @keyframes c-c{0%{transform:translate(0,0)}16%{transform:translate(13px,25px)}33%{transform:translate(-27px,-7px)}50%{transform:translate(21px,-22px)}66%{transform:translate(-9px,16px)}83%{transform:translate(28px,4px)}100%{transform:translate(0,0)}}
+
+  @media (prefers-reduced-motion:reduce){
+    .inner{transition-duration:.001ms}
+    .emblem *{animation:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div>
+      <p class="mark">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <rect x="6" y="14" width="4.6" height="20" rx="2.3" fill="var(--ink)"/>
+          <rect x="13.6" y="8" width="4.6" height="26" rx="2.3" fill="var(--ink)"/>
+          <rect x="21.2" y="11" width="4.6" height="23" rx="2.3" fill="var(--ink)"/>
+          <circle cx="32" cy="12" r="5.4" fill="none" stroke="var(--ink)" stroke-width="2.6"/>
+        </svg>
+        <span>Hand Cricket</span>
+      </p>
+      <h1><span>Sixteen bots.</span><span>Twelve minds.</span><span>No name tags.</span></h1>
+      <p class="lede">Every AI opponent runs one of twelve hidden playstyles. The styles are public. The pairings are not. Learn to read one and you'll know who you're facing — usually a few balls after it stops mattering.</p>
+    </div>
+    <div class="unknown" aria-hidden="true">
+      <div class="qmark">?</div>
+      <b id="cycler">Chaos</b>
+      <small>now bowling</small>
+    </div>
+  </header>
+
+  <main class="set" id="set"></main>
+
+  <footer>
+    Fingerprints are typical shapes, not scripts — a style bends to the match situation, and two bots running the same style will still feel different. Argue about who's who.
+  </footer>
+
+  <a class="cta" href="/" target="_top">▶ Play Cric Flick</a>
+</div>
+
+<script>
+const A = 'stroke="var(--accent)"';
+
+const EMBLEM = {
+Maestro:`<svg class="emblem e-maestro" viewBox="0 0 150 150"><path class="m-arc" d="M18 118C40 34 104 22 132 74" fill="none" ${A} stroke-width="4" stroke-linecap="round"/><circle class="m-ball" r="7" fill="var(--accent)"/></svg>`,
+
+Trickster:`<svg class="emblem e-trickster" viewBox="0 0 150 150"><g fill="none" ${A} stroke-width="3"><circle class="t-r1" cx="29" cy="75" r="17"/><circle class="t-r2" cx="75" cy="75" r="17"/><circle class="t-r3" cx="121" cy="75" r="17"/></g><circle class="t-ball" cx="29" cy="75" r="7" fill="var(--accent)"/></svg>`,
+
+Wall:`<svg class="emblem e-wall" viewBox="0 0 150 150"><g class="w-bricks" fill="var(--accent)" opacity=".88"><rect x="84" y="34" width="30" height="15" rx="2"/><rect x="118" y="34" width="22" height="15" rx="2"/><rect x="84" y="53" width="20" height="15" rx="2"/><rect x="108" y="53" width="32" height="15" rx="2"/><rect x="84" y="72" width="32" height="15" rx="2"/><rect x="120" y="72" width="20" height="15" rx="2"/><rect x="84" y="91" width="22" height="15" rx="2"/><rect x="110" y="91" width="30" height="15" rx="2"/></g><circle class="w-ball" cx="34" cy="70" r="8" fill="var(--accent)"/></svg>`,
+
+Strategist:`<svg class="emblem e-strategist" viewBox="0 0 150 150"><g fill="var(--accent)" opacity=".16"><circle cx="22" cy="30" r="3"/><circle cx="57" cy="30" r="3"/><circle cx="93" cy="30" r="3"/><circle cx="128" cy="30" r="3"/><circle cx="22" cy="60" r="3"/><circle cx="57" cy="60" r="3"/><circle cx="93" cy="60" r="3"/><circle cx="128" cy="60" r="3"/><circle cx="22" cy="90" r="3"/><circle cx="57" cy="90" r="3"/><circle cx="93" cy="90" r="3"/><circle cx="128" cy="90" r="3"/><circle cx="22" cy="120" r="3"/><circle cx="57" cy="120" r="3"/><circle cx="93" cy="120" r="3"/><circle cx="128" cy="120" r="3"/></g><polyline class="s-path" points="22,120 57,90 93,96 128,30" fill="none" ${A} stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle class="s-n s-n1" cx="22" cy="120" r="5" fill="var(--accent)"/><circle class="s-n s-n2" cx="57" cy="90" r="5" fill="var(--accent)"/><circle class="s-n s-n3" cx="93" cy="96" r="5" fill="var(--accent)"/><circle class="s-n s-n4" cx="128" cy="30" r="5" fill="var(--accent)"/></svg>`,
+
+"Counter-Puncher":`<svg class="emblem e-counter" viewBox="0 0 150 150"><path class="cp-in" d="M16 75h26m-10-9 10 9-10 9" fill="none" ${A} stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle class="cp-core" cx="68" cy="75" r="16" fill="none" ${A} stroke-width="3.5"/><path class="cp-out" d="M92 75h36m-14-13 14 13-14 13" fill="none" ${A} stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+
+Aggressor:`<svg class="emblem e-aggressor" viewBox="0 0 150 150"><circle class="a-ring" cx="75" cy="75" r="42" fill="none" ${A} stroke-width="3"/><circle class="a-ring a-ring2" cx="75" cy="75" r="42" fill="none" ${A} stroke-width="2"/><g class="a-bat"><rect x="70" y="24" width="10" height="32" rx="5" fill="var(--accent)" opacity=".6"/><rect x="61" y="56" width="28" height="56" rx="8" fill="var(--accent)"/></g></svg>`,
+
+Hunter:`<svg class="emblem e-hunter" viewBox="0 0 150 150"><circle class="h-prey" cx="75" cy="75" r="6" fill="var(--accent)"/><g class="h-cross" fill="none" ${A} stroke-width="3" stroke-linecap="round"><circle class="h-lock" cx="75" cy="75" r="32"/><line x1="75" y1="24" x2="75" y2="38"/><line x1="75" y1="112" x2="75" y2="126"/><line x1="24" y1="75" x2="38" y2="75"/><line x1="112" y1="75" x2="126" y2="75"/></g></svg>`,
+
+Gambler:`<svg class="emblem e-gambler" viewBox="0 0 150 150"><g class="g-coin"><circle cx="75" cy="75" r="40" fill="none" ${A} stroke-width="3.5"/><g class="g-fa" fill="var(--accent)"><circle cx="61" cy="58" r="5"/><circle cx="89" cy="58" r="5"/><circle cx="61" cy="75" r="5"/><circle cx="89" cy="75" r="5"/><circle cx="61" cy="92" r="5"/><circle cx="89" cy="92" r="5"/></g><g class="g-fb" fill="var(--accent)"><circle cx="75" cy="75" r="8"/></g></g></svg>`,
+
+Finisher:`<svg class="emblem e-finisher" viewBox="0 0 150 150"><rect x="56" y="30" width="38" height="90" rx="8" fill="none" ${A} stroke-width="3" opacity=".4"/><rect class="f-fill" x="61" y="35" width="28" height="81" rx="5" fill="var(--accent)"/><circle class="f-burst" cx="75" cy="75" r="40" fill="none" ${A} stroke-width="3.5"/></svg>`,
+
+"All-Rounder":`<svg class="emblem e-allrounder" viewBox="0 0 150 150"><polygon points="75,27 117,51 117,99 75,123 33,99 33,51" fill="none" ${A} stroke-width="2" opacity=".35"/><line class="ar-sweep" x1="75" y1="75" x2="75" y2="30" ${A} stroke-width="3.5" stroke-linecap="round"/><g fill="var(--accent)"><circle class="ar-v ar-v1" cx="75" cy="27" r="5.5"/><circle class="ar-v ar-v2" cx="117" cy="51" r="5.5"/><circle class="ar-v ar-v3" cx="117" cy="99" r="5.5"/><circle class="ar-v ar-v4" cx="75" cy="123" r="5.5"/><circle class="ar-v ar-v5" cx="33" cy="99" r="5.5"/><circle class="ar-v ar-v6" cx="33" cy="51" r="5.5"/></g></svg>`,
+
+Guardian:`<svg class="emblem e-guardian" viewBox="0 0 150 150"><g ${A} stroke-width="4" stroke-linecap="round"><line x1="57" y1="76" x2="57" y2="124"/><line x1="75" y1="76" x2="75" y2="124"/><line x1="93" y1="76" x2="93" y2="124"/><line x1="52" y1="72" x2="98" y2="72" stroke-width="3.5"/></g><path class="gd-shield" d="M20 88a55 55 0 0 1 110 0" fill="none" ${A} stroke-width="3.5" stroke-linecap="round"/><circle class="gd-ball" cx="75" cy="88" r="7" fill="var(--accent)"/></svg>`,
+
+Chaos:`<svg class="emblem e-chaos" viewBox="0 0 150 150"><g fill="var(--accent)"><circle class="c1" cx="42" cy="52" r="6"/><circle class="c2" cx="96" cy="40" r="5"/><circle class="c3" cx="70" cy="78" r="7"/><circle class="c4" cx="112" cy="86" r="5.5"/><circle class="c5" cx="38" cy="104" r="6.5"/><circle class="c6" cx="86" cy="114" r="5"/><circle class="c7" cx="60" cy="34" r="4.5"/></g></svg>`
+};
+
+const STYLES = [
+  { name:"Maestro", epithet:"the artist", accent:"#E4C46A",
+    blurb:"Elegant and controlled. Makes batting look like it costs nothing.",
+    fp:[4,2,4,1,4,3],
+    scout:"Almost never plays the same number twice running, and punishes anything you throw twice.",
+    counter:"Repeat a number once to bait it, then break your own pattern immediately.",
+    traits:{Risk:2,Patience:4,Nerve:4} },
+
+  { name:"Trickster", epithet:"the mind-gamer", accent:"#A97BE0",
+    blurb:"Deception and misdirection. Never the obvious move, never quite the unobvious one either.",
+    fp:[5,1,6,2,5,1],
+    scout:"Mirrors your last number just often enough that you start second-guessing your own hand.",
+    counter:"Decide your number before it bowls and commit. It only wins the doubt game.",
+    traits:{Risk:3,Patience:4,Nerve:3} },
+
+  { name:"Wall", epithet:"immovable", accent:"#7F8CA3",
+    blurb:"Grinds you down. Every wicket costs a fortune and most of your patience.",
+    fp:[1,1,2,1,2,1],
+    scout:"Lives in ones and twos. Won't hand you a wicket, will happily hand you a long night.",
+    counter:"Camp on the low numbers. It rarely leaves them, so eventually it walks into you.",
+    traits:{Risk:1,Patience:5,Nerve:4} },
+
+  { name:"Strategist", epithet:"the planner", accent:"#5FA8D3",
+    blurb:"Calculated. Reads the situation, plays the percentages, changes gear on schedule.",
+    fp:[2,4,2,3,4,2],
+    scout:"Shifts by the required rate, not by mood. Its aggression is a function you can plot.",
+    counter:"Keep the equation flat. It's weakest when the maths says nothing needs doing.",
+    traits:{Risk:2,Patience:4,Nerve:5} },
+
+  { name:"Counter-Puncher", epithet:"feeds on pressure", accent:"#E08A5F",
+    blurb:"Soaks it up, then hits back. The harder you come at it, the faster it scores.",
+    fp:[1,2,1,6,6,4],
+    scout:"Absorbs three or four quiet balls, then answers your first big number with a bigger one.",
+    counter:"Bowl boring. Give it nothing to push against and it stalls.",
+    traits:{Risk:3,Patience:4,Nerve:5} },
+
+  { name:"Aggressor", epithet:"all-out attack", accent:"#E05252",
+    blurb:"Takes the game to you from ball one and never asks whether that was wise.",
+    fp:[6,4,6,6,2,6],
+    scout:"Barely plays below four. Scores in bursts and gets out to the same shot it scored with.",
+    counter:"Live in the low numbers and wait. It will run into one of them.",
+    traits:{Risk:5,Patience:1,Nerve:3} },
+
+  { name:"Hunter", epithet:"patient predator", accent:"#6FB98F",
+    blurb:"Waits for the loose ball. Nothing happens, nothing happens, then everything happens.",
+    fp:[2,1,2,1,6,6],
+    scout:"Sits on small numbers and tracks your habits. It's waiting for you to repeat yourself.",
+    counter:"Never repeat a number, even when it feels safe. Especially when it feels safe.",
+    traits:{Risk:3,Patience:5,Nerve:4} },
+
+  { name:"Gambler", epithet:"boom or bust", accent:"#E8639B",
+    blurb:"High risk, high reward, no middle. Wins matches in four overs or loses them in two.",
+    fp:[6,1,6,6,1,5],
+    scout:"Swings at everything from the start. Its innings is decided early, one way or the other.",
+    counter:"Just survive the first three balls. Most of its damage is front-loaded.",
+    traits:{Risk:5,Patience:1,Nerve:2} },
+
+  { name:"Finisher", epithet:"ice in the veins", accent:"#4FC3C0",
+    blurb:"Calm early, lethal at the death. Keeps wickets in the bank and spends them all at once.",
+    fp:[1,2,2,3,6,6],
+    scout:"Harmless for fifteen balls. Then it isn't, and the required rate stops meaning anything.",
+    counter:"Take it out early or don't take it at all. Nothing you do late will slow it down.",
+    traits:{Risk:3,Patience:4,Nerve:5} },
+
+  { name:"All-Rounder", epithet:"no weakness", accent:"#C9D16A",
+    blurb:"Balanced threat. Adapts to whatever you bring and gives up nothing for free.",
+    fp:[3,4,2,5,3,4],
+    scout:"No exploitable pattern, because there isn't a pattern — it borrows from all the others.",
+    counter:"Out-think it ball by ball. There's no formula here, only reading.",
+    traits:{Risk:3,Patience:3,Nerve:4} },
+
+  { name:"Guardian", epithet:"protects the wicket", accent:"#8FA5D9",
+    blurb:"Disciplined and unshakeable. Treats getting out as the only real mistake.",
+    fp:[2,3,2,2,3,2],
+    scout:"Actively avoids numbers you've used recently. Its safety is its tell.",
+    counter:"Recycle your last three numbers and it will step around them into the fourth.",
+    traits:{Risk:1,Patience:5,Nerve:5} },
+
+  { name:"Chaos", epithet:"total mayhem", accent:"#C77DFF",
+    blurb:"No pattern, no logic, no plan. It isn't reading you, which is exactly the problem.",
+    fp:[5,1,3,6,2,4],
+    scout:"Genuinely random. It has no memory of your last ball and no intention about the next.",
+    counter:"There's no counter. Bat well and score more than it does.",
+    traits:{Risk:4,Patience:2,Nerve:2},
+    rainbow:["#E4C46A","#E05252","#4FC3C0","#E8639B","#6FB98F","#5FA8D3"] }
+];
+
+const pips = n => Array.from({length:5},(_,i)=>`<u class="${i<n?'on':''}"></u>`).join("");
+
+document.getElementById("set").innerHTML = STYLES.map((s,idx) => {
+  const no = String(idx+1).padStart(2,"0");
+  const bars = s.fp.map((v,i)=>{
+    const c = s.rainbow ? `background:${s.rainbow[i]};` : "";
+    return `<i style="height:${(v/6*100).toFixed(1)}%;${c}"></i>`;
+  }).join("");
+  const traits = Object.entries(s.traits)
+    .map(([k,v])=>`<div class="trait"><span>${k}</span><div class="pips">${pips(v)}</div></div>`).join("");
+
+  return `
+  <button class="card" style="--accent:${s.accent}" aria-pressed="false" aria-label="${s.name}. Show scouting report.">
+    <div class="inner">
+      <div class="face front">
+        <div class="top"><div class="epithet">${s.epithet}</div><div class="setno">${no}/12</div></div>
+        <div class="stage">${EMBLEM[s.name]}</div>
+        <h2>${s.name}</h2>
+        <p class="blurb">${s.blurb}</p>
+        <div class="fp">
+          <div class="bars">${bars}</div>
+          <div class="fpcap"><span>a typical over</span><span>tap for scouting report</span></div>
+        </div>
+      </div>
+      <div class="face back">
+        <h3>How it plays</h3>
+        <p>${s.scout}</p>
+        <h3>How you beat it</h3>
+        <p>${s.counter}</p>
+        <div class="traits">${traits}</div>
+        <div class="backname">${s.name} &middot; ${no}/12</div>
+      </div>
+    </div>
+  </button>`;
+}).join("");
+
+document.getElementById("set").addEventListener("click", e => {
+  const card = e.target.closest(".card");
+  if(!card) return;
+  const on = card.getAttribute("aria-pressed") === "true";
+  card.setAttribute("aria-pressed", String(!on));
+  card.setAttribute("aria-label", `${card.querySelector("h2").textContent}. ${on?"Show scouting report.":"Show card front."}`);
+});
+
+/* only animate what's on screen */
+const io = new IntersectionObserver(es => es.forEach(en => {
+  en.target.dataset.live = en.isIntersecting ? "1" : "0";
+}), {rootMargin:"120px"});
+document.querySelectorAll(".card").forEach(c => io.observe(c));
+
+/* the unknown card settles, then hides itself again */
+(function(){
+  const el = document.getElementById("cycler");
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){ el.textContent = "unknown"; return; }
+  const names = STYLES.map(s=>s.name);
+  let i = 0, delay = 55;
+  (function tick(){
+    el.textContent = names[i++ % names.length];
+    delay *= 1.13;
+    if(delay < 420) setTimeout(tick, delay);
+    else setTimeout(()=>{ el.textContent = "unknown"; }, 520);
+  })();
+})();
+</script>
+</body>
+</html>
