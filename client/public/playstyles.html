@@ -9,19 +9,21 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Karla:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ground:#DCE0E6;
-    --ink:#161A24;
-    --ink-2:#1E2431;
-    --chalk:#EEF1F5;
-    --muted:#8A93A3;
-    --rule:rgba(238,241,245,.14);
+    --ground:#0f1117;      /* game menu background */
+    --panel:#1a1f2e;       /* card front  = game --surface  */
+    --panel-2:#242938;     /* card back   = game --surface2 */
+    --ink:#f1f5f9;         /* primary text on the dark ground */
+    --chalk:#f1f5f9;       /* card text */
+    --muted:#94a3b8;       /* game --muted */
+    --cta:#22c55e;         /* game accent (green) */
+    --rule:rgba(241,245,249,.12);
     --pad:clamp(18px,4vw,40px);
   }
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{
     margin:0;background:var(--ground);
-    background-image:radial-gradient(120% 70% at 50% -10%, #EAEDF1 0%, rgba(234,237,241,0) 60%);
+    background-image:radial-gradient(120% 75% at 50% -10%, #1b2233 0%, rgba(15,17,23,0) 60%);
     color:var(--ink);
     font-family:Karla,"Helvetica Neue",Arial,sans-serif;
     font-size:16px;line-height:1.55;
@@ -33,7 +35,7 @@
     display:grid;grid-template-columns:minmax(0,1fr) 236px;
     gap:clamp(24px,5vw,64px);align-items:end;
     padding:clamp(28px,6vw,76px) 0 clamp(30px,5vw,54px);
-    border-bottom:2px solid var(--ink);
+    border-bottom:2px solid rgba(241,245,249,.15);
   }
   .mark{display:flex;align-items:center;gap:11px;margin:0 0 26px}
   .mark svg{width:34px;height:34px;flex:none}
@@ -43,10 +45,10 @@
     font-size:clamp(42px,8.2vw,100px);line-height:.92;letter-spacing:.005em;margin:0 0 18px;
   }
   h1 span{display:block}
-  .lede{margin:0;max-width:44ch;font-size:clamp(16px,1.6vw,19px);color:#3D4553}
+  .lede{margin:0;max-width:44ch;font-size:clamp(16px,1.6vw,19px);color:#c3ccd9}
 
   .unknown{
-    position:relative;aspect-ratio:5/7;border-radius:14px;background:var(--ink);color:var(--chalk);
+    position:relative;aspect-ratio:5/7;border-radius:14px;background:var(--panel);color:var(--chalk);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
     box-shadow:0 18px 34px -22px rgba(22,26,36,.9);overflow:hidden;
   }
@@ -56,22 +58,23 @@
   .unknown small{font-size:12.5px;color:var(--muted)}
 
   /* ---------------- grid ---------------- */
-  .set{display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:20px;padding:clamp(30px,5vw,56px) 0 0}
+  .set{display:grid;grid-template-columns:repeat(auto-fill,minmax(256px,1fr));gap:18px;padding:clamp(30px,5vw,56px) 0 0}
 
   .card{
     perspective:1500px;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;
-    text-align:left;cursor:pointer;height:472px;
+    text-align:left;cursor:pointer;height:438px;
   }
   .card:focus-visible{outline:3px solid var(--ink);outline-offset:5px;border-radius:16px}
   .inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .58s cubic-bezier(.2,.75,.25,1)}
   .card[aria-pressed="true"] .inner{transform:rotateY(180deg)}
   .face{
     position:absolute;inset:0;-webkit-backface-visibility:hidden;backface-visibility:hidden;
-    background:var(--ink);color:var(--chalk);border-radius:14px;padding:18px 20px 16px;
-    display:flex;flex-direction:column;box-shadow:0 16px 30px -22px rgba(22,26,36,.85);overflow:hidden;
+    background:var(--panel);color:var(--chalk);border-radius:14px;padding:18px 20px 16px;
+    border:1px solid rgba(241,245,249,.06);
+    display:flex;flex-direction:column;box-shadow:0 16px 34px -20px rgba(0,0,0,.7);overflow:hidden;
   }
   .face::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--accent)}
-  .back{transform:rotateY(180deg);background:var(--ink-2)}
+  .back{transform:rotateY(180deg);background:var(--panel-2)}
 
   .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
   .setno{font-size:12px;color:var(--muted);letter-spacing:.04em;flex:none}
@@ -79,8 +82,8 @@
   h2{font-family:Anton,Impact,sans-serif;font-weight:400;font-size:32px;line-height:1;letter-spacing:.012em;margin:2px 0 9px}
   .blurb{margin:0;font-size:14px;line-height:1.5;color:#C6CDD8;max-width:32ch}
 
-  .stage{height:150px;margin:6px 0 4px;display:flex;align-items:center;justify-content:center}
-  .emblem{width:150px;height:150px;overflow:visible}
+  .stage{height:130px;margin:6px 0 4px;display:flex;align-items:center;justify-content:center}
+  .emblem{width:130px;height:130px;overflow:visible}
 
   .fp{margin-top:auto;padding-top:14px}
   .bars{display:flex;align-items:flex-end;gap:6px;height:34px}
@@ -97,20 +100,51 @@
   .pips u.on{background:var(--accent)}
   .backname{font-size:12px;color:var(--muted);letter-spacing:.04em;margin-top:12px}
 
-  footer{border-top:2px solid var(--ink);margin-top:clamp(38px,6vw,72px);padding:26px 0 22px;font-size:14.5px;color:#4A5261;max-width:56ch}
+  footer{border-top:2px solid rgba(241,245,249,.15);margin-top:clamp(38px,6vw,72px);padding:26px 0 22px;font-size:14.5px;color:var(--muted);max-width:56ch}
 
   .cta{
     display:inline-flex;align-items:center;gap:8px;margin:0 0 60px;
     font-family:Anton,Impact,sans-serif;font-size:18px;letter-spacing:.03em;
-    background:var(--ink);color:var(--chalk);text-decoration:none;
+    background:var(--cta);color:#07130c;text-decoration:none;
     padding:14px 26px;border-radius:10px;transition:transform .15s ease, box-shadow .15s ease;
-    box-shadow:0 12px 24px -16px rgba(22,26,36,.9);
+    box-shadow:0 12px 26px -14px rgba(34,197,94,.55);
   }
-  .cta:hover{transform:translateY(-2px);box-shadow:0 16px 30px -16px rgba(22,26,36,.9)}
+  .cta:hover{transform:translateY(-2px);box-shadow:0 16px 32px -14px rgba(34,197,94,.7)}
 
   @media (max-width:760px){
     .hero{grid-template-columns:1fr;align-items:start}
     .unknown{max-width:206px}
+  }
+
+  /* Phones: three compact cards per row so you can scan the set at a glance. */
+  @media (max-width:600px){
+    .hero{padding:22px 0 24px}
+    h1{font-size:clamp(32px,11vw,46px)}
+    .set{grid-template-columns:repeat(3,1fr);gap:8px;padding-top:22px}
+    .card{height:258px}
+    .face{padding:9px 9px 8px;border-radius:11px}
+    .face::before{width:4px}
+    .top{gap:5px}
+    .epithet{font-size:8.5px}
+    .setno{font-size:8.5px}
+    h2{font-size:14px;margin:2px 0 5px;letter-spacing:0}
+    .blurb{font-size:9px;line-height:1.32;max-width:none;
+      display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+    .stage{height:54px;margin:2px 0}
+    .emblem{width:54px;height:54px}
+    .fp{padding-top:6px}
+    .bars{height:15px;gap:3px}
+    .fpcap{font-size:7.5px;margin-top:5px;padding-top:5px}
+    .fpcap span:last-child{display:none}
+    .back{padding:9px 9px 8px;overflow-y:auto}
+    .back h3{font-size:10px;margin:0 0 3px}
+    .back p{font-size:9.5px;line-height:1.34;margin:0 0 8px}
+    .traits{margin-top:8px;padding-top:8px}
+    .trait{font-size:9px;gap:6px;margin-top:5px}
+    .trait span{width:38px}
+    .pips{gap:3px}
+    .pips u{width:11px;height:4px}
+    .backname{font-size:8.5px;margin-top:7px}
   }
 
   /* ============ emblem motion ============ */

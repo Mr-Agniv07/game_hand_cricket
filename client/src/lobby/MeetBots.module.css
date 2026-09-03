@@ -16,7 +16,7 @@
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: var(--shadow);
-  background: #dce0e6; /* matches the page's ground so there's no flash while it loads */
+  background: #0f1117; /* matches the page's dark ground so there's no flash while it loads */
 }
 
 .frame {
