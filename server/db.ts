@@ -1764,19 +1764,20 @@ export function generateBotNews(): string[] {
         : `🎯 ${wLead.leaders.slice(0, 2).join(' & ')} lead career wins with ${plural(wLead.value, 'win')} each.`
     );
 
-  // 10) Latest decisive meeting between two bots (from head-to-head).
-  let recentMeet: { line: string } | null = null;
+  // 10) A one-sided head-to-head (per format): one bot still winless against another.
+  // Pick the most lopsided (loser has 0 wins; winner has a clear pile of ≥4).
+  let hoodoo: { loser: string; winner: string; fmt: number; total: number; wins: number } | null = null;
   for (const h of botH2H.values()) {
-    if (!h.lastWinner) continue;
-    const loser = h.lastWinner === h.nameA ? h.nameB : h.nameA;
-    const how =
-      h.lastMargin == null
-        ? 'in a Super Over'
-        : `by ${plural(h.lastMargin, h.lastByWickets ? 'wicket' : 'run')}`;
-    recentMeet = { line: `🤝 Last meeting: ${h.lastWinner} beat ${loser} ${how} (${h.format}-over).` };
-    break; // first available; the pool is shuffled client-side anyway
+    const total = h.aWins + h.bWins + h.ties;
+    if (h.bWins === 0 && h.aWins >= 4 && (!hoodoo || h.aWins > hoodoo.wins))
+      hoodoo = { loser: h.nameB, winner: h.nameA, fmt: h.format, total, wins: h.aWins };
+    else if (h.aWins === 0 && h.bWins >= 4 && (!hoodoo || h.bWins > hoodoo.wins))
+      hoodoo = { loser: h.nameA, winner: h.nameB, fmt: h.format, total, wins: h.bWins };
   }
-  if (recentMeet) news.push(recentMeet.line);
+  if (hoodoo)
+    news.push(
+      `🚫 ${hoodoo.loser} are yet to beat ${hoodoo.winner} in the ${hoodoo.fmt}-over (winless in ${plural(hoodoo.total, 'meeting')}).`
+    );
 
   if (news.length === 0)
     news.push('📰 The Bot League is warming up — headlines appear as titles are decided.');
