@@ -1737,14 +1737,20 @@ export function generateBotNews(): string[] {
   }
   if (bf) news.push(`🏏 ${bf.name} win ${bf.pct}% of their ${bf.fmt}-over games batting first.`);
 
-  // 8) Top-rated bot per format (rating is season-scoped; only once games are played).
+  // 8) Per-format season trophy leaders (by margin over the chasing pack).
   for (const fmt of [5, 10] as const) {
-    let tr: { name: string; rating: number } | null = null;
-    for (const r of botRankings.values()) {
-      if (r.format !== fmt || r.played === 0) continue;
-      if (!tr || r.rating > tr.rating) tr = { name: r.botName, rating: Math.round(r.rating) };
+    const fmtT: Array<[string, number]> = [];
+    for (const r of botRankings.values()) if (r.format === fmt && r.trophies > 0) fmtT.push([r.botName, r.trophies]);
+    fmtT.sort((a, b) => b[1] - a[1]);
+    if (!fmtT.length) continue;
+    const top = fmtT[0][1];
+    const tiedTop = fmtT.filter(([, t]) => t === top).map(([n]) => n);
+    if (tiedTop.length > 1)
+      news.push(`🏅 Season ${seasonNo} ${fmt}-over: ${tiedTop.slice(0, 2).join(' & ')} tied on ${plural(top, 'trophy', 'trophies')}.`);
+    else {
+      const margin = top - (fmtT[1]?.[1] ?? 0);
+      news.push(`🏅 Season ${seasonNo} ${fmt}-over: ${fmtT[0][0]} lead by ${plural(margin, 'trophy', 'trophies')}.`);
     }
-    if (tr) news.push(`⚡ Season ${seasonNo} ${fmt}-over ratings led by ${tr.name} (${tr.rating}).`);
   }
 
   // 9) Most career wins (lifetime, tie-aware).
