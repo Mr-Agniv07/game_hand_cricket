@@ -8,7 +8,8 @@
 
 import type { BotStory } from '@cric/types';
 
-const MODEL = 'gemini-3.6-flash'; // current free Flash model (2.0-flash was retired)
+// `-latest` so a version retirement (as happened to 2.0-flash) never 404s us again.
+const MODEL = 'gemini-flash-latest';
 const endpoint = (key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
 
@@ -30,7 +31,14 @@ async function callGemini(system: string, user: string, maxTokens: number): Prom
       body: JSON.stringify({
         system_instruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: user }] }],
-        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.9 },
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          temperature: 0.9,
+          // Disable "thinking" — this is a short writing task, and on Gemini 3.x flash
+          // thinking is on by default and would eat the whole token budget, leaving no
+          // output text (a silent empty response).
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     });
     if (!res.ok) {
@@ -38,10 +46,16 @@ async function callGemini(system: string, user: string, maxTokens: number): Prom
       return null;
     }
     const data = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
+      candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
     };
-    const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
-    return text.trim() || null;
+    const cand = data.candidates?.[0];
+    const text = cand?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+    if (!text.trim()) {
+      // 200 but no usable text — log the reason so this isn't silent again.
+      console.error(`[gemini] empty response (finishReason=${cand?.finishReason ?? '?'}): ${JSON.stringify(data).slice(0, 300)}`);
+      return null;
+    }
+    return text.trim();
   } catch (err) {
     console.error('[gemini] request failed:', (err as Error)?.message ?? err);
     return null;
@@ -59,7 +73,7 @@ Output only those two parts and the ### separator, no preamble.`;
 export function genPundit(tournamentId: string, dataText: string): void {
   if (!process.env.GEMINI_API_KEY || stories.get(tournamentId)?.pundit) return;
   void (async () => {
-    const text = await callGemini(PUNDIT_SYSTEM, dataText, 120);
+    const text = await callGemini(PUNDIT_SYSTEM, dataText, 200);
     if (text) stories.set(tournamentId, { ...stories.get(tournamentId), pundit: text });
   })();
 }
@@ -68,7 +82,7 @@ export function genPundit(tournamentId: string, dataText: string): void {
 export function genRecapPotm(tournamentId: string, dataText: string): void {
   if (!process.env.GEMINI_API_KEY || stories.get(tournamentId)?.recap) return;
   void (async () => {
-    const text = await callGemini(RECAP_SYSTEM, dataText, 260);
+    const text = await callGemini(RECAP_SYSTEM, dataText, 512);
     if (!text) return;
     const [recap, potm] = text.split(/^\s*###\s*$/m);
     stories.set(tournamentId, {
