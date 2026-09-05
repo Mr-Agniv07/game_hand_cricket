@@ -8,12 +8,13 @@
 
 import type { BotStory } from '@cric/types';
 
-// gemini-flash-lite-latest: the "-latest" alias never 404s when Google retires a
-// version (2.0-flash and 2.5-flash-lite both got retired on us), and "lite" carries
-// the higher free-tier rate/daily limits — plenty for these short lines. Token caps
-// are ≥200 so output completes even if the underlying 3.x model still "thinks"; the
-// throttle below and the finishReason guard keep us rate-safe and truncation-safe.
-const MODEL = 'gemini-flash-lite-latest';
+// gemini-2.5-flash: the model proven to work cleanly here — no 404, no 400, honours
+// thinkingConfig (so no truncation) and returns full sentences. The lite variants got
+// either retired (2.5-flash-lite → 404) or rejected the request (flash-lite-latest →
+// 400). Rate limits are handled by the serial throttle below (the 429 was a per-minute
+// burst, not the model), so 2.5-flash + throttle is the stable choice. If it's ever
+// retired, the 404 logging will flag it.
+const MODEL = 'gemini-2.5-flash';
 const endpoint = (key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
 
