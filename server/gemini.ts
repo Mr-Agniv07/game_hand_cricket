@@ -31,7 +31,7 @@ export function getMatchPreview(tournamentId: string, matchIndex: number): strin
   return previews.get(tournamentId)?.get(matchIndex) || null;
 }
 
-const PREVIEW_SYSTEM = `You are a punchy cricket pundit for "Cric Flick", a hand-cricket league of named bots. Write ONE short hype line (under 18 words) for the upcoming match described. Ground it in the data (head-to-head, stage); never invent facts, never mention any bot's playing style. Output only the line — no preamble, no quotes.`;
+const PREVIEW_SYSTEM = `You are a punchy cricket pundit for "Cric Flick", a hand-cricket league of named bots. Write ONE short hype line (under 20 words) for the upcoming match, driven by WHAT'S HAPPENING IN THIS TOURNAMENT — current standings/form, momentum, and what's at stake — using the all-time head-to-head only as extra spice. Ground every fact in the data; never invent anything, never mention any bot's playing style. Output only the line — no preamble, no quotes.`;
 
 /** Pre-generate the hype line for one match (one-shot per tournament+match). */
 export function genMatchPreview(tournamentId: string, matchIndex: number, dataText: string): void {

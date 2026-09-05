@@ -41,6 +41,7 @@ import {
   getBotHeadToHead,
   getBotBatFirst,
   getBotNewsContext,
+  getBotSeasonInfo,
   COIN_REWARDS,
   LEAGUE_BID,
 } from '../db.ts';
@@ -321,6 +322,7 @@ function setupSemis(io: GameServer, t: Tournament): void {
     stage: 'semi',
     label: 'Semi Final 2',
   });
+  previewNewFixtures(t, base);
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
@@ -328,6 +330,7 @@ function setupSemis(io: GameServer, t: Tournament): void {
  *  broadcast. player1 is the higher seed, so a tied quarter is awarded to them. */
 function pushQuarters(io: GameServer, t: Tournament, pairs: [number, number, string][]): void {
   t.quartersCreated = true;
+  const start = t.fixtures.length;
   for (const [p1, p2, label] of pairs)
     t.fixtures.push({
       matchNum: t.fixtures.length + 1,
@@ -341,6 +344,7 @@ function pushQuarters(io: GameServer, t: Tournament, pairs: [number, number, str
       stage: 'quarter',
       label,
     });
+  previewNewFixtures(t, start);
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
@@ -397,6 +401,7 @@ function setupSuper8(io: GameServer, t: Tournament): void {
   const labels = ['E', 'F'] as const;
   const pairsPer = [singleRoundRobin(groupE), singleRoundRobin(groupF)];
   const maxLen = Math.max(0, ...pairsPer.map((p) => p.length));
+  const base = t.fixtures.length;
   for (let i = 0; i < maxLen; i++)
     for (let g = 0; g < 2; g++) {
       const pr = pairsPer[g][i];
@@ -414,6 +419,7 @@ function setupSuper8(io: GameServer, t: Tournament): void {
         group: labels[g],
       });
     }
+  previewNewFixtures(t, base);
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
@@ -450,6 +456,7 @@ function setupSemisFromSuper8(io: GameServer, t: Tournament): void {
     stage: 'semi',
     label: 'Semi Final 2',
   });
+  previewNewFixtures(t, base);
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
@@ -543,6 +550,7 @@ function setupSuperSemis(io: GameServer, t: Tournament): void {
     stage: 'semi',
     label: 'Semi Final 2',
   });
+  previewNewFixtures(t, base);
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
@@ -564,8 +572,9 @@ function setupFinal(io: GameServer, t: Tournament): void {
     // 4-player: the top two of the single group.
     [p1, p2] = rankedPlayerIndices(t);
   }
+  const base = t.fixtures.length;
   t.fixtures.push({
-    matchNum: t.fixtures.length + 1,
+    matchNum: base + 1,
     player1Idx: p1,
     player2Idx: p2,
     status: 'upcoming',
@@ -577,6 +586,7 @@ function setupFinal(io: GameServer, t: Tournament): void {
     stage: 'final',
     label: 'Final',
   });
+  previewNewFixtures(t, base);
   io.to('t:' + t.id).emit('tournament_state', publicTournamentState(t));
 }
 
@@ -1751,18 +1761,58 @@ function ensureMatchPreview(t: Tournament, index: number): void {
   const p2 = t.players[fx.player2Idx];
   if (!p1 || !p2) return;
   const fmt = t.format ?? t.overs;
+
+  const stageLabel =
+    fx.stage === 'final' ? 'the Final'
+      : fx.stage === 'semi' ? 'a Semi-final'
+        : fx.stage === 'quarter' ? 'a Quarter-final'
+          : fx.stage === 'super8' ? 'a Super 8 match'
+            : 'a group-stage match';
+  const stakes =
+    fx.stage === 'final' ? 'The title is on the line.'
+      : fx.stage === 'semi' || fx.stage === 'quarter' ? "It's win or go home."
+        : fx.stage === 'super8' ? 'Top 2 of the Super 8 group reach the semis.'
+          : 'The top teams of each group advance to the knockouts.';
+  const done = t.fixtures.filter((f) => f.status === 'done').length;
+
+  // Each bot's record IN THIS tournament, plus a compact leaderboard so the writer
+  // can reference who's flying, who's struggling, and what a result would mean.
+  const rec = (p: { id: string; name: string }) => {
+    const e = t.pointsTable[p.id];
+    return `${p.name}: ${e?.won ?? 0}-${e?.lost ?? 0} so far this tournament (${e?.points ?? 0} pts)`;
+  };
+  const board = t.players
+    .map((p) => ({
+      name: p.name,
+      pts: t.pointsTable[p.id]?.points ?? 0,
+      won: t.pointsTable[p.id]?.won ?? 0,
+      lost: t.pointsTable[p.id]?.lost ?? 0,
+    }))
+    .sort((a, b) => b.pts - a.pts)
+    .slice(0, 6)
+    .map((x) => `${x.name} ${x.won}-${x.lost}`)
+    .join(', ');
+
   const h = getBotHeadToHead(p1.name, p2.name, fmt);
-  const stage =
-    fx.stage === 'final' ? 'Final'
-      : fx.stage === 'semi' ? 'Semi-final'
-        : fx.stage === 'quarter' ? 'Quarter-final'
-          : fx.stage === 'super8' ? 'Super 8 match'
-            : 'group match';
   const h2h =
     h.played > 0
-      ? `Head-to-head (${fmt}-over): ${p1.name} ${h.xWins}-${h.yWins} ${p2.name}${h.ties ? `, ${h.ties} tied` : ''} across ${h.played} meetings.`
+      ? `All-time head-to-head (${fmt}-over): ${p1.name} ${h.xWins}-${h.yWins} ${p2.name}${h.ties ? `, ${h.ties} tied` : ''}.`
       : `${p1.name} and ${p2.name} have never met in the ${fmt}-over format.`;
-  genMatchPreview(t.id, index, `Upcoming ${stage}: ${p1.name} vs ${p2.name}.\n${h2h}`);
+
+  const data =
+    `Live ${t.isSuperLeague ? 'Super League' : `${fmt}-over`} bot tournament, Season ${getBotSeasonInfo().number} — ${stageLabel}, match ${done + 1} of ${t.fixtures.length}. ${stakes}\n` +
+    `Upcoming: ${p1.name} vs ${p2.name}.\n` +
+    `${rec(p1)}. ${rec(p2)}.\n` +
+    `Tournament form so far (top of the table): ${board}.\n` +
+    h2h;
+  genMatchPreview(t.id, index, data);
+}
+
+/** Pre-generate previews for fixtures added from index `from` onward (bot leagues only)
+ *  — used at each knockout-setup point so knockout hype lines are ready before play. */
+function previewNewFixtures(t: Tournament, from: number): void {
+  if (!t.isBotLeague) return;
+  for (let i = from; i < t.fixtures.length; i++) ensureMatchPreview(t, i);
 }
 
 /** Story for a LIVE league: the tournament story (pundit) plus the current match's preview. */
