@@ -1784,6 +1784,99 @@ export function generateBotNews(): string[] {
   return news.slice(0, 12);
 }
 
+/**
+ * A compact, factual DATA SNAPSHOT of the league (not headlines) for the AI news
+ * writer to work from. It gives the model raw material — recent results, standings,
+ * rivalries, streaks — so it can pick its own angles and write freely, while every
+ * hard fact it might cite is present and true here. Contains NO bot personalities.
+ */
+export function getBotNewsContext(): string {
+  const L: string[] = [];
+  const isSuper = (t: BotTournamentSummary) =>
+    t.name.startsWith('Bot Super League') || t.state?.size === 16;
+  const seasonNo = currentSeason?.number ?? 1;
+
+  L.push('League: "Cric Flick" — 16 named bots. Formats: 5-over, 10-over, and a 16-bot Super League. Each season resets all standings.');
+  L.push(
+    `Current season: ${seasonNo}. Titles decided so far — 5-over ${currentSeason?.leagues5 ?? 0}/${SEASON_CAPS.five}, 10-over ${currentSeason?.leagues10 ?? 0}/${SEASON_CAPS.ten}, Super League ${currentSeason?.leaguesSuper ?? 0}/${SEASON_CAPS.super}.`
+  );
+
+  const recent = botTournaments.slice(0, 6);
+  if (recent.length) {
+    L.push('Recent results (newest first):');
+    for (const t of recent) {
+      const label = isSuper(t) ? 'Super League' : `${t.format}-over`;
+      L.push(`- Season ${t.season} ${label}: ${t.champion} won${t.runnerUp ? `, beating ${t.runnerUp} in the final` : ''}.`);
+    }
+  }
+
+  const champOf = (pick: (t: BotTournamentSummary) => boolean) => botTournaments.find(pick)?.champion ?? null;
+  L.push(
+    `Reigning champions — 5-over: ${champOf((t) => t.format === 5 && !isSuper(t)) ?? 'none yet'}; 10-over: ${champOf((t) => t.format === 10 && !isSuper(t)) ?? 'none yet'}; Super League: ${champOf(isSuper) ?? 'none yet'}.`
+  );
+
+  const seasonT = new Map<string, number>();
+  const careerT = new Map<string, number>();
+  const careerW = new Map<string, number>();
+  for (const r of botRankings.values()) {
+    seasonT.set(r.botName, (seasonT.get(r.botName) ?? 0) + r.trophies);
+    careerT.set(r.botName, (careerT.get(r.botName) ?? 0) + r.careerTrophies);
+    careerW.set(r.botName, (careerW.get(r.botName) ?? 0) + r.careerWins);
+  }
+  const topList = (m: Map<string, number>, n: number) =>
+    [...m.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, n).map(([name, v]) => `${name} ${v}`).join(', ');
+  const st = topList(seasonT, 6); if (st) L.push(`Season ${seasonNo} title counts: ${st}.`);
+  const ct = topList(careerT, 6); if (ct) L.push(`All-time title counts: ${ct}.`);
+  const cw = topList(careerW, 5); if (cw) L.push(`All-time match wins: ${cw}.`);
+
+  for (const s of pastSeasons.slice(0, 2))
+    if (s.champion) L.push(`Season ${s.number} champion: ${s.champion}${s.championTrophies != null ? ` (${s.championTrophies} titles that season)` : ''}.`);
+
+  // Head-to-head combined across both formats.
+  const rivalry = new Map<string, { a: string; b: string; aw: number; bw: number; ties: number }>();
+  for (const h of botH2H.values()) {
+    const e = rivalry.get(h.pair) ?? { a: h.nameA, b: h.nameB, aw: 0, bw: 0, ties: 0 };
+    e.aw += h.aWins; e.bw += h.bWins; e.ties += h.ties;
+    rivalry.set(h.pair, e);
+  }
+  const rivs = [...rivalry.values()]
+    .map((e) => ({ ...e, total: e.aw + e.bw + e.ties }))
+    .filter((e) => e.total >= 4)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+  if (rivs.length) {
+    L.push('Head-to-head (all-time, both formats):');
+    for (const e of rivs) {
+      if (e.aw === 0 && e.bw >= 4) L.push(`- ${e.a} has never beaten ${e.b} (0-${e.bw} in ${e.total} meetings).`);
+      else if (e.bw === 0 && e.aw >= 4) L.push(`- ${e.b} has never beaten ${e.a} (0-${e.aw} in ${e.total} meetings).`);
+      else L.push(`- ${e.a} ${e.aw}-${e.bw} ${e.b}${e.ties ? ` (${e.ties} tied)` : ''}.`);
+    }
+  }
+
+  const buckets: Array<[string, (t: BotTournamentSummary) => boolean]> = [
+    ['5-over', (t) => t.format === 5 && !isSuper(t)],
+    ['10-over', (t) => t.format === 10 && !isSuper(t)],
+    ['Super League', isSuper],
+  ];
+  for (const [label, pick] of buckets) {
+    const seq = botTournaments.filter(pick);
+    if (seq.length >= 2 && seq[0].champion) {
+      let k = 1;
+      while (k < seq.length && seq[k].champion === seq[0].champion) k++;
+      if (k >= 2) L.push(`Streak: ${seq[0].champion} has won the last ${k} ${label} titles in a row.`);
+    }
+  }
+
+  const bf = [...botRankings.values()]
+    .filter((r) => r.batFirst >= 6)
+    .map((r) => ({ name: r.botName, fmt: r.format, pct: Math.round((r.batFirstWins / r.batFirst) * 100) }))
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 3);
+  if (bf.length) L.push(`Batting-first win rate: ${bf.map((x) => `${x.name} ${x.pct}% (${x.fmt}-over)`).join(', ')}.`);
+
+  return L.join('\n');
+}
+
 /** Whether another title league of this category may start (its season cap isn't hit
  *  yet). Qualifiers don't count toward a season, so callers shouldn't gate them. */
 export function canStartLeague(category: LeagueCategory): boolean {

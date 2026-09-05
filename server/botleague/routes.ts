@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { getBotRankings, getBotTournaments, getBotSeasonInfo, generateBotNews } from '../db.ts';
+import {
+  getBotRankings,
+  getBotTournaments,
+  getBotSeasonInfo,
+  generateBotNews,
+  getBotNewsContext,
+} from '../db.ts';
 import { maybeRefreshLlmNews, getLlmNews } from '../news.ts';
 import { activeBotLeagues, recentBotLeagues } from '../tournament/handlers.ts';
 import { verifyTokenGetUserId } from '../auth/auth.ts';
@@ -15,14 +21,14 @@ export const botLeagueRouter = Router();
 botLeagueRouter.get('/api/bot-league', (req: Request, res: Response) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   const userId = token ? verifyTokenGetUserId(token) : null;
-  const news = generateBotNews();
+  const news = generateBotNews(); // deterministic, always-accurate — the fallback
   const history = getBotTournaments();
   const season = getBotSeasonInfo();
-  // Refresh the LLM flavour ONLY when a new tournament (or season) lands. The coarse
-  // key = the latest tournament's name + finish time + season number, which changes
-  // exactly on a completed tournament — not on every poll or intermediate match.
+  // Feed the AI the raw league DATA (not the headlines) so it writes freely. Refresh
+  // ONLY when a new tournament (or season) lands — the coarse key = latest tournament's
+  // name + finish time + season number, which changes exactly on a completed tournament.
   const latest = history[0];
-  maybeRefreshLlmNews(news, `${latest?.name ?? ''}|${latest?.finishedAt ?? ''}|${season.number}`);
+  maybeRefreshLlmNews(getBotNewsContext(), `${latest?.name ?? ''}|${latest?.finishedAt ?? ''}|${season.number}`);
   const data: BotLeagueData = {
     rankings: { 5: getBotRankings(5), 10: getBotRankings(10) },
     active: activeBotLeagues(userId),
