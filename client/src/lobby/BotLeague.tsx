@@ -318,6 +318,15 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                 </div>
               )}
 
+              {/* 📊 AI Pundit's Take — placed ABOVE the bidding card / bot list so it's
+                  seen immediately, not buried under the bot buttons. */}
+              {liveForFormat?.story?.pundit && (
+                <div className={styles.aiBox}>
+                  <div className={styles.aiTag}>📊 Pundit&apos;s Take</div>
+                  <p className={styles.aiText}>{liveForFormat.story.pundit}</p>
+                </div>
+              )}
+
               {liveForFormat &&
                 (liveForFormat.state.phase === 'waiting' ? (
                   <>
@@ -346,14 +355,6 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                     />
                   </>
                 ))}
-
-              {/* 📊 AI Pundit's take — a bold prediction for the live/bidding league. */}
-              {liveForFormat?.story?.pundit && (
-                <div className={styles.aiBox}>
-                  <div className={styles.aiTag}>📊 Pundit&apos;s Take</div>
-                  <p className={styles.aiText}>{liveForFormat.story.pundit}</p>
-                </div>
-              )}
 
               {!liveForFormat && recentForFormat && championName(recentForFormat) && (
                 <>
