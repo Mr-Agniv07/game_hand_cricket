@@ -8,11 +8,11 @@
 
 import type { BotStory } from '@cric/types';
 
-// gemini-2.5-flash reliably honours thinkingBudget:0 (fully disables thinking). The
-// 3.x "-latest" model kept thinking despite budget 0, which truncated short outputs
-// (e.g. a 100-token preview came back as just "Rob"). 2.5-flash is available and
-// supports generateContent; if it's ever retired the empty/404 logging will catch it.
-const MODEL = 'gemini-2.5-flash';
+// gemini-2.5-flash-lite: same free tier as 2.5-flash but with HIGHER rate/daily limits
+// — these are short text tasks, so "lite" is plenty — and it honours thinkingBudget:0.
+// Combined with the serial throttle below, this keeps us comfortably inside the free
+// tier. (The 3.x "-latest" model ignored thinkingBudget:0 and truncated short outputs.)
+const MODEL = 'gemini-2.5-flash-lite';
 const endpoint = (key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
 
@@ -50,10 +50,27 @@ export function genMatchPreview(tournamentId: string, matchIndex: number, dataTe
   })();
 }
 
-/** Low-level Gemini call; returns the text, or null on no-key / error. */
+// Serialize all Gemini calls with a minimum gap, so a burst (e.g. a knockout round
+// locking = several previews at once) can't exceed the free-tier per-minute limit.
+const MIN_GAP_MS = 5000; // ~12 requests/min, safely under the free-tier cap
+let lastCallAt = 0;
+let gate: Promise<unknown> = Promise.resolve();
+
+/** Low-level Gemini call (throttled); returns the text, or null on no-key / error. */
 async function callGemini(system: string, user: string, maxTokens: number): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
+  const run = gate.then(async (): Promise<string | null> => {
+    const wait = MIN_GAP_MS - (Date.now() - lastCallAt);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastCallAt = Date.now();
+    return doCall(key, system, user, maxTokens);
+  });
+  gate = run.catch(() => {}); // keep the queue alive if one call rejects
+  return run;
+}
+
+async function doCall(key: string, system: string, user: string, maxTokens: number): Promise<string | null> {
   try {
     const res = await fetch(endpoint(key), {
       method: 'POST',
