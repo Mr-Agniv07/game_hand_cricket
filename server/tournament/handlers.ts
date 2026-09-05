@@ -40,10 +40,12 @@ import {
   getEconomy,
   getBotHeadToHead,
   getBotBatFirst,
+  getBotNewsContext,
   COIN_REWARDS,
   LEAGUE_BID,
 } from '../db.ts';
-import type { UserAchievements } from '@cric/types';
+import { genPundit, genRecapPotm, getBotStory } from '../gemini.ts';
+import type { UserAchievements, BotStory } from '@cric/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1592,6 +1594,18 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
         standings,
         state: publicTournamentState(tournament),
       });
+
+      // Recap + Player of the Tournament (free Gemini), grounded in the final result.
+      const potmName = tournament.awards?.playerOfTournament?.name;
+      const standingsText = standings.map((s, i) => `${i + 1}. ${s.name} (${s.won}W-${s.lost}L)`).join('; ');
+      genRecapPotm(
+        tournament.id,
+        `A ${tournament.isSuperLeague ? 'Super League' : `${tournament.format}-over league`} just finished.\n` +
+          `Champion: ${champ.name}${runnerUp ? `, beating ${runnerUp} in the final` : ''}.\n` +
+          `Final standings: ${standingsText}.` +
+          (potmName ? `\nStandout by the numbers: ${potmName}.` : '') +
+          `\n\nLeague background:\n${getBotNewsContext()}`
+      );
     }
 
     // Count this title league toward the current season; roll the season over
@@ -1973,6 +1987,13 @@ export function startBotLeague(
   };
   tournaments.set(tournament.code, tournament);
   generateFixture(tournament); // teams + groups known up front, so spectators can bid
+  // Pundit's take (free Gemini): the field is set, so preview it during the bidding
+  // window — ready by the time spectators look. Grounded in real league data.
+  const punditLabel = superLeague ? 'Super League (16 bots)' : `${fmt}-over league (12 bots)`;
+  genPundit(
+    tournament.id,
+    `A new ${punditLabel} is about to begin.\nField: ${tournament.players.map((p) => p.name).join(', ')}.\n\nLeague background:\n${getBotNewsContext()}`
+  );
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
   // After the bidding window, kick the matches off.
@@ -2043,6 +2064,8 @@ type ActiveBotLeague = {
   /** Coins it costs to back a bot in THIS league, and the prize if it wins. */
   bidStake: number;
   bidPrize: number;
+  /** AI pundit take / recap / player-of-the-tournament, when generated. */
+  story: BotStory | null;
 };
 
 /** The champion-bid stake/prize for a league (the Super League is the premium tier). */
@@ -2064,6 +2087,7 @@ export function activeBotLeagues(userId?: string | null): ActiveBotLeague[] {
         bidsCloseAt: t.bidsCloseAt ?? null,
         bidStake: tier.stake,
         bidPrize: tier.prize,
+        story: getBotStory(t.id),
       });
     }
   return out;
@@ -2104,11 +2128,16 @@ export function placeBotLeagueBid(
  * reaped after a grace window). Lets the client show the final standings and the
  * champion's name after a league ends, instead of it vanishing instantly.
  */
-export function recentBotLeagues(): { id: string; format: number; state: TournamentState }[] {
-  const out: { id: string; format: number; state: TournamentState }[] = [];
+export function recentBotLeagues(): {
+  id: string;
+  format: number;
+  state: TournamentState;
+  story: BotStory | null;
+}[] {
+  const out: { id: string; format: number; state: TournamentState; story: BotStory | null }[] = [];
   for (const t of tournaments.values())
     if (t.isBotLeague && t.phase === 'complete')
-      out.push({ id: t.id, format: t.format ?? t.overs, state: publicTournamentState(t) });
+      out.push({ id: t.id, format: t.format ?? t.overs, state: publicTournamentState(t), story: getBotStory(t.id) });
   return out;
 }
 

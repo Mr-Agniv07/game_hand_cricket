@@ -220,6 +220,17 @@ export interface BotSeasonInfo {
 }
 
 /** Lightweight summary of an in-progress bot-league tournament, for spectating. */
+/** AI (Gemini) "commentary" attached to a bot tournament — optional flavour that
+ *  falls back gracefully to nothing if no key is set or generation hasn't run. */
+export interface BotStory {
+  /** A bold pundit's prediction, written when the league's field is set. */
+  pundit?: string | null;
+  /** A short story-style recap, written when the tournament finishes. */
+  recap?: string | null;
+  /** A "Player of the Tournament" narrative, written when it finishes. */
+  potm?: string | null;
+}
+
 export interface BotLeagueActive {
   id: string;
   format: number;
@@ -232,6 +243,8 @@ export interface BotLeagueActive {
   bidStake?: number;
   /** Coins won if the backed bot is champion. */
   bidPrize?: number;
+  /** AI-written pundit take / recap / player-of-the-tournament, when available. */
+  story?: BotStory | null;
 }
 
 /** One bot's group-stage line in a finished tournament's standings snapshot. */

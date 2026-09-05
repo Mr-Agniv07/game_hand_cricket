@@ -347,19 +347,39 @@ export default function BotLeague({ socket, user, onClose }: Props) {
                   </>
                 ))}
 
-              {!liveForFormat && recentForFormat && championName(recentForFormat) && (
-                <div className={styles.champ}>
-                  <span>
-                    🏆 <strong>{championName(recentForFormat)}</strong> won the latest{' '}
-                    {recentForFormat.state.size === 16 ? 'Super League' : `${format}-over league`}
-                  </span>
-                  <button
-                    className={styles.viewBtn}
-                    onClick={() => setWatchingId(recentForFormat.id)}
-                  >
-                    View result
-                  </button>
+              {/* 📊 AI Pundit's take — a bold prediction for the live/bidding league. */}
+              {liveForFormat?.story?.pundit && (
+                <div className={styles.aiBox}>
+                  <div className={styles.aiTag}>📊 Pundit&apos;s Take</div>
+                  <p className={styles.aiText}>{liveForFormat.story.pundit}</p>
                 </div>
+              )}
+
+              {!liveForFormat && recentForFormat && championName(recentForFormat) && (
+                <>
+                  <div className={styles.champ}>
+                    <span>
+                      🏆 <strong>{championName(recentForFormat)}</strong> won the latest{' '}
+                      {recentForFormat.state.size === 16 ? 'Super League' : `${format}-over league`}
+                    </span>
+                    <button
+                      className={styles.viewBtn}
+                      onClick={() => setWatchingId(recentForFormat.id)}
+                    >
+                      View result
+                    </button>
+                  </div>
+                  {/* 📰 AI recap + 🎬 Player of the Tournament for the just-finished league. */}
+                  {recentForFormat.story?.recap && (
+                    <div className={styles.aiBox}>
+                      <div className={styles.aiTag}>📰 Recap</div>
+                      <p className={styles.aiText}>{recentForFormat.story.recap}</p>
+                      {recentForFormat.story.potm && (
+                        <p className={styles.aiPotm}>🎬 {recentForFormat.story.potm}</p>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
 
               <div className={styles.rankHead}>
