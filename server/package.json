@@ -18,6 +18,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
     "@cric/types": "workspace:*",
     "@prisma/client": "^6.19.3",
     "cors": "^2.8.6",
