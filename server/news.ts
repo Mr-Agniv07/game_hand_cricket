@@ -15,7 +15,6 @@ import Anthropic from '@anthropic-ai/sdk';
 // Cheapest model, chosen deliberately so the credit lasts effectively forever.
 const MODEL = 'claude-haiku-4-5';
 const MAX_TOKENS = 400;
-const MIN_INTERVAL_MS = 2 * 60 * 1000; // never call more than once per 2 minutes
 
 const SYSTEM = `You are the sports-desk writer for "Cric Flick", a hand-cricket league played by named bots.
 You are given a list of TRUE facts, one per line, each already starting with an emoji.
@@ -35,9 +34,8 @@ function getClient(): Anthropic | null {
 }
 
 let llmNews: string[] | null = null; // last successful rewrite (served to all viewers)
-let lastFactsKey = ''; // the facts snapshot the current/attempted rewrite was for
+let lastChangeKey = ''; // the "new tournament/season" key the current rewrite was for
 let inFlight = false; // a rewrite is currently running
-let lastCallAt = 0; // rate-limit floor timestamp
 
 /** The cached LLM-rewritten headlines, or null if none yet (caller falls back). */
 export function getLlmNews(): string[] | null {
@@ -45,19 +43,16 @@ export function getLlmNews(): string[] | null {
 }
 
 /**
- * Trigger a rewrite IF the facts changed since the last attempt (and a key exists,
- * nothing is in flight, and the 2-minute floor has passed). Safe to call on every
- * request — it's a cheap no-op unless the facts genuinely changed.
+ * Trigger a rewrite ONLY when `changeKey` differs from the last one — i.e. when a new
+ * tournament (or season) has landed, NOT on every poll or intermediate match. Safe to
+ * call on every request: it's a cheap no-op unless the key changed. So the API is hit
+ * roughly once per completed tournament (plus once after a restart to rebuild the cache).
  */
-export function maybeRefreshLlmNews(facts: string[]): void {
+export function maybeRefreshLlmNews(facts: string[], changeKey: string): void {
   const c = getClient();
   if (!c) return;
-  const key = facts.join('|');
-  if (key === lastFactsKey || inFlight) return; // already handled / in progress
-  if (Date.now() - lastCallAt < MIN_INTERVAL_MS) return; // floor
-  // Claim this attempt synchronously so concurrent requests can't double-fire.
-  lastFactsKey = key;
-  lastCallAt = Date.now();
+  if (changeKey === lastChangeKey || inFlight) return; // nothing newsworthy / already running
+  lastChangeKey = changeKey; // claim synchronously so concurrent requests can't double-fire
   inFlight = true;
   void rewrite(c, facts);
 }
@@ -83,8 +78,8 @@ async function rewrite(c: Anthropic, facts: string[]): Promise<void> {
       `[news] Haiku rewrite ok — in=${resp.usage.input_tokens} out=${resp.usage.output_tokens} lines=${lines.length}`
     );
   } catch (err) {
-    // Leave llmNews as-is (deterministic fallback covers the gap). lastFactsKey stays
-    // set to this attempt so a failure doesn't retry-loop; the next real facts change
+    // Leave llmNews as-is (deterministic fallback covers the gap). lastChangeKey stays
+    // set to this attempt so a failure doesn't retry-loop; the next completed tournament
     // (or a server restart) tries again.
     console.error('[news] Haiku rewrite failed — using deterministic headlines:', (err as Error)?.message ?? err);
   } finally {

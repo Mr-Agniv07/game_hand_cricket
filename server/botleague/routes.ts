@@ -15,19 +15,23 @@ export const botLeagueRouter = Router();
 botLeagueRouter.get('/api/bot-league', (req: Request, res: Response) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   const userId = token ? verifyTokenGetUserId(token) : null;
-  // Compute the accurate facts, then (cheaply) trigger an LLM rewrite only if they
-  // changed since last time — this call is a no-op on the vast majority of polls.
   const news = generateBotNews();
-  maybeRefreshLlmNews(news);
+  const history = getBotTournaments();
+  const season = getBotSeasonInfo();
+  // Refresh the LLM flavour ONLY when a new tournament (or season) lands. The coarse
+  // key = the latest tournament's name + finish time + season number, which changes
+  // exactly on a completed tournament — not on every poll or intermediate match.
+  const latest = history[0];
+  maybeRefreshLlmNews(news, `${latest?.name ?? ''}|${latest?.finishedAt ?? ''}|${season.number}`);
   const data: BotLeagueData = {
     rankings: { 5: getBotRankings(5), 10: getBotRankings(10) },
     active: activeBotLeagues(userId),
     recent: recentBotLeagues(),
-    history: getBotTournaments(),
-    season: getBotSeasonInfo(),
-    // Deterministic, always-accurate facts. If a Claude key is configured, an LLM
-    // rewrite (refreshed only when the facts change) replaces them with flavour;
-    // otherwise the facts themselves are served.
+    history,
+    season,
+    // Deterministic, always-accurate facts. If a Claude key is configured, the cached
+    // LLM rewrite (refreshed only when a tournament finishes) replaces them with
+    // flavour; otherwise the facts themselves are served.
     news: getLlmNews() ?? news,
   };
   res.json(data);
