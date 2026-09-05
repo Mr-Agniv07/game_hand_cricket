@@ -229,6 +229,8 @@ export interface BotStory {
   recap?: string | null;
   /** A "Player of the Tournament" narrative, written when it finishes. */
   potm?: string | null;
+  /** A hype line for the CURRENT match of a live league (pre-generated per match). */
+  preview?: string | null;
 }
 
 export interface BotLeagueActive {

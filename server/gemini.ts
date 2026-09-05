@@ -14,10 +14,37 @@ const endpoint = (key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
 
 const stories = new Map<string, BotStory>();
+// Per-tournament match previews, keyed by matchIndex. Pre-generated a match ahead so
+// they're ready before the (fast) bot matches play.
+const previews = new Map<string, Map<number, string>>();
 
 /** The cached AI story for a tournament (pundit/recap/potm), or null. */
 export function getBotStory(tournamentId: string): BotStory | null {
   return stories.get(tournamentId) ?? null;
+}
+
+/** The cached hype line for a specific match, or null (empty = still generating). */
+export function getMatchPreview(tournamentId: string, matchIndex: number): string | null {
+  return previews.get(tournamentId)?.get(matchIndex) || null;
+}
+
+const PREVIEW_SYSTEM = `You are a punchy cricket pundit for "Cric Flick", a hand-cricket league of named bots. Write ONE short hype line (under 18 words) for the upcoming match described. Ground it in the data (head-to-head, stage); never invent facts, never mention any bot's playing style. Output only the line — no preamble, no quotes.`;
+
+/** Pre-generate the hype line for one match (one-shot per tournament+match). */
+export function genMatchPreview(tournamentId: string, matchIndex: number, dataText: string): void {
+  if (!process.env.GEMINI_API_KEY) return;
+  let m = previews.get(tournamentId);
+  if (m?.has(matchIndex)) return; // already generated or in flight
+  if (!m) {
+    m = new Map();
+    previews.set(tournamentId, m);
+  }
+  m.set(matchIndex, ''); // reserve (empty) so concurrent calls don't double-fire
+  void (async () => {
+    const text = await callGemini(PREVIEW_SYSTEM, dataText, 100);
+    if (text) m.set(matchIndex, text);
+    else m.delete(matchIndex); // failed — allow a later retry
+  })();
 }
 
 /** Low-level Gemini call; returns the text, or null on no-key / error. */

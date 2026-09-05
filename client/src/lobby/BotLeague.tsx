@@ -483,6 +483,12 @@ export default function BotLeague({ socket, user, onClose }: Props) {
               </button>
             </div>
             <div className={styles.specBody}>
+              {watching?.story?.preview && (
+                <div className={styles.aiBox}>
+                  <div className={styles.aiTag}>🔮 Match Preview</div>
+                  <p className={styles.aiText}>{watching.story.preview}</p>
+                </div>
+              )}
               <TournamentLobby
                 tournamentState={watchState}
                 myId={null}
@@ -789,6 +795,7 @@ function LiveCard({ active, onWatch }: { active: BotLeagueActive; onWatch: () =>
           {done} of {total} matches played…
         </div>
       )}
+      {active.story?.preview && <div className={styles.livePreview}>🔮 {active.story.preview}</div>}
       <button className={styles.watchBtn} onClick={onWatch}>
         ▶ Watch Live
       </button>

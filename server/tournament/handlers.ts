@@ -44,7 +44,7 @@ import {
   COIN_REWARDS,
   LEAGUE_BID,
 } from '../db.ts';
-import { genPundit, genRecapPotm, getBotStory } from '../gemini.ts';
+import { genPundit, genRecapPotm, getBotStory, genMatchPreview, getMatchPreview } from '../gemini.ts';
 import type { UserAchievements, BotStory } from '@cric/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1742,6 +1742,37 @@ const MATCH_START_POLL_MS = 1500;
 const playerSocket = (io: GameServer, p: TournamentPlayerEntry) =>
   isBot(p) ? undefined : io.sockets.sockets.get(p.id);
 
+/** Pre-generate the AI hype line for a fixture, grounded in the pair's head-to-head.
+ *  One-shot per (tournament, match); cheap no-op if already done or no key. */
+function ensureMatchPreview(t: Tournament, index: number): void {
+  const fx = t.fixtures[index];
+  if (!fx || fx.status === 'done') return;
+  const p1 = t.players[fx.player1Idx];
+  const p2 = t.players[fx.player2Idx];
+  if (!p1 || !p2) return;
+  const fmt = t.format ?? t.overs;
+  const h = getBotHeadToHead(p1.name, p2.name, fmt);
+  const stage =
+    fx.stage === 'final' ? 'Final'
+      : fx.stage === 'semi' ? 'Semi-final'
+        : fx.stage === 'quarter' ? 'Quarter-final'
+          : fx.stage === 'super8' ? 'Super 8 match'
+            : 'group match';
+  const h2h =
+    h.played > 0
+      ? `Head-to-head (${fmt}-over): ${p1.name} ${h.xWins}-${h.yWins} ${p2.name}${h.ties ? `, ${h.ties} tied` : ''} across ${h.played} meetings.`
+      : `${p1.name} and ${p2.name} have never met in the ${fmt}-over format.`;
+  genMatchPreview(t.id, index, `Upcoming ${stage}: ${p1.name} vs ${p2.name}.\n${h2h}`);
+}
+
+/** Story for a LIVE league: the tournament story (pundit) plus the current match's preview. */
+function buildActiveStory(tid: string, matchIndex: number): BotStory | null {
+  const s = getBotStory(tid);
+  const preview = getMatchPreview(tid, matchIndex);
+  if (!s && !preview) return null;
+  return { ...(s ?? {}), preview };
+}
+
 export function startTournamentMatch(
   io: GameServer,
   rooms: Map<string, Room>,
@@ -1754,6 +1785,12 @@ export function startTournamentMatch(
   }
 
   tournament.currentMatchIndex = matchIndex;
+  // Preview the current match (fallback) and the next one (look-ahead) so a hype line
+  // is ready before each fast bot match is watched.
+  if (tournament.isBotLeague) {
+    ensureMatchPreview(tournament, matchIndex);
+    ensureMatchPreview(tournament, matchIndex + 1);
+  }
   const fixture = tournament.fixtures[matchIndex];
   fixture.status = 'live';
   // Let the lobby reflect that this fixture is up while we wait for both players.
@@ -1994,6 +2031,7 @@ export function startBotLeague(
     tournament.id,
     `A new ${punditLabel} is about to begin.\nField: ${tournament.players.map((p) => p.name).join(', ')}.\n\nLeague background:\n${getBotNewsContext()}`
   );
+  ensureMatchPreview(tournament, 0); // first match's hype line, ready during the bidding window
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
   // After the bidding window, kick the matches off.
@@ -2087,7 +2125,7 @@ export function activeBotLeagues(userId?: string | null): ActiveBotLeague[] {
         bidsCloseAt: t.bidsCloseAt ?? null,
         bidStake: tier.stake,
         bidPrize: tier.prize,
-        story: getBotStory(t.id),
+        story: buildActiveStory(t.id, t.currentMatchIndex),
       });
     }
   return out;

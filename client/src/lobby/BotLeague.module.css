@@ -114,6 +114,13 @@
   color: var(--text);
   margin: 0;
 }
+.livePreview {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #93c5fd;
+  font-style: italic;
+}
 .aiPotm {
   font-size: 0.82rem;
   line-height: 1.4;
