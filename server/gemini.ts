@@ -8,8 +8,11 @@
 
 import type { BotStory } from '@cric/types';
 
-// `-latest` so a version retirement (as happened to 2.0-flash) never 404s us again.
-const MODEL = 'gemini-flash-latest';
+// gemini-2.5-flash reliably honours thinkingBudget:0 (fully disables thinking). The
+// 3.x "-latest" model kept thinking despite budget 0, which truncated short outputs
+// (e.g. a 100-token preview came back as just "Rob"). 2.5-flash is available and
+// supports generateContent; if it's ever retired the empty/404 logging will catch it.
+const MODEL = 'gemini-2.5-flash';
 const endpoint = (key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
 
@@ -41,7 +44,7 @@ export function genMatchPreview(tournamentId: string, matchIndex: number, dataTe
   }
   m.set(matchIndex, ''); // reserve (empty) so concurrent calls don't double-fire
   void (async () => {
-    const text = await callGemini(PREVIEW_SYSTEM, dataText, 100);
+    const text = await callGemini(PREVIEW_SYSTEM, dataText, 200);
     if (text) m.set(matchIndex, text);
     else m.delete(matchIndex); // failed — allow a later retry
   })();
@@ -77,9 +80,14 @@ async function callGemini(system: string, user: string, maxTokens: number): Prom
     };
     const cand = data.candidates?.[0];
     const text = cand?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+    // Only accept a fully-completed response. Anything else (MAX_TOKENS truncation,
+    // SAFETY block, …) is dropped rather than shown as a half-finished sentence.
+    if (cand?.finishReason && cand.finishReason !== 'STOP') {
+      console.error(`[gemini] dropped (finishReason=${cand.finishReason}) — incomplete response`);
+      return null;
+    }
     if (!text.trim()) {
-      // 200 but no usable text — log the reason so this isn't silent again.
-      console.error(`[gemini] empty response (finishReason=${cand?.finishReason ?? '?'}): ${JSON.stringify(data).slice(0, 300)}`);
+      console.error(`[gemini] empty response: ${JSON.stringify(data).slice(0, 300)}`);
       return null;
     }
     return text.trim();
