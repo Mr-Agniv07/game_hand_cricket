@@ -8,11 +8,12 @@
 
 import type { BotStory } from '@cric/types';
 
-// gemini-2.5-flash-lite: same free tier as 2.5-flash but with HIGHER rate/daily limits
-// — these are short text tasks, so "lite" is plenty — and it honours thinkingBudget:0.
-// Combined with the serial throttle below, this keeps us comfortably inside the free
-// tier. (The 3.x "-latest" model ignored thinkingBudget:0 and truncated short outputs.)
-const MODEL = 'gemini-2.5-flash-lite';
+// gemini-flash-lite-latest: the "-latest" alias never 404s when Google retires a
+// version (2.0-flash and 2.5-flash-lite both got retired on us), and "lite" carries
+// the higher free-tier rate/daily limits — plenty for these short lines. Token caps
+// are ≥200 so output completes even if the underlying 3.x model still "thinks"; the
+// throttle below and the finishReason guard keep us rate-safe and truncation-safe.
+const MODEL = 'gemini-flash-lite-latest';
 const endpoint = (key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
 
