@@ -40,6 +40,7 @@ import {
   getEconomy,
   getBotHeadToHead,
   getBotBatFirst,
+  getReigningChampion,
   getBotNewsContext,
   getBotSeasonInfo,
   COIN_REWARDS,
@@ -1381,9 +1382,17 @@ function computeLiveInsightsFresh(
     );
   }
 
+  // Defending-champion spotlight: if the reigning champion of THIS competition is
+  // playing this match, flag it — adds stakes to even an ordinary group game. (The
+  // live tournament isn't recorded yet, so this is genuinely the previous edition.)
+  const champLines: string[] = [];
+  const reigning = getReigningChampion(t.format ?? t.overs, !!t.superFormat || t.size === 16);
+  if (reigning && (p1.name === reigning || p2.name === reigning))
+    champLines.push(`🏆 Defending champion ${reigning} in action.`);
+
   // H2H context (last meeting + batting-first) sits right under the head-to-head,
   // before the qualification/margin lines.
-  const allLines = [...h2hLines, ...lines];
+  const allLines = [...champLines, ...h2hLines, ...lines];
   if (!headToHead && allLines.length === 0) return null;
   return { headToHead, lines: allLines };
 }

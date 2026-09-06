@@ -22,6 +22,8 @@ Below is the CURRENT, TRUE state of the league as raw data. Write 8-10 short, en
 
 HARD RULES (non-negotiable):
 - Every FACTUAL claim — bot names, numbers, scores, results, records, standings — must come straight from the data below. NEVER invent or change a name, number, or result. If it's not in the data, don't state it as fact.
+- TITLE NEWS = the CURRENT champions only (the "latest title in each competition" block). Report those as the fresh results. NEVER write a headline saying an older/previous winner just won — once a newer champion is crowned, the old one is history, not news. Only the listed current champions have "just won".
+- Good angles to use: the current champions; who leads this season; title DROUGHTS (a bot yet to win this season, and especially one still chasing its first-ever career title); rivalries and one-sided head-to-heads; streaks; career milestones. Prefer these over restating old results.
 - Opinion and flavour are welcome ("the pressure is mounting", "a stunning collapse", "can anyone stop them?") — but never dress up an invented fact as real.
 - If the data is thin, write fewer items rather than padding with made-up ones.
 - Never mention, guess, or hint at any bot's playing style or "personality" — only results and stats.

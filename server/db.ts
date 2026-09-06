@@ -1504,6 +1504,16 @@ export function getBotTournaments(format?: number): BotTournamentSummary[] {
   return format ? botTournaments.filter((t) => t.format === format) : botTournaments;
 }
 
+/** The current DEFENDING champion of a competition — the champion of the most recent
+ *  COMPLETED edition of the same category (any Super League variant is one competition).
+ *  The live tournament isn't recorded until it finishes, so this is always the prior
+ *  edition. Returns null if this competition has no completed edition yet. */
+export function getReigningChampion(format: number, isSuper: boolean): string | null {
+  const superOf = (t: BotTournamentSummary) => t.name.startsWith('Bot Super League') || t.state?.size === 16;
+  const prev = botTournaments.find((t) => (isSuper ? superOf(t) : t.format === format && !superOf(t)));
+  return prev?.champion ?? null;
+}
+
 /** Ranked standings for a format: every roster bot, highest rating first. */
 export function getBotRankings(format: number): BotRankingEntry[] {
   const rows = [...botRankings.values()].filter((r) => r.format === format);
@@ -1864,19 +1874,23 @@ export function getBotNewsContext(): string {
     `Current season: ${seasonNo}. Titles decided so far — 5-over ${currentSeason?.leagues5 ?? 0}/${SEASON_CAPS.five}, 10-over ${currentSeason?.leagues10 ?? 0}/${SEASON_CAPS.ten}, Super League ${currentSeason?.leaguesSuper ?? 0}/${SEASON_CAPS.super}.`
   );
 
-  const recent = botTournaments.slice(0, 6);
-  if (recent.length) {
-    L.push('Recent results (newest first):');
-    for (const t of recent) {
-      const label = isSuper(t) ? 'Super League' : `${t.format}-over`;
-      L.push(`- Season ${t.season} ${label}: ${t.champion} won${t.runnerUp ? `, beating ${t.runnerUp} in the final` : ''}.`);
-    }
+  // Only the SINGLE most recent title in each competition counts as fresh news — older
+  // editions are historical and must NOT be reported as if they just happened (that was
+  // the bug: an old Super League winner kept resurfacing after a newer one was crowned).
+  const comps: Array<[string, (t: BotTournamentSummary) => boolean]> = [
+    ['5-over', (t) => t.format === 5 && !isSuper(t)],
+    ['10-over', (t) => t.format === 10 && !isSuper(t)],
+    ['Super League', isSuper],
+  ];
+  L.push('CURRENT champions — the latest title in each competition (these are the ONLY fresh title results; do NOT report older editions as news):');
+  for (const [label, pick] of comps) {
+    const t = botTournaments.find(pick);
+    L.push(
+      t
+        ? `- ${label}: ${t.champion} are the reigning champions${t.runnerUp ? ` (beat ${t.runnerUp} in the final)` : ''}.`
+        : `- ${label}: no title decided yet.`
+    );
   }
-
-  const champOf = (pick: (t: BotTournamentSummary) => boolean) => botTournaments.find(pick)?.champion ?? null;
-  L.push(
-    `Reigning champions — 5-over: ${champOf((t) => t.format === 5 && !isSuper(t)) ?? 'none yet'}; 10-over: ${champOf((t) => t.format === 10 && !isSuper(t)) ?? 'none yet'}; Super League: ${champOf(isSuper) ?? 'none yet'}.`
-  );
 
   const seasonT = new Map<string, number>();
   const careerT = new Map<string, number>();
@@ -1891,6 +1905,14 @@ export function getBotNewsContext(): string {
   const st = topList(seasonT, 6); if (st) L.push(`Season ${seasonNo} title counts: ${st}.`);
   const ct = topList(careerT, 6); if (ct) L.push(`All-time title counts: ${ct}.`);
   const cw = topList(careerW, 5); if (cw) L.push(`All-time match wins: ${cw}.`);
+
+  // Title droughts — good news angles. "Never a career title" is the strongest (a bot
+  // still hunting its first-ever trophy across every season); season-winless is softer.
+  const neverWon = [...careerT.entries()].filter(([, v]) => v === 0).map(([n]) => n);
+  if (neverWon.length) L.push(`Still chasing a FIRST-EVER career title (0 titles in any season): ${neverWon.join(', ')}.`);
+  const winlessSeason = [...seasonT.entries()].filter(([, v]) => v === 0).map(([n]) => n);
+  if (winlessSeason.length && winlessSeason.length < seasonT.size)
+    L.push(`Yet to win a title in Season ${seasonNo}: ${winlessSeason.join(', ')}.`);
 
   for (const s of pastSeasons.slice(0, 2))
     if (s.champion) L.push(`Season ${s.number} champion: ${s.champion}${s.championTrophies != null ? ` (${s.championTrophies} titles that season)` : ''}.`);
