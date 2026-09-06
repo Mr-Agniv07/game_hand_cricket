@@ -878,11 +878,14 @@ const MAX_BRUTE_GAMES = 11; // 3^11 ≈ 177k — fine once per match (cached)
 function computeQualificationFresh(t: Tournament): Record<string, 'Q' | 'E'> {
   const out: Record<string, 'Q' | 'E'> = {};
   if (!t.groups.length) return out;
-  const K = qualifyCountFor(t.size); // direct qualifiers per group (top 2)
+  // World Cup groups (8 teams) qualify the TOP 4; every other format's group qualifies
+  // the top 2. (Without the superFormat check this fell back to top-2, which wrongly
+  // eliminated 3rd/4th-placed teams in a World Cup group and hid Q for the leaders.)
+  const K = t.superFormat === 'worldcup' ? 4 : qualifyCountFor(t.size);
   // The 12-team league ALSO takes the 2 best 3rd-placed, so a 3rd-placed team is not
   // eliminated — only 4th-or-lower is. Other formats: top-K is the only path.
   const bestThirds = t.size === 12;
-  const eK = bestThirds ? K + 1 : K; // elimination cutoff (top-3 vs top-2)
+  const eK = bestThirds ? K + 1 : K; // elimination cutoff
 
   // Once the whole group stage is finished, the best-thirds league's qualifiers are
   // fully determined: top 2 of each group + the 2 best 3rd-placed → Q, everyone else E.
