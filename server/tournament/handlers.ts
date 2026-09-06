@@ -118,6 +118,9 @@ export interface Tournament {
    *  'super8' = 4 groups of 4 → Super 8 → semis → final;
    *  'worldcup' = 2 groups of 8 → quarters (A1·B4 …) → semis → final. Chosen at start. */
   superFormat?: 'super8' | 'worldcup';
+  /** Epoch ms until which the Draw ceremony (group reveal) is showing — set when bidding
+   *  closes, so any client polling during the window shows the reveal (not a one-shot). */
+  drawRevealUntil?: number;
   /** True once the quarterfinals have been appended (12-player Super League only). */
   quartersCreated?: boolean;
   /** True once the semifinals have been appended (8-, 12-, and 16-player). */
@@ -2153,17 +2156,13 @@ export function startBotLeague(
   setTimeout(() => {
     if (tournaments.get(tournament.code) !== tournament || tournament.phase !== 'waiting') return;
     // Bidding closed → flip to in_progress (this unhides the groups/fixtures in the
-    // public state) and broadcast the Draw ceremony with each group's bots.
+    // public state) and open the Draw ceremony window. Clients read drawRevealUntil off
+    // the 3s poll, so every device viewing during the window shows the reveal (robust,
+    // not a one-shot event that a device can miss).
     tournament.phase = 'in_progress';
+    tournament.drawRevealUntil = Date.now() + DRAW_REVEAL_MS;
     io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
     liveBidsStart(io, tournament); // start live in-play prediction markets for spectators
-    io.emit('bot_draw_reveal', {
-      id: tournament.id,
-      format: tournament.format ?? tournament.overs,
-      isSuperLeague: !!tournament.isSuperLeague,
-      groups: tournament.groups.map((g) => g.map((idx) => tournament.players[idx]?.name ?? '?')),
-      revealMs: DRAW_REVEAL_MS,
-    });
     // Hold ~15s on the draw, then start the first match.
     setTimeout(() => {
       if (tournaments.get(tournament.code) === tournament && tournament.phase === 'in_progress')
@@ -2232,6 +2231,8 @@ type ActiveBotLeague = {
   bidPrize: number;
   /** AI pundit take / recap / player-of-the-tournament, when generated. */
   story: BotStory | null;
+  /** Epoch ms until which the Draw ceremony is showing (null when not in a reveal). */
+  drawUntil: number | null;
 };
 
 /** The champion-bid stake/prize for a league (the Super League is the premium tier). */
@@ -2254,6 +2255,7 @@ export function activeBotLeagues(userId?: string | null): ActiveBotLeague[] {
         bidStake: tier.stake,
         bidPrize: tier.prize,
         story: buildActiveStory(t.id, t.currentMatchIndex),
+        drawUntil: t.drawRevealUntil ?? null,
       });
     }
   return out;

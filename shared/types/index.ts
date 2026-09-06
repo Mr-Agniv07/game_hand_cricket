@@ -247,6 +247,8 @@ export interface BotLeagueActive {
   bidPrize?: number;
   /** AI-written pundit take / recap / player-of-the-tournament, when available. */
   story?: BotStory | null;
+  /** Epoch ms until which the Draw ceremony (group reveal) should show, else null. */
+  drawUntil?: number | null;
 }
 
 /** One bot's group-stage line in a finished tournament's standings snapshot. */
@@ -733,15 +735,6 @@ export interface ServerToClientEvents {
   bot_rankings_reset: () => void;
   /** A bot season just ended (caps met OR admin-forced): its champion + number. */
   bot_season_ended: (p: { number: number; champion: string | null; championTrophies: number }) => void;
-  /** The group DRAW for a bot league has just been made (bidding closed): each group's
-   *  bot names, for the Draw-ceremony reveal shown for ~revealMs before matches start. */
-  bot_draw_reveal: (p: {
-    id: string;
-    format: number;
-    isSuperLeague: boolean;
-    groups: string[][];
-    revealMs: number;
-  }) => void;
   match_found: (p: MatchFoundPayload) => void;
   match_waiting: (p: MatchWaitingPayload) => void;
   bid_placed: (p: {
