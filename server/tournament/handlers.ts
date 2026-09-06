@@ -1775,25 +1775,6 @@ function ensureMatchPreview(t: Tournament, index: number): void {
       : fx.stage === 'semi' || fx.stage === 'quarter' ? "It's win or go home."
         : fx.stage === 'super8' ? 'Top 2 of the Super 8 group reach the semis.'
           : 'The top teams of each group advance to the knockouts.';
-  const done = t.fixtures.filter((f) => f.status === 'done').length;
-
-  // Each bot's record IN THIS tournament, plus a compact leaderboard so the writer
-  // can reference who's flying, who's struggling, and what a result would mean.
-  const rec = (p: { id: string; name: string }) => {
-    const e = t.pointsTable[p.id];
-    return `${p.name}: ${e?.won ?? 0}-${e?.lost ?? 0} so far this tournament (${e?.points ?? 0} pts)`;
-  };
-  const board = t.players
-    .map((p) => ({
-      name: p.name,
-      pts: t.pointsTable[p.id]?.points ?? 0,
-      won: t.pointsTable[p.id]?.won ?? 0,
-      lost: t.pointsTable[p.id]?.lost ?? 0,
-    }))
-    .sort((a, b) => b.pts - a.pts)
-    .slice(0, 6)
-    .map((x) => `${x.name} ${x.won}-${x.lost}`)
-    .join(', ');
 
   const h = getBotHeadToHead(p1.name, p2.name, fmt);
   const h2h =
@@ -1801,12 +1782,38 @@ function ensureMatchPreview(t: Tournament, index: number): void {
       ? `All-time head-to-head (${fmt}-over): ${p1.name} ${h.xWins}-${h.yWins} ${p2.name}${h.ties ? `, ${h.ties} tied` : ''}.`
       : `${p1.name} and ${p2.name} have never met in the ${fmt}-over format.`;
 
+  // Read the CURRENT stage's own table. The Super 8 resets to a fresh table, so during
+  // Super 8 matches we MUST use superPointsTable — using the group table produced wrong
+  // "unbeaten"/"4 points each" lines. Knockouts are single-elimination (no table).
+  const isKnockout = fx.stage === 'quarter' || fx.stage === 'semi' || fx.stage === 'final';
+  const stageWord = fx.stage === 'super8' ? 'the Super 8 stage' : 'the group stage';
+  const table: Record<string, InternalPointsEntry> =
+    fx.stage === 'super8' ? (t.superPointsTable ?? {}) : t.pointsTable;
+
+  let form = '';
+  if (!isKnockout) {
+    const rec = (p: { id: string; name: string }) => {
+      const e = table[p.id];
+      return `${p.name}: ${e?.won ?? 0} wins, ${e?.lost ?? 0} losses in ${stageWord} (${e?.points ?? 0} points)`;
+    };
+    const board = Object.entries(table)
+      .map(([id, e]) => {
+        const p = t.players.find((pl) => pl.id === id);
+        return p ? { name: p.name, won: e.won, lost: e.lost, points: e.points } : null;
+      })
+      .filter((x): x is { name: string; won: number; lost: number; points: number } => !!x)
+      .sort((a, b) => b.points - a.points)
+      .slice(0, 6)
+      .map((x) => `${x.name} (${x.won}W ${x.lost}L)`)
+      .join(', ');
+    form = `${rec(p1)}. ${rec(p2)}.\n` + (board ? `Standings in ${stageWord}: ${board}.\n` : '');
+  }
+
   const data =
-    `Live ${t.isSuperLeague ? 'Super League' : `${fmt}-over`} bot tournament — ${stageLabel}, match ${done + 1} of ${t.fixtures.length}. ${stakes}\n` +
-    `(One tournament within the ONGOING Season ${getBotSeasonInfo().number}; the season is not just starting.)\n` +
+    `Live ${t.isSuperLeague ? 'Super League' : `${fmt}-over`} bot tournament — ${stageLabel}. ${stakes}\n` +
+    `(One tournament within the ongoing Season ${getBotSeasonInfo().number}; the season is not starting.)\n` +
     `Upcoming: ${p1.name} vs ${p2.name}.\n` +
-    `${rec(p1)}. ${rec(p2)}.\n` +
-    `Tournament form so far (top of the table): ${board}.\n` +
+    form +
     h2h;
   genMatchPreview(t.id, index, data);
 }
