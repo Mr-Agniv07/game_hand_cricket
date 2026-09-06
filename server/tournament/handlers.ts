@@ -1782,21 +1782,13 @@ function ensureMatchPreview(t: Tournament, index: number): void {
       ? `All-time head-to-head (${fmt}-over): ${p1.name} ${h.xWins}-${h.yWins} ${p2.name}${h.ties ? `, ${h.ties} tied` : ''}.`
       : `${p1.name} and ${p2.name} have never met in the ${fmt}-over format.`;
 
-  // Read the CURRENT stage's own table. The Super 8 resets to a fresh table, so during
-  // Super 8 matches we MUST use superPointsTable — using the group table produced wrong
-  // "unbeaten"/"4 points each" lines. Knockouts are single-elimination (no table).
+  // Feed the form for the CURRENT stage. In the Super 8 send BOTH tables — the (fresh)
+  // Super 8 standings as the live picture AND each bot's earlier group-stage record as
+  // context — clearly labelled so they're never conflated. Group matches send the group
+  // table; knockouts (single-elimination) send no table.
   const isKnockout = fx.stage === 'quarter' || fx.stage === 'semi' || fx.stage === 'final';
-  const stageWord = fx.stage === 'super8' ? 'the Super 8 stage' : 'the group stage';
-  const table: Record<string, InternalPointsEntry> =
-    fx.stage === 'super8' ? (t.superPointsTable ?? {}) : t.pointsTable;
-
-  let form = '';
-  if (!isKnockout) {
-    const rec = (p: { id: string; name: string }) => {
-      const e = table[p.id];
-      return `${p.name}: ${e?.won ?? 0} wins, ${e?.lost ?? 0} losses in ${stageWord} (${e?.points ?? 0} points)`;
-    };
-    const board = Object.entries(table)
+  const boardFrom = (tbl: Record<string, InternalPointsEntry>) =>
+    Object.entries(tbl)
       .map(([id, e]) => {
         const p = t.players.find((pl) => pl.id === id);
         return p ? { name: p.name, won: e.won, lost: e.lost, points: e.points } : null;
@@ -1806,7 +1798,24 @@ function ensureMatchPreview(t: Tournament, index: number): void {
       .slice(0, 6)
       .map((x) => `${x.name} (${x.won}W ${x.lost}L)`)
       .join(', ');
-    form = `${rec(p1)}. ${rec(p2)}.\n` + (board ? `Standings in ${stageWord}: ${board}.\n` : '');
+
+  let form = '';
+  if (fx.stage === 'super8') {
+    const s = t.superPointsTable ?? {};
+    const g = t.pointsTable;
+    const line = (p: { id: string; name: string }) => {
+      const se = s[p.id];
+      const ge = g[p.id];
+      return `${p.name}: Super 8 so far (this is what's live/decisive) — ${se?.won ?? 0} wins, ${se?.lost ?? 0} losses (${se?.points ?? 0} pts); earlier group stage (context only) — ${ge?.won ?? 0} wins, ${ge?.lost ?? 0} losses`;
+    };
+    const sBoard = boardFrom(s);
+    form = `${line(p1)}. ${line(p2)}.\n` + (sBoard ? `Current Super 8 standings: ${sBoard}.\n` : '');
+  } else if (!isKnockout) {
+    const g = t.pointsTable;
+    const rec = (p: { id: string; name: string }) =>
+      `${p.name}: ${g[p.id]?.won ?? 0} wins, ${g[p.id]?.lost ?? 0} losses in the group stage (${g[p.id]?.points ?? 0} points)`;
+    const gBoard = boardFrom(g);
+    form = `${rec(p1)}. ${rec(p2)}.\n` + (gBoard ? `Group-stage standings: ${gBoard}.\n` : '');
   }
 
   const data =
