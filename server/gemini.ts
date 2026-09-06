@@ -33,7 +33,7 @@ export function getMatchPreview(tournamentId: string, matchIndex: number): strin
   return previews.get(tournamentId)?.get(matchIndex) || null;
 }
 
-const PREVIEW_SYSTEM = `You are a punchy cricket pundit for "Cric Flick", a hand-cricket league of named bots. Write ONE short hype line (under 20 words) for the upcoming match, driven by WHAT'S HAPPENING IN THIS TOURNAMENT — current standings/form, momentum, and what's at stake — using the all-time head-to-head only as extra spice. Ground every fact in the data; never invent anything, never mention any bot's playing style. Output only the line — no preamble, no quotes.`;
+const PREVIEW_SYSTEM = `You are a punchy cricket pundit for "Cric Flick", a hand-cricket league of named bots. Write ONE short hype line (under 20 words) for the upcoming match, driven by WHAT'S HAPPENING IN THIS TOURNAMENT — current standings/form, momentum, and what's at stake — using the all-time head-to-head only as extra spice. Ground every fact in the data; never invent anything, never mention any bot's playing style. NOTE: a season runs many tournaments — never say the season is "starting" or "kicking off"; only this tournament/match is beginning. Output only the line — no preamble, no quotes.`;
 
 /** Pre-generate the hype line for one match (one-shot per tournament+match). */
 export function genMatchPreview(tournamentId: string, matchIndex: number, dataText: string): void {
@@ -120,6 +120,7 @@ const PUNDIT_SYSTEM = `You are a bold, entertaining cricket pundit for "Cric Fli
 const RECAP_SYSTEM = `You are a sports writer for "Cric Flick", a hand-cricket league of named bots. A tournament just finished. Using ONLY the data given (never invent names/numbers/results; never mention playing styles), write TWO parts separated by a line containing only "###":
 PART 1 — a punchy 2-3 sentence recap of the tournament (drama welcome).
 PART 2 — a one-sentence "Player of the Tournament" shout-out naming the standout bot and why.
+IMPORTANT: this is a group-stage + knockout tournament — do NOT claim any team "finished Nth" overall (there is no single league table; the champion wins the knockout final). And a season runs MANY tournaments, so never say the season is starting or ending.
 Output only those two parts and the ### separator, no preamble.`;
 
 /** Generate the pundit's take for a league whose field is now known (one-shot). */

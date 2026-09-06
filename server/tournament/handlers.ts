@@ -1606,14 +1606,16 @@ export function finalizeTournament(io: GameServer, tournament: Tournament): void
       });
 
       // Recap + Player of the Tournament (free Gemini), grounded in the final result.
+      // It's a group + knockout tournament, so there's NO single overall finishing
+      // position — feed the champion's group record, not a misleading flat ranking.
       const potmName = tournament.awards?.playerOfTournament?.name;
-      const standingsText = standings.map((s, i) => `${i + 1}. ${s.name} (${s.won}W-${s.lost}L)`).join('; ');
+      const champE = tournament.pointsTable[champ.id];
       genRecapPotm(
         tournament.id,
-        `A ${tournament.isSuperLeague ? 'Super League' : `${tournament.format}-over league`} just finished.\n` +
-          `Champion: ${champ.name}${runnerUp ? `, beating ${runnerUp} in the final` : ''}.\n` +
-          `Final standings: ${standingsText}.` +
-          (potmName ? `\nStandout by the numbers: ${potmName}.` : '') +
+        `A ${tournament.isSuperLeague ? 'Super League' : `${tournament.format}-over`} bot tournament just finished — one of many tournaments in the ONGOING Season ${getBotSeasonInfo().number} (a season runs many tournaments; it is not starting or ending here).\n` +
+          `Format: group stage + knockouts. The champion is decided by winning the knockout final — there is NO overall league-table position.\n` +
+          `Champion: ${champ.name}${runnerUp ? `, beating ${runnerUp} in the final` : ''}. ${champ.name}'s group stage this tournament: ${champE?.won ?? 0} wins, ${champE?.lost ?? 0} losses.` +
+          (potmName ? `\nPlayer of the tournament (best individual numbers): ${potmName}.` : '') +
           `\n\nLeague background:\n${getBotNewsContext()}`
       );
     }
@@ -1800,7 +1802,8 @@ function ensureMatchPreview(t: Tournament, index: number): void {
       : `${p1.name} and ${p2.name} have never met in the ${fmt}-over format.`;
 
   const data =
-    `Live ${t.isSuperLeague ? 'Super League' : `${fmt}-over`} bot tournament, Season ${getBotSeasonInfo().number} — ${stageLabel}, match ${done + 1} of ${t.fixtures.length}. ${stakes}\n` +
+    `Live ${t.isSuperLeague ? 'Super League' : `${fmt}-over`} bot tournament — ${stageLabel}, match ${done + 1} of ${t.fixtures.length}. ${stakes}\n` +
+    `(One tournament within the ONGOING Season ${getBotSeasonInfo().number}; the season is not just starting.)\n` +
     `Upcoming: ${p1.name} vs ${p2.name}.\n` +
     `${rec(p1)}. ${rec(p2)}.\n` +
     `Tournament form so far (top of the table): ${board}.\n` +
