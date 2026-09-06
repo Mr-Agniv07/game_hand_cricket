@@ -8,13 +8,13 @@
 
 import type { BotStory } from '@cric/types';
 
-// gemini-2.5-flash: the model proven to work cleanly here — no 404, no 400, honours
-// thinkingConfig (so no truncation) and returns full sentences. The lite variants got
-// either retired (2.5-flash-lite → 404) or rejected the request (flash-lite-latest →
-// 400). Rate limits are handled by the serial throttle below (the 429 was a per-minute
-// burst, not the model), so 2.5-flash + throttle is the stable choice. If it's ever
-// retired, the 404 logging will flag it.
-const MODEL = 'gemini-2.5-flash';
+// This account is a "new user", so Google blocks ALL 2.x models (2.0-flash, 2.5-flash,
+// 2.5-flash-lite all 404 "no longer available to new users"). Only 3.x is allowed, and
+// 3.x rejects the thinkingConfig disable flag (that was the 400). So: use the
+// gemini-flash-lite-latest alias (3.x, never 404s on a retirement, higher free-tier
+// limits), send NO thinkingConfig, and rely on generous token caps + the finishReason
+// guard so outputs complete despite thinking being on. Throttle handles the rate limit.
+const MODEL = 'gemini-flash-lite-latest';
 const endpoint = (key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
 
@@ -46,7 +46,7 @@ export function genMatchPreview(tournamentId: string, matchIndex: number, dataTe
   }
   m.set(matchIndex, ''); // reserve (empty) so concurrent calls don't double-fire
   void (async () => {
-    const text = await callGemini(PREVIEW_SYSTEM, dataText, 200);
+    const text = await callGemini(PREVIEW_SYSTEM, dataText, 400);
     if (text) m.set(matchIndex, text);
     else m.delete(matchIndex); // failed — allow a later retry
   })();
@@ -81,12 +81,11 @@ async function doCall(key: string, system: string, user: string, maxTokens: numb
         system_instruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: user }] }],
         generationConfig: {
+          // NOTE: no thinkingConfig — 3.x lite models reject it (400 invalid argument).
+          // Thinking stays on; the generous caps below leave room for the actual text,
+          // and the finishReason guard drops anything that still gets truncated.
           maxOutputTokens: maxTokens,
           temperature: 0.9,
-          // Disable "thinking" — this is a short writing task, and on Gemini 3.x flash
-          // thinking is on by default and would eat the whole token budget, leaving no
-          // output text (a silent empty response).
-          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     });
@@ -127,7 +126,7 @@ Output only those two parts and the ### separator, no preamble.`;
 export function genPundit(tournamentId: string, dataText: string): void {
   if (!process.env.GEMINI_API_KEY || stories.get(tournamentId)?.pundit) return;
   void (async () => {
-    const text = await callGemini(PUNDIT_SYSTEM, dataText, 200);
+    const text = await callGemini(PUNDIT_SYSTEM, dataText, 400);
     if (text) stories.set(tournamentId, { ...stories.get(tournamentId), pundit: text });
   })();
 }
@@ -136,7 +135,7 @@ export function genPundit(tournamentId: string, dataText: string): void {
 export function genRecapPotm(tournamentId: string, dataText: string): void {
   if (!process.env.GEMINI_API_KEY || stories.get(tournamentId)?.recap) return;
   void (async () => {
-    const text = await callGemini(RECAP_SYSTEM, dataText, 512);
+    const text = await callGemini(RECAP_SYSTEM, dataText, 900);
     if (!text) return;
     const [recap, potm] = text.split(/^\s*###\s*$/m);
     stories.set(tournamentId, {
