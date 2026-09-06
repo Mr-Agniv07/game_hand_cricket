@@ -68,7 +68,7 @@ export default function AdminPanel({ socket, user, onClose }: Props) {
   }, [socket, load]);
 
   const startLeague = (format: number) => socket.emit('start_bot_league', { format });
-  const startSuper = () => socket.emit('start_bot_super_league');
+  const startSuper = (format: 'super8' | 'worldcup') => socket.emit('start_bot_super_league', { format });
   const startQualifier = (format: number) => socket.emit('start_bot_qualifier', { format });
   const endSeason = () => {
     if (window.confirm('End the current bot season now? The champion is crowned and every bot’s season stats reset.'))
@@ -149,11 +149,19 @@ export default function AdminPanel({ socket, user, onClose }: Props) {
             </button>
             <button
               className={styles.super}
-              onClick={startSuper}
+              onClick={() => startSuper('super8')}
               disabled={fullSuper}
-              title={fullSuper ? "This season's Super League cap is full" : ''}
+              title={fullSuper ? "This season's Super League cap is full" : '4 groups of 4 → Super 8 → SF → Final'}
             >
-              🏆 Super League{fullSuper ? ' 🔒' : ''}
+              🏆 Super 8{fullSuper ? ' 🔒' : ''}
+            </button>
+            <button
+              className={styles.super}
+              onClick={() => startSuper('worldcup')}
+              disabled={fullSuper}
+              title={fullSuper ? "This season's Super League cap is full" : '2 groups of 8 → Quarters → SF → Final'}
+            >
+              🏆 World Cup{fullSuper ? ' 🔒' : ''}
             </button>
             <button className={styles.start} onClick={() => startQualifier(5)}>
               🎟 5-Over Qualifier

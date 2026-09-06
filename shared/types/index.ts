@@ -615,6 +615,9 @@ export interface TournamentState {
   fixtures: FixtureMatch[];
   currentMatchIndex: number;
   pointsTable: Record<string, PointsTableEntry>;
+  /** Super League bracket in use (16-player bot Super League): 'super8' (4 groups of 4
+   *  → Super 8 → SF → final) or 'worldcup' (2 groups of 8 → QF → SF → final). */
+  superFormat?: 'super8' | 'worldcup' | null;
   /**
    * Super 8 groups (16-player tournament only): the two groups of 4 qualifiers
    * (E and F), as player-index arrays. Null until the group stage ends and the
@@ -842,7 +845,7 @@ export interface ClientToServerEvents {
   start_tournament_with_bots: () => void;
   send_emote: (p: SendEmotePayload) => void;
   start_bot_league: (p: { format: number }) => void;
-  start_bot_super_league: () => void;
+  start_bot_super_league: (p?: { format?: 'super8' | 'worldcup' }) => void;
   start_bot_qualifier: (p: { format: number }) => void;
   stop_bot_league: (p: { id?: string }) => void;
   reset_bot_rankings: () => void;

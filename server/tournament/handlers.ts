@@ -114,6 +114,10 @@ export interface Tournament {
   superPointsTable?: Record<string, InternalPointsEntry>;
   /** True once the Super 8 groups have been appended (16-player only). */
   super8Created?: boolean;
+  /** Which Super League bracket to use (16-player bot Super League only):
+   *  'super8' = 4 groups of 4 → Super 8 → semis → final;
+   *  'worldcup' = 2 groups of 8 → quarters (A1·B4 …) → semis → final. Chosen at start. */
+  superFormat?: 'super8' | 'worldcup';
   /** True once the quarterfinals have been appended (12-player Super League only). */
   quartersCreated?: boolean;
   /** True once the semifinals have been appended (8-, 12-, and 16-player). */
@@ -517,9 +521,25 @@ function setupQuarters12BestThirds(io: GameServer, t: Tournament): void {
 }
 
 /**
- * Append the two Super League semifinals (12-player only) from the quarter
- * winners: SF1 = W(Q1) vs W(Q4), SF2 = W(Q2) vs W(Q3). player1 is the W(Q1)/
- * W(Q2) side, so a tied semi is awarded to them.
+ * "World Cup" Super League (16, two groups of 8): the group stage just ended. Take the
+ * top 4 of each group and cross-seed the quarters — A1·B4, A2·B3, A3·B2, A4·B1 (player1
+ * is the group winner / higher seed, so a tied quarter is awarded to them). Winners then
+ * feed setupSuperSemis (Q1·Q4, Q2·Q3) → final.
+ */
+function setupWorldCupQuarters(io: GameServer, t: Tournament): void {
+  const [a, b] = t.groups.map((g) => rankedGroupIndices(t, g));
+  pushQuarters(io, t, [
+    [a[0], b[3], 'Quarter Final 1'], // A1 · B4
+    [a[1], b[2], 'Quarter Final 2'], // A2 · B3
+    [a[2], b[1], 'Quarter Final 3'], // A3 · B2
+    [a[3], b[0], 'Quarter Final 4'], // A4 · B1
+  ]);
+}
+
+/**
+ * Append the two semifinals from the quarter winners (12-player Super League AND the
+ * 16-player World Cup format): SF1 = W(Q1) vs W(Q4), SF2 = W(Q2) vs W(Q3). player1 is
+ * the W(Q1)/W(Q2) side, so a tied semi is awarded to them.
  */
 function setupSuperSemis(io: GameServer, t: Tournament): void {
   t.semisCreated = true;
@@ -617,6 +637,25 @@ export function advanceTournament(
   // The Super League (16, four groups) feeds its top 8 into a SUPER 8 stage (two
   // fresh groups of 4) → semis → final. There are NO quarterfinals.
   if (t.size === 16) {
+    if (t.superFormat === 'worldcup') {
+      // Two groups of 8 → quarters (A1·B4 …) → semis (Q1·Q4, Q2·Q3) → final.
+      if (!t.quartersCreated) {
+        const firstQuarter = t.fixtures.length;
+        setupWorldCupQuarters(io, t);
+        startTournamentMatch(io, rooms, t, firstQuarter);
+      } else if (!t.semisCreated) {
+        const firstSemi = t.fixtures.length;
+        setupSuperSemis(io, t);
+        startTournamentMatch(io, rooms, t, firstSemi);
+      } else if (!t.finalCreated) {
+        setupFinal(io, t);
+        startTournamentMatch(io, rooms, t, t.fixtures.length - 1);
+      } else {
+        finalizeTournament(io, t);
+      }
+      return;
+    }
+    // Super 8 format: four groups of 4 → Super 8 → semis → final (no quarters).
     if (!t.super8Created) {
       const firstSuper8 = t.fixtures.length;
       setupSuper8(io, t);
@@ -721,7 +760,8 @@ function stageCtx(t: Tournament, stage: 'group' | 'super8'): StageCtx | null {
     if (!t.superGroups || !t.superPointsTable) return null;
     return { stage, table: t.superPointsTable, groups: t.superGroups, K: 2, eK: 2 };
   }
-  const K = qualifyCountFor(t.size);
+  // World Cup format: groups of 8, top 4 advance to the quarters (no best-thirds).
+  const K = t.superFormat === 'worldcup' ? 4 : qualifyCountFor(t.size);
   return { stage, table: t.pointsTable, groups: t.groups, K, eK: t.size === 12 ? K + 1 : K };
 }
 
@@ -1376,6 +1416,7 @@ export function publicTournamentState(t: Tournament): TournamentState {
         { ...e, nrr: computeNRR(e) },
       ])
     ),
+    superFormat: t.superFormat ?? null,
     superGroups: t.superGroups ?? null,
     superPointsTable: t.superPointsTable
       ? Object.fromEntries(
@@ -1435,10 +1476,19 @@ export function generateFixture(tournament: Tournament): void {
   if (tournament.isQualifier) {
     // Qualifier: one group, single round-robin. No knockouts — just rating games.
     buildGroups([all]);
+  } else if (tournament.size === 16 && tournament.superFormat === 'worldcup') {
+    // "World Cup" Super League: two groups of EIGHT, full round-robin (7 games each).
+    // Seed alternately by rank so the top seeds split across the groups; top 4 of each
+    // group → quarters (A1·B4, A2·B3, A3·B2, A4·B1).
+    const order = tournament.isBotLeague ? all : shuffled(all);
+    buildGroups([
+      [order[0], order[2], order[4], order[6], order[8], order[10], order[12], order[14]],
+      [order[1], order[3], order[5], order[7], order[9], order[11], order[13], order[15]],
+    ]);
   } else if (tournament.size === 16) {
-    // Super League: all 16, four groups of 4. A bot field seeds by rank
+    // Super League (Super 8 format): all 16, four groups of 4. A bot field seeds by rank
     // (1st/5th/9th/13th to A, etc.) so the top seeds are kept apart; a human draw is
-    // shuffled. Top 2 of each group → quarters.
+    // shuffled. Top 2 of each group → Super 8.
     const order = tournament.isBotLeague ? all : shuffled(all);
     buildGroups([
       [order[0], order[4], order[8], order[12]],
@@ -1778,7 +1828,8 @@ function ensureMatchPreview(t: Tournament, index: number): void {
     fx.stage === 'final' ? 'The title is on the line.'
       : fx.stage === 'semi' || fx.stage === 'quarter' ? "It's win or go home."
         : fx.stage === 'super8' ? 'Top 2 of the Super 8 group reach the semis.'
-          : 'The top teams of each group advance to the knockouts.';
+          : t.superFormat === 'worldcup' ? 'Top 4 of each group reach the quarterfinals.'
+            : 'The top teams of each group advance to the knockouts.';
 
   const h = getBotHeadToHead(p1.name, p2.name, fmt);
   const h2h =
@@ -2063,7 +2114,8 @@ export function startBotLeague(
   io: GameServer,
   rooms: Map<string, Room>,
   format: number,
-  superLeague = false
+  superLeague = false,
+  superFormat: 'super8' | 'worldcup' = 'super8'
 ): Tournament | null {
   // The Super League is always 10/10 and fields all 16 bots; a regular league fields 12.
   const fmt = superLeague ? 10 : Number(format) === 10 ? 10 : 5;
@@ -2092,6 +2144,7 @@ export function startBotLeague(
     liveScore: null,
     isBotLeague: true,
     isSuperLeague: superLeague || undefined,
+    superFormat: superLeague ? superFormat : undefined,
     format: fmt,
     bidsCloseAt: Date.now() + BOT_LEAGUE_BID_WINDOW_MS,
   };
@@ -2450,7 +2503,7 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
 
     // Admin-only: kick off the 12-bot Super League (all bots, 10/10, two groups
     // of 6 → quarters → semis → final). Reuses the bot-league machinery.
-    socket.on('start_bot_super_league', () => {
+    socket.on('start_bot_super_league', (payload?: { format?: 'super8' | 'worldcup' }) => {
       const adminName = process.env.ADMIN_USERNAME;
       const uid = socket.data.userId;
       const user = uid ? findById(uid) : null;
@@ -2461,7 +2514,8 @@ export function registerTournamentHandlers(io: GameServer, rooms: Map<string, Ro
         return socket.emit('error', {
           message: "This season's Super League cap is full — end the season to start more.",
         });
-      const tournament = startBotLeague(io, rooms, 10, true);
+      const superFormat = payload?.format === 'worldcup' ? 'worldcup' : 'super8';
+      const tournament = startBotLeague(io, rooms, 10, true, superFormat);
       if (!tournament)
         return socket.emit('error', {
           message: 'A 10-over bot event is already running — finish it first.',

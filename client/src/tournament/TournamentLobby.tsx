@@ -277,8 +277,11 @@ export default function TournamentLobby({
   const groupLabels = ['A', 'B', 'C', 'D'] as const;
   const superGroupLabels = ['E', 'F'] as const;
   const isMultiGroup = groups.length > 1;
-  const hasQuarters = size === 12; // 12: 3 groups → quarters → semis → final
-  const hasSuper8 = size === 16; // 16: 4 groups → Super 8 (E/F) → semis → final
+  const isWorldCup = tournamentState.superFormat === 'worldcup'; // 16: 2 groups of 8 → QF → SF → final
+  // 12-team league and the 16-team "World Cup" both go groups → quarters → semis → final.
+  const hasQuarters = size === 12 || isWorldCup;
+  // Super 8 only in the classic 16-team Super League (not the World Cup format).
+  const hasSuper8 = size === 16 && !isWorldCup;
   const super8Drawn = !!superGroups && superGroups.length > 0;
   const isHost = players[0]?.id === myId;
 
@@ -367,14 +370,21 @@ export default function TournamentLobby({
     return players[fx.result === 'p2' ? fx.player2Idx : fx.player1Idx]?.name ?? null;
   };
 
-  // Quarterfinal bracket (12-player): fills group winners/runners-up once their
-  // group is done. Best-thirds stay generic (they depend on cross-group ranking).
-  const qfBracket: { label: string; p1: PhSlot; p2: PhSlot }[] = [
-    { label: 'Quarter Final 1', p1: ph(seedName('A', 1), 'Group A #1'), p2: ph(seedName('B', 2), 'Group B #2') },
-    { label: 'Quarter Final 2', p1: ph(seedName('B', 1), 'Group B #1'), p2: ph(seedName('C', 2), 'Group C #2') },
-    { label: 'Quarter Final 3', p1: ph(seedName('C', 1), 'Group C #1'), p2: ph(null, 'Best 3rd-placed') },
-    { label: 'Quarter Final 4', p1: ph(seedName('A', 2), 'Group A #2'), p2: ph(null, 'Best 3rd-placed') },
-  ];
+  // Quarterfinal bracket. World Cup (2 groups of 8): cross-seed A1·B4, A2·B3, A3·B2,
+  // A4·B1. 12-player league: group winners/runners-up + two best 3rd-placed.
+  const qfBracket: { label: string; p1: PhSlot; p2: PhSlot }[] = isWorldCup
+    ? [
+        { label: 'Quarter Final 1', p1: ph(seedName('A', 1), 'Group A #1'), p2: ph(seedName('B', 4), 'Group B #4') },
+        { label: 'Quarter Final 2', p1: ph(seedName('A', 2), 'Group A #2'), p2: ph(seedName('B', 3), 'Group B #3') },
+        { label: 'Quarter Final 3', p1: ph(seedName('A', 3), 'Group A #3'), p2: ph(seedName('B', 2), 'Group B #2') },
+        { label: 'Quarter Final 4', p1: ph(seedName('A', 4), 'Group A #4'), p2: ph(seedName('B', 1), 'Group B #1') },
+      ]
+    : [
+        { label: 'Quarter Final 1', p1: ph(seedName('A', 1), 'Group A #1'), p2: ph(seedName('B', 2), 'Group B #2') },
+        { label: 'Quarter Final 2', p1: ph(seedName('B', 1), 'Group B #1'), p2: ph(seedName('C', 2), 'Group C #2') },
+        { label: 'Quarter Final 3', p1: ph(seedName('C', 1), 'Group C #1'), p2: ph(null, 'Best 3rd-placed') },
+        { label: 'Quarter Final 4', p1: ph(seedName('A', 2), 'Group A #2'), p2: ph(null, 'Best 3rd-placed') },
+      ];
   // Semifinal bracket — sources differ by format (Super 8 seeds / QF winners / group seeds).
   const sfBracket: { p1: PhSlot; p2: PhSlot }[] = hasSuper8
     ? [
@@ -447,7 +457,23 @@ export default function TournamentLobby({
             <div className={styles['t-format']}>
               <div className={styles['t-format-title']}>📋 How it works</div>
               <ul className={styles['t-format-list']}>
-                {size === 16 ? (
+                {isWorldCup ? (
+                  <>
+                    <li>16 bots split into two groups of 8 — Group A &amp; Group B.</li>
+                    <li>
+                      Full round-robin within each group — every bot plays all 7 group-mates. Win =
+                      2 pts, Tie = 1 pt; ties broken by NRR.
+                    </li>
+                    <li>
+                      Top 4 of each group reach the <strong>quarter-finals</strong>: A1 v B4, A2 v
+                      B3, A3 v B2, A4 v B1.
+                    </li>
+                    <li>
+                      Semis are QF1·QF4 winners and QF2·QF3 winners, then the{' '}
+                      <strong>FINAL</strong> — its winner is the champion.
+                    </li>
+                  </>
+                ) : size === 16 ? (
                   <>
                     <li>16 players split randomly into Groups A–D (4 each).</li>
                     <li>
