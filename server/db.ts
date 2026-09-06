@@ -411,6 +411,29 @@ export async function initDb(): Promise<void> {
         state: stateById.get(t.id) ?? null,
       });
 
+    // Self-heal stored Q/E badges: a `state.qualification` computed while a bug was
+    // live leaves wrong badges frozen on the history card (the World Cup format once
+    // judged top-2 instead of top-4). For a finished tournament the qualifiers are
+    // fully determined, so recompute from final standings and persist any correction.
+    let qHealed = 0;
+    for (let i = 0; i < recent.length; i++) {
+      const st = botTournaments[i]?.state;
+      if (!st) continue;
+      const want = finishedQualification(st);
+      if (want && !sameQual(want, st.qualification)) {
+        st.qualification = want; // fix the in-memory card served this boot
+        persist(
+          prisma.botTournament.update({
+            where: { id: recent[i].id },
+            data: { state: st as unknown as Prisma.InputJsonValue },
+          }),
+          'healBotQualification'
+        );
+        qHealed++;
+      }
+    }
+    if (qHealed) console.log(`[db] healed qualification badges on ${qHealed} tournament card(s)`);
+
     // Self-heal CAREER trophy counts from the championship record (no state needed).
     // Season trophies are live-tracked + reset per season, so they're NOT rebuilt.
     const trophyByKey = new Map<string, number>();
@@ -1389,6 +1412,46 @@ const botSuperLeagueName = (seq: number) => `Bot Super League ${seq}`;
 
 /** A completed bot tournament is a Super League iff its final state had 16 teams. */
 const isSuperLeagueState = (state: TournamentState | null | undefined) => state?.size === 16;
+
+/** Recompute the group-stage Q/E badges for a FINISHED tournament purely from its
+ *  final standings — once every group game is done the qualifiers are fully
+ *  determined (top K of each group, plus the 2 best 3rd-placed in the 12-team
+ *  league). Used to self-heal history cards whose stored `qualification` was frozen
+ *  while a bug was live (the World Cup format once judged top-2 instead of top-4, so
+ *  its 3rd/4th-placed qualifiers were wrongly badged 'E'). Returns null when the
+ *  tournament has no knockout to qualify for. */
+function finishedQualification(st: TournamentState): Record<string, 'Q' | 'E'> | null {
+  if (st.isQualifier || !st.groups?.length) return null;
+  const K = st.superFormat === 'worldcup' ? 4 : 2; // direct qualifiers per group
+  const bestThirds = st.size === 12; // the 12-team league also takes the 2 best thirds
+  const ptsOf = (idx: number) => st.pointsTable[st.players[idx]?.id ?? '']?.points ?? 0;
+  const nrrOf = (idx: number) => st.pointsTable[st.players[idx]?.id ?? '']?.nrr ?? 0;
+  const rank = (ids: number[]) => [...ids].sort((a, b) => ptsOf(b) - ptsOf(a) || nrrOf(b) - nrrOf(a));
+  const out: Record<string, 'Q' | 'E'> = {};
+  const thirds: number[] = [];
+  for (const group of st.groups)
+    rank(group).forEach((idx, pos) => {
+      const id = st.players[idx]?.id;
+      if (!id) return;
+      if (pos < K) out[id] = 'Q';
+      else if (bestThirds && pos === K) thirds.push(idx); // 3rd-placed — decide via best-thirds
+      else out[id] = 'E';
+    });
+  if (bestThirds && thirds.length) {
+    const through = new Set(rank(thirds).slice(0, 2));
+    for (const idx of thirds) {
+      const id = st.players[idx]?.id;
+      if (id) out[id] = through.has(idx) ? 'Q' : 'E';
+    }
+  }
+  return out;
+}
+
+function sameQual(a: Record<string, 'Q' | 'E'>, b?: Record<string, 'Q' | 'E'>): boolean {
+  if (!b) return Object.keys(a).length === 0;
+  const ak = Object.keys(a);
+  return ak.length === Object.keys(b).length && ak.every((k) => a[k] === b[k]);
+}
 
 /** Persist one completed bot-league tournament and cache it for the history view. */
 export function recordBotTournament(input: {
