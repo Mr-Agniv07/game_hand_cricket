@@ -1757,6 +1757,10 @@ const playerSocket = (io: GameServer, p: TournamentPlayerEntry) =>
 /** Pre-generate the AI hype line for a fixture, grounded in the pair's head-to-head.
  *  One-shot per (tournament, match); cheap no-op if already done or no key. */
 function ensureMatchPreview(t: Tournament, index: number): void {
+  // The Qualifier is a rating round-robin — no knockouts, and its "winner" barely
+  // matters — so skip previews there (avoids nonsense "fighting for knockout spots"
+  // lines and saves free-tier calls). Pundit/recap already skip qualifiers too.
+  if (t.isQualifier) return;
   const fx = t.fixtures[index];
   if (!fx || fx.status === 'done') return;
   const p1 = t.players[fx.player1Idx];
