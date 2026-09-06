@@ -121,6 +121,98 @@
   color: #93c5fd;
   font-style: italic;
 }
+
+/* ── Draw ceremony (group reveal after bidding) ── */
+.drawOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: radial-gradient(circle at 50% 25%, #17233f, #080b12 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+  animation: drawFade 0.4s ease;
+}
+@keyframes drawFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.drawCard {
+  width: 100%;
+  max-width: 720px;
+  max-height: 94vh;
+  overflow-y: auto;
+  text-align: center;
+  color: #f1f5f9;
+}
+.drawKicker {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  color: #22c55e;
+  margin-bottom: 0.3rem;
+}
+.drawTitle {
+  font-size: clamp(1.6rem, 6vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.3rem;
+}
+.drawSub {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  margin-bottom: 1.4rem;
+}
+.drawGroups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.3rem;
+}
+.drawGroup {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.7rem 0.6rem;
+}
+.drawGroupTitle {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #22c55e;
+  margin-bottom: 0.5rem;
+}
+.drawBot {
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.3rem 0.4rem;
+  margin: 0.25rem 0;
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: 8px;
+  opacity: 0;
+  animation: drawPop 0.4s ease forwards;
+}
+@keyframes drawPop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.drawFoot {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-style: italic;
+}
 .aiPotm {
   font-size: 0.82rem;
   line-height: 1.4;

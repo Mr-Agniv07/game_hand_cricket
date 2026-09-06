@@ -58,6 +58,8 @@ export default function BotLeague({ socket, user, onClose }: Props) {
   // 3 headlines shown at a time, picked at random from the news pool and rotated
   // every few seconds so the feed feels alive and looks different each time.
   const [newsShown, setNewsShown] = useState<string[]>([]);
+  // The Draw ceremony overlay (group reveal after bidding closes), or null.
+  const [draw, setDraw] = useState<{ format: number; isSuperLeague: boolean; groups: string[][] } | null>(null);
   // Ball-by-ball live score for the watched league, pushed between polls so the
   // spectate scoreboard advances continuously instead of jumping every 3s.
   const [liveOverride, setLiveOverride] = useState<{
@@ -129,17 +131,29 @@ export default function BotLeague({ socket, user, onClose }: Props) {
       load();
       setTimeout(() => setMsg(''), 8000);
     }
+    function onDrawReveal(p: {
+      format: number;
+      isSuperLeague: boolean;
+      groups: string[][];
+      revealMs: number;
+    }) {
+      setDraw({ format: p.format, isSuperLeague: p.isSuperLeague, groups: p.groups });
+      load();
+      setTimeout(() => setDraw(null), p.revealMs);
+    }
     socket.on('bot_league_started', onStarted);
     socket.on('bot_rankings_reset', onReset);
     socket.on('bid_placed', onBid);
     socket.on('bot_league_stopped', onStopped);
     socket.on('bot_season_ended', onSeasonEnded);
+    socket.on('bot_draw_reveal', onDrawReveal);
     return () => {
       socket.off('bot_league_started', onStarted);
       socket.off('bot_rankings_reset', onReset);
       socket.off('bid_placed', onBid);
       socket.off('bot_league_stopped', onStopped);
       socket.off('bot_season_ended', onSeasonEnded);
+      socket.off('bot_draw_reveal', onDrawReveal);
     };
   }, [socket, load]);
 
@@ -616,6 +630,36 @@ export default function BotLeague({ socket, user, onClose }: Props) {
             </div>
           );
         })()}
+
+      {/* 🎩 Draw ceremony: after bidding closes, the random group draw is revealed. */}
+      {draw && (
+        <div className={styles.drawOverlay}>
+          <div className={styles.drawCard}>
+            <div className={styles.drawKicker}>🎩 THE DRAW</div>
+            <div className={styles.drawTitle}>
+              {draw.isSuperLeague ? 'Super League' : `${draw.format}-Over League`}
+            </div>
+            <div className={styles.drawSub}>The groups have been drawn…</div>
+            <div className={styles.drawGroups}>
+              {draw.groups.map((g, gi) => (
+                <div key={gi} className={styles.drawGroup}>
+                  <div className={styles.drawGroupTitle}>Group {String.fromCharCode(65 + gi)}</div>
+                  {g.map((name, ni) => (
+                    <div
+                      key={name}
+                      className={styles.drawBot}
+                      style={{ animationDelay: `${(gi * g.length + ni) * 0.12 + 0.3}s` }}
+                    >
+                      {name}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className={styles.drawFoot}>Matches begin shortly…</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

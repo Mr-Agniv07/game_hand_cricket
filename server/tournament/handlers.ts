@@ -1383,16 +1383,20 @@ function computeLiveInsightsFresh(
 }
 
 export function publicTournamentState(t: Tournament): TournamentState {
+  // During a bot league's bidding window the DRAW is a secret — hide the groups and
+  // fixtures so spectators bid before knowing the pairings; they're revealed in the
+  // Draw ceremony once bidding closes.
+  const hideDraw = !!t.isBotLeague && t.phase === 'waiting';
   return {
     id: t.id,
     code: t.code,
     overs: t.overs,
     wickets: t.wickets,
     size: t.size,
-    groups: t.groups,
+    groups: hideDraw ? [] : t.groups,
     players: t.players.map((p): TournamentPlayer => ({ id: p.id, name: p.name })),
     phase: t.phase,
-    fixtures: t.fixtures.map(
+    fixtures: (hideDraw ? [] : t.fixtures).map(
       (f): FixtureMatch => ({
         matchNum: f.matchNum,
         player1Idx: f.player1Idx,
@@ -1473,44 +1477,26 @@ export function generateFixture(tournament: Tournament): void {
   };
 
   const all = tournament.players.map((_, i) => i);
+  // The group DRAW is a pure RANDOM shuffle (football/UCL-style) for every format — no
+  // rank seeding — so pairings are unpredictable and the pre-tournament bidding is a real
+  // gamble. Groups are hidden during the bidding window and only revealed in the Draw
+  // ceremony afterwards (see publicTournamentState + the reveal in startBotLeague).
+  const order = shuffled(all);
   if (tournament.isQualifier) {
     // Qualifier: one group, single round-robin. No knockouts — just rating games.
     buildGroups([all]);
   } else if (tournament.size === 16 && tournament.superFormat === 'worldcup') {
-    // "World Cup" Super League: two groups of EIGHT, full round-robin (7 games each).
-    // Seed alternately by rank so the top seeds split across the groups; top 4 of each
-    // group → quarters (A1·B4, A2·B3, A3·B2, A4·B1).
-    const order = tournament.isBotLeague ? all : shuffled(all);
-    buildGroups([
-      [order[0], order[2], order[4], order[6], order[8], order[10], order[12], order[14]],
-      [order[1], order[3], order[5], order[7], order[9], order[11], order[13], order[15]],
-    ]);
+    // "World Cup": two random groups of EIGHT, full round-robin (7 games each).
+    buildGroups([order.slice(0, 8), order.slice(8, 16)]);
   } else if (tournament.size === 16) {
-    // Super League (Super 8 format): all 16, four groups of 4. A bot field seeds by rank
-    // (1st/5th/9th/13th to A, etc.) so the top seeds are kept apart; a human draw is
-    // shuffled. Top 2 of each group → Super 8.
-    const order = tournament.isBotLeague ? all : shuffled(all);
-    buildGroups([
-      [order[0], order[4], order[8], order[12]],
-      [order[1], order[5], order[9], order[13]],
-      [order[2], order[6], order[10], order[14]],
-      [order[3], order[7], order[11], order[15]],
-    ]);
+    // Super 8 format: four random groups of 4.
+    buildGroups([order.slice(0, 4), order.slice(4, 8), order.slice(8, 12), order.slice(12, 16)]);
   } else if (tournament.size === 12) {
-    // Bot League: top 12, three groups of 4, rank-distributed (A=1,4,7,10 etc.).
-    buildGroups([
-      [0, 3, 6, 9],
-      [1, 4, 7, 10],
-      [2, 5, 8, 11],
-    ]);
+    // Bot League: three random groups of 4.
+    buildGroups([order.slice(0, 4), order.slice(4, 8), order.slice(8, 12)]);
   } else if (tournament.size === 8) {
-    // Two groups of 4, single round-robin. A bot field seeds by rank; a human draw
-    // is shuffled. Top seeds kept apart.
-    const order = tournament.isBotLeague ? all : shuffled(all);
-    buildGroups([
-      [order[0], order[2], order[4], order[6]],
-      [order[1], order[3], order[5], order[7]],
-    ]);
+    // Two random groups of 4.
+    buildGroups([order.slice(0, 4), order.slice(4, 8)]);
   } else {
     // 4 players: one group, single round-robin.
     buildGroups([all]);
@@ -2098,6 +2084,9 @@ function beginTournamentMatch(
 /** How long bidding stays open before a started bot league actually plays. */
 const BOT_LEAGUE_BID_WINDOW_MS = 2 * 60_000;
 
+/** How long the Draw ceremony (group reveal) shows after bidding, before match 1. */
+const DRAW_REVEAL_MS = 15_000;
+
 /** Pre-match betting window: each bot-league match is held this long before its
  *  first ball so spectators can place match bids on it. */
 const PRE_MATCH_WINDOW_MS = 30_000;
@@ -2160,13 +2149,26 @@ export function startBotLeague(
   ensureMatchPreview(tournament, 0); // first match's hype line, ready during the bidding window
   io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
 
-  // After the bidding window, kick the matches off.
+  // After the bidding window: reveal the draw, then kick off match 1 after the ceremony.
   setTimeout(() => {
     if (tournaments.get(tournament.code) !== tournament || tournament.phase !== 'waiting') return;
+    // Bidding closed → flip to in_progress (this unhides the groups/fixtures in the
+    // public state) and broadcast the Draw ceremony with each group's bots.
     tournament.phase = 'in_progress';
     io.to('t:' + tournament.id).emit('tournament_state', publicTournamentState(tournament));
     liveBidsStart(io, tournament); // start live in-play prediction markets for spectators
-    startTournamentMatch(io, rooms, tournament, 0);
+    io.emit('bot_draw_reveal', {
+      id: tournament.id,
+      format: tournament.format ?? tournament.overs,
+      isSuperLeague: !!tournament.isSuperLeague,
+      groups: tournament.groups.map((g) => g.map((idx) => tournament.players[idx]?.name ?? '?')),
+      revealMs: DRAW_REVEAL_MS,
+    });
+    // Hold ~15s on the draw, then start the first match.
+    setTimeout(() => {
+      if (tournaments.get(tournament.code) === tournament && tournament.phase === 'in_progress')
+        startTournamentMatch(io, rooms, tournament, 0);
+    }, DRAW_REVEAL_MS);
   }, BOT_LEAGUE_BID_WINDOW_MS);
 
   return tournament;
